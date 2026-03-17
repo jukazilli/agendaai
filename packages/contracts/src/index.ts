@@ -30,10 +30,12 @@ export {
   entityIdSchema,
   moneyAmountSchema,
   nonEmptyStringSchema,
+  timeOfDaySchema,
   tenantContextSourceSchema,
   tenantIdSchema,
   tenantScopedMetaSchema,
-  tenantSlugSchema
+  tenantSlugSchema,
+  weekdayIndexSchema
 } from "./v1/shared";
 
 export {
@@ -57,6 +59,27 @@ export type { Client, ClientContactInput } from "./v1/client";
 
 export { createServiceSchema, serviceSchema, serviceStatusSchema } from "./v1/service";
 export type { CreateServiceCommand, Service } from "./v1/service";
+
+export {
+  createProfessionalSchema,
+  professionalSchema,
+  professionalStatusSchema,
+  specialtyIdsSchema
+} from "./v1/professional";
+export type { CreateProfessionalCommand, Professional } from "./v1/professional";
+
+export {
+  availabilityRangeSchema,
+  availabilityRuleInputSchema,
+  availabilityRuleSchema,
+  setAvailabilityRulesSchema
+} from "./v1/availability";
+export type {
+  AvailabilityRange,
+  AvailabilityRule,
+  AvailabilityRuleInput,
+  SetAvailabilityRulesCommand
+} from "./v1/availability";
 
 export {
   bookingSchema,

@@ -22,6 +22,8 @@ export const emailSchema = z.string().trim().email();
 export const phoneSchema = z.string().trim().min(1);
 export const moneyAmountSchema = z.number().finite().nonnegative();
 export const durationMinutesSchema = z.number().int().positive();
+export const weekdayIndexSchema = z.number().int().min(0).max(6);
+export const timeOfDaySchema = z.string().regex(/^\d{2}:\d{2}$/);
 
 export const tenantSlugSchema = z
   .string()
@@ -54,4 +56,3 @@ export const bookingStatusSchema = z.enum(bookingStatusValues);
 export const contractEnvelopeSchema = z.object({
   version: z.literal(contractVersion)
 });
-

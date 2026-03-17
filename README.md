@@ -17,7 +17,9 @@ Este repositorio foi estruturado a partir do ciclo:
 - ADR de auth, tenancy e slug publicada;
 - `B-03` concluido com tokens e foundations em `packages/ui`;
 - `B-04` concluido com schemas versionados em `packages/contracts`;
-- `B-05` agora e a proxima frente estrutural.
+- `B-05` concluido com runtime multi-tenant em `services/api-rest`;
+- `B-06` concluido com profissionais, disponibilidade e slots em `services/api-rest`;
+- `B-07` agora e a proxima frente estrutural.
 
 ## Estrutura principal
 
@@ -42,4 +44,4 @@ Este repositorio foi estruturado a partir do ciclo:
 
 ## Proximo passo recomendado
 
-Abrir `B-05` para implementar `api-rest` com tenancy em cima dos contracts e schemas base ja materializados.
+Abrir `B-07` para implementar o booking publico em cima do catalogo, equipe e slots ja materializados.

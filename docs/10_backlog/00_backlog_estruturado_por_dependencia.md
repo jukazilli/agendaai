@@ -13,8 +13,8 @@
 
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto | Evidencia esperada |
 | --- | --- | --- | --- | --- | --- | --- |
-| 5 | B-05 | Implementar `api-rest` com tenancy | B-02, B-04 | NAO IMPLEMENTADO | auth, tenant context e CRUD base funcionando | endpoints e testes |
-| 6 | B-06 | Implementar catalogo, equipe e disponibilidade | B-05 | NAO IMPLEMENTADO | servicos, profissionais e horarios operando | fluxos API e dados persistidos |
+| 5 | B-05 | Implementar `api-rest` com tenancy | B-02, B-04 | FECHADO | auth, tenant context e CRUD base funcionando | runtime em `services/api-rest` com endpoints e testes |
+| 6 | B-06 | Implementar catalogo, equipe e disponibilidade | B-05 | FECHADO | servicos, profissionais e horarios operando | fluxos API, slots e persistencia em memoria com testes |
 | 7 | B-07 | Implementar booking publico | B-03, B-05, B-06 | NAO IMPLEMENTADO | jornada publica fecha sem sinal obrigatorio | UI funcional e testes |
 | 8 | B-08 | Integrar opcao de sinal/pagamento | B-07 | NAO IMPLEMENTADO | reserva com sinal confirmada por provider | webhook e reconciliacao basica |
 

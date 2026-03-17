@@ -9,11 +9,15 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "lint": "tsc --project tsconfig.json --noEmit"
+    "lint": "tsc --project tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@agendaai/contracts": "workspace:*",
-    "@agendaai/domain": "workspace:*"
+    "@agendaai/domain": "workspace:*",
+    "fastify": "^5.2.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3"
   }
 }
-
