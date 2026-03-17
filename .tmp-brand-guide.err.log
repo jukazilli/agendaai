@@ -1,0 +1,22 @@
+127.0.0.1 - - [16/Mar/2026 13:30:47] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 13:30:47] "GET /styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 13:30:47] "GET /guide.js HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 13:30:48] code 404, message File not found
+127.0.0.1 - - [16/Mar/2026 13:30:48] "GET /favicon.ico HTTP/1.1" 404 -
+127.0.0.1 - - [16/Mar/2026 13:31:30] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 13:31:30] "GET /styles.css HTTP/1.1" 304 -
+127.0.0.1 - - [16/Mar/2026 13:31:30] "GET /guide.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Mar/2026 13:31:30] "GET /favicon.svg HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 14:11:44] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 14:11:44] "GET /styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 14:11:44] "GET /guide.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Mar/2026 14:23:24] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 14:23:32] "GET / HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 14:23:33] "GET /styles.css HTTP/1.1" 200 -
+127.0.0.1 - - [16/Mar/2026 14:23:33] code 404, message File not found
+127.0.0.1 - - [16/Mar/2026 14:23:33] code 404, message File not found
+127.0.0.1 - - [16/Mar/2026 14:23:33] "GET /assets/brand/agendaai-wordmark.svg HTTP/1.1" 404 -
+127.0.0.1 - - [16/Mar/2026 14:23:33] "GET /assets/brand/agendaai-symbol.svg HTTP/1.1" 404 -
+127.0.0.1 - - [16/Mar/2026 14:23:33] "GET /guide.js HTTP/1.1" 304 -
+127.0.0.1 - - [16/Mar/2026 14:23:33] code 404, message File not found
+127.0.0.1 - - [16/Mar/2026 14:23:33] "GET /assets/brand/agendaai-wordmark.svg HTTP/1.1" 404 -

@@ -1,0 +1,8 @@
+<svg width="820" height="180" viewBox="0 0 820 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect x="22" y="104" width="56" height="16" rx="8" fill="#EEF4F2"/>
+  <rect x="22" y="78" width="78" height="16" rx="8" fill="#EEF4F2"/>
+  <rect x="22" y="52" width="98" height="16" rx="8" fill="#EEF4F2"/>
+  <path d="M54 124L66 136L112 90L100 78L54 124Z" fill="#0B7A75"/>
+  <path d="M96 52V36H146V86H130V64L110 84L98 72L118 52H96Z" fill="#0B7A75"/>
+  <text x="184" y="118" font-family="Sora, Manrope, sans-serif" font-size="76" font-weight="600" letter-spacing="-2.2" fill="#EEF4F2">AgendaAI</text>
+</svg>

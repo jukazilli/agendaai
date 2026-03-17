@@ -1,0 +1,334 @@
+---
+import GuideLayout from "../layouts/GuideLayout.astro";
+---
+
+<GuideLayout>
+  <header class="topbar">
+    <a class="topbar-brand" href="#cover">
+      <img class="topbar-mark" src="/brand/agendaai-wordmark-reverse.svg" alt="AgendaAI" />
+      <span class="topbar-guide">wordmark guide</span>
+    </a>
+
+    <nav class="topbar-nav" aria-label="Navegacao do guide">
+      <a href="#wordmark">Wordmark</a>
+      <a href="#simbolo">Simbolo</a>
+      <a href="#tipografia">Tipografia</a>
+      <a href="#cores">Cores</a>
+      <a href="#regras">Regras</a>
+    </nav>
+  </header>
+
+  <main class="guide">
+    <section class="hero" id="cover">
+      <div class="hero-copy">
+        <p class="eyebrow">Documento oficial - v5 fundacao Astro</p>
+        <h1>
+          Agenda para
+          <span>retorno recorrente.</span>
+        </h1>
+        <p class="hero-description">
+          Esta superficie agora roda na stack documentada do projeto. Ela concentra
+          o wordmark, a hierarquia tipografica e as regras iniciais que vao orientar
+          booking, shell administrativo e campanhas.
+        </p>
+        <div class="hero-tags">
+          <span>booking publico</span>
+          <span>operacao diaria</span>
+          <span>retencao</span>
+          <span>recorrencia</span>
+        </div>
+      </div>
+
+      <article class="hero-stage" aria-label="Wordmark primario">
+        <div class="hero-stage-meta">
+          <span>assinatura proprietaria</span>
+          <span>display editorial / sans neutra</span>
+        </div>
+        <div class="hero-stage-card">
+          <img class="hero-stage-lockup" src="/brand/agendaai-wordmark.svg" alt="Wordmark oficial de AgendaAI" />
+        </div>
+        <div class="hero-stage-foot">
+          <article>
+            <span>nome</span>
+            <strong>AgendaAI</strong>
+          </article>
+          <article>
+            <span>papel</span>
+            <strong>wordmark canonico</strong>
+          </article>
+          <article>
+            <span>hero</span>
+            <strong>Bodoni Moda + Manrope</strong>
+          </article>
+        </div>
+      </article>
+    </section>
+
+    <section class="guide-section" id="wordmark">
+      <div class="section-heading">
+        <p class="eyebrow">01. Wordmark</p>
+        <h2>A assinatura continua sans. O discurso visual fica mais editorial.</h2>
+      </div>
+
+      <div class="wordmark-grid">
+        <article class="spec-card spec-card--wide">
+          <p class="card-label">lockup oficial</p>
+          <div class="lockup-board">
+            <div class="lockup-row">
+              <img class="lockup-image" src="/brand/agendaai-wordmark.svg" alt="Lockup oficial de AgendaAI" />
+            </div>
+            <div class="lockup-rule"></div>
+            <div class="lockup-metrics">
+              <span>clear space = largura do pilar final</span>
+              <span>tracking contido</span>
+              <span>wordmark proprietario em sans</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="spec-card">
+          <p class="card-label">uso canonico</p>
+          <ul>
+            <li>wordmark inteiro em ink</li>
+            <li>vetor ascendente sempre em teal</li>
+            <li>reverso oficial para barras e shells escuros</li>
+            <li>simbolo isolado para avatar e favicon</li>
+          </ul>
+        </article>
+
+        <article class="spec-card">
+          <p class="card-label">semantica</p>
+          <ul>
+            <li>barras: agenda, fila e repeticao operacional</li>
+            <li>vetor diagonal: avancar sem perder direcao</li>
+            <li>pilar final: decisao, fechamento e caixa</li>
+            <li>geometria curta: leitura boa em favicon e shell</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide-section" id="simbolo">
+      <div class="section-heading">
+        <p class="eyebrow">02. Simbolo</p>
+        <h2>Direcao, repeticao e decisao em um bloco curto.</h2>
+      </div>
+
+      <div class="symbol-layout">
+        <article class="construction-card">
+          <div class="construction-grid"></div>
+          <img class="construction-symbol-image" src="/brand/agendaai-symbol.svg" alt="Construcao do simbolo de AgendaAI" />
+        </article>
+
+        <article class="card">
+          <p class="card-label">aplicacao</p>
+          <ul>
+            <li>avatar, favicon e pontos de entrada curtos</li>
+            <li>apoio em shell, header e estados vazios</li>
+            <li>nunca substituir o lockup completo em hero institucional</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide-section" id="tipografia">
+      <div class="section-heading">
+        <p class="eyebrow">03. Tipografia</p>
+        <h2>Bodoni Moda abre a leitura. Manrope organiza a operacao.</h2>
+      </div>
+
+      <div class="type-grid">
+        <article class="type-card">
+          <p class="card-label">display editorial / bodoni moda</p>
+          <h3 class="type-display">AgendaAI transforma agenda em retorno.</h3>
+        </article>
+        <article class="type-card">
+          <p class="card-label">title / manrope</p>
+          <h4 class="type-title">Fluxo publico e shell administrativo falam a mesma lingua.</h4>
+        </article>
+        <article class="type-card">
+          <p class="card-label">body / manrope</p>
+          <p class="type-body">
+            O destaque aparece por escala e ritmo, nao por excesso de peso. O corpo
+            permanece calmo e funcional para rotina critica.
+          </p>
+        </article>
+        <article class="type-card">
+          <p class="card-label">mono / ibm plex mono</p>
+          <code class="type-code">const bookingStatus = "confirmed";</code>
+        </article>
+      </div>
+
+      <div class="type-hierarchy">
+        <article class="spec-card spec-card--wide">
+          <p class="card-label">escala oficial</p>
+          <div class="type-scale-list">
+            <article class="type-scale-row">
+              <strong>display.l</strong>
+              <span>Bodoni Moda 64/64 / 500</span>
+              <p>capa, hero e declaracao principal de marca</p>
+            </article>
+            <article class="type-scale-row">
+              <strong>display.m</strong>
+              <span>Bodoni Moda 44/48 / 500</span>
+              <p>abertura de modulo ou chamada principal</p>
+            </article>
+            <article class="type-scale-row">
+              <strong>title.l</strong>
+              <span>Manrope 28/36 / 500</span>
+              <p>titulo de pagina, secao critica e resumo operacional</p>
+            </article>
+            <article class="type-scale-row">
+              <strong>title.m</strong>
+              <span>Manrope 20/28 / 500</span>
+              <p>cards, drawers, blocos secundarios e tabelas detalhadas</p>
+            </article>
+            <article class="type-scale-row">
+              <strong>body.l</strong>
+              <span>Manrope 18/30 / 400</span>
+              <p>texto corrido, empty state e explicacao de fluxo</p>
+            </article>
+            <article class="type-scale-row">
+              <strong>body.m</strong>
+              <span>Manrope 15/24 / 400</span>
+              <p>filtros, labels, linhas densas e apoio de interface</p>
+            </article>
+            <article class="type-scale-row">
+              <strong>caption</strong>
+              <span>Manrope 12/18 / 500</span>
+              <p>metadado, data, status auxiliar e texto de sistema</p>
+            </article>
+            <article class="type-scale-row">
+              <strong>mono.s</strong>
+              <span>IBM Plex Mono 12/16 / 500</span>
+              <p>horario, ID, codigo, valor tecnico e leitura tabular curta</p>
+            </article>
+          </div>
+        </article>
+
+        <article class="card">
+          <p class="card-label">prioridade de leitura</p>
+          <ul>
+            <li>primeiro nivel: hero, titulo da acao, CTA e disponibilidade critica</li>
+            <li>segundo nivel: contexto, cliente, agrupamento e status principal</li>
+            <li>terceiro nivel: ajuda, metadado, observacao e detalhe tecnico</li>
+            <li>limitar o viewport a no maximo tres niveis concorrentes</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide-section" id="cores">
+      <div class="section-heading">
+        <p class="eyebrow">04. Cores</p>
+        <h2>Paleta contida. Contraste alto. Acento reservado.</h2>
+      </div>
+
+      <div class="palette-grid">
+        <article class="swatch">
+          <div class="swatch-block" style="background:#F3F8F7"></div>
+          <span>#F3F8F7</span>
+          <strong>canvas</strong>
+        </article>
+        <article class="swatch">
+          <div class="swatch-block" style="background:#FBFEFD"></div>
+          <span>#FBFEFD</span>
+          <strong>surface</strong>
+        </article>
+        <article class="swatch">
+          <div class="swatch-block" style="background:#13252B"></div>
+          <span>#13252B</span>
+          <strong>ink</strong>
+        </article>
+        <article class="swatch">
+          <div class="swatch-block" style="background:#0B7A75"></div>
+          <span>#0B7A75</span>
+          <strong>teal</strong>
+        </article>
+        <article class="swatch">
+          <div class="swatch-block" style="background:#D86A43"></div>
+          <span>#D86A43</span>
+          <strong>ember</strong>
+        </article>
+        <article class="swatch">
+          <div class="swatch-block" style="background:#D9E7E3"></div>
+          <span>#D9E7E3</span>
+          <strong>mist</strong>
+        </article>
+      </div>
+    </section>
+
+    <section class="guide-section" id="regras">
+      <div class="section-heading">
+        <p class="eyebrow">05. Regras</p>
+        <h2>O que impede o sistema de perder a calma.</h2>
+      </div>
+
+      <div class="rules-grid">
+        <article class="card card--positive">
+          <p class="card-label">fazer</p>
+          <ul>
+            <li>usar o display editorial apenas nas aberturas certas</li>
+            <li>deixar o corpo respirar com mais entrelinha e menos peso</li>
+            <li>preservar o reverse oficial em barras e headers profundos</li>
+            <li>manter o wordmark fora de modas tipograficas de campanha</li>
+          </ul>
+        </article>
+        <article class="card card--negative">
+          <p class="card-label">nao fazer</p>
+          <ul>
+            <li>usar serif editorial em dashboard, tabela ou agenda</li>
+            <li>resolver hierarquia com bold excessivo</li>
+            <li>copiar referencias externas fora do escopo homologado</li>
+            <li>trocar o wordmark canonico por titulo diagramado</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer-copy">
+      <p class="eyebrow">Assets e referencia</p>
+      <h2>AgendaAI deve respirar como marca calma e agir como sistema de rotina viva.</h2>
+      <p class="footer-note">
+        Documentacao complementar no repositorio: <code>docs/04_padroes_ui/</code> e
+        <code>docs/12_legado/referencias_visuais/</code>.
+      </p>
+    </div>
+
+    <div class="footer-links">
+      <a href="/brand/agendaai-wordmark.svg" target="_blank">agendaai-wordmark.svg</a>
+      <a href="/brand/agendaai-wordmark-reverse.svg" target="_blank">agendaai-wordmark-reverse.svg</a>
+      <a href="/brand/agendaai-wordmark-mono.svg" target="_blank">agendaai-wordmark-mono.svg</a>
+      <a href="/brand/agendaai-symbol.svg" target="_blank">agendaai-symbol.svg</a>
+    </div>
+  </footer>
+
+  <script is:inline>
+    const links = Array.from(document.querySelectorAll(".topbar-nav a"));
+    const sections = links
+      .map((link) => document.querySelector(link.getAttribute("href")))
+      .filter(Boolean);
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const id = `#${entry.target.id}`;
+          const link = links.find((item) => item.getAttribute("href") === id);
+          if (!link) return;
+          if (entry.isIntersecting) {
+            links.forEach((item) => item.classList.remove("is-active"));
+            link.classList.add("is-active");
+          }
+        });
+      },
+      {
+        rootMargin: "-35% 0px -45% 0px",
+        threshold: 0.1
+      }
+    );
+
+    sections.forEach((section) => observer.observe(section));
+  </script>
+</GuideLayout>

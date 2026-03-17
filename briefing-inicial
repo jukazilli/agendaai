@@ -1,0 +1,671 @@
+Perfeito. Abaixo está o **briefing inicial detalhado** já pensado para servir como base real de produto, posicionamento, arquitetura conceitual e próximos passos do teu pipeline:
+
+**Ideia > Briefing > UI/UX Research > Style Guides (com wordmark) > Design System > MAE > MFEE**
+
+---
+
+# Briefing inicial — SaaS de agendamentos com retenção, recorrência e upsell
+
+## 1. Enquadramento do produto
+
+Este projeto **não deve nascer como “mais um app de agendamento”**.
+
+Ele deve nascer como uma **plataforma SaaS de agendamentos para negócios de serviços**, focada em três resultados de negócio:
+
+* **organizar a operação diária**;
+* **reter clientes e aumentar recorrência**;
+* **gerar mais receita por cliente já adquirido**, reduzindo dependência de marketing de aquisição.
+
+A agenda é apenas a porta de entrada.
+O verdadeiro produto é um sistema que ajuda o negócio a:
+
+* lotar a agenda;
+* reduzir no-show e cancelamentos;
+* manter relacionamento com a base;
+* identificar oportunidades de retorno;
+* fazer upsell e cross-sell;
+* acompanhar caixa, receita e desempenho.
+
+## 2. Leitura competitiva atual
+
+O mercado já não vende só “calendário com horário disponível”.
+Os principais players combinam agenda com elementos de CRM, pagamentos, lembretes, marketing e retenção.
+
+O **Simples Agenda** já comunica agendamento online, controle financeiro, fluxo de caixa, cadastro de clientes, relatório de agendas, relatório de vendas por cliente e dashboard financeiro. Ou seja: o básico esperado do mercado brasileiro já inclui agenda + financeiro + clientes + relatórios. ([simplesagenda.com.br][1])
+
+No mercado internacional, o **Fresha** já posiciona como padrão recursos como booking 24/7, depósitos e pagamentos antecipados para reduzir no-show, CRM com visão 360° do cliente, relatórios de retenção e frequência de visitas, além de recomendações automáticas de add-ons e produtos para elevar o ticket médio. ([Fresha][2])
+
+O ecossistema da **Square** combina booking com mensagens centralizadas, campanhas de e-mail e SMS para gerar repeat sales, loyalty integrada ao marketing, gift cards e uma camada de comunicação que organiza confirmações, cancelamentos e reagendamentos em um só lugar. ([Square][3])
+
+Plataformas como **Mindbody** e **Vagaro** reforçam ainda mais essa direção: mensagens automáticas de win-back para clientes que sumiram, campanhas baseadas em comportamento, outreach para clientes perdidos, aniversários, follow-ups e promoções segmentadas. ([Mindbody][4])
+
+**Conclusão competitiva:**
+o teu produto só será percebido como superior se entregar não apenas agenda, mas um sistema que cuida do ciclo completo:
+
+**agendamento → comparecimento → receita → relacionamento → retorno → novo consumo**
+
+## 3. Tese central do produto
+
+A tese do produto é:
+
+**Negócios de serviço não precisam apenas de uma agenda. Precisam de uma máquina de recorrência.**
+
+O sistema deve ajudar o cliente administrador a responder perguntas como:
+
+* quem agendou e não voltou?
+* quem está prestes a voltar pelo padrão de consumo?
+* quais serviços geram maior retorno?
+* quais clientes compram mais?
+* quais clientes aceitam upgrades?
+* quais horários ficam ociosos?
+* que campanha devo disparar hoje?
+* quem merece uma oferta de reativação?
+* quanto da minha receita veio de clientes recorrentes?
+
+## 4. Visão do produto
+
+Construir uma plataforma multi-tenant onde cada negócio cria sua conta, define sua slug e passa a operar uma experiência própria de agendamento e relacionamento.
+
+Exemplo:
+`seudominio.com/barber-shop`
+
+No futuro:
+
+* domínio próprio por tenant;
+* branding mais avançado;
+* fluxos customizados;
+* personalizações por pacote de horas.
+
+Mas o **core do produto** precisa ser forte por si só antes disso.
+
+## 5. Objetivo principal do produto
+
+Entregar um SaaS que seja percebido pelo mercado como:
+
+* **mais completo que os concorrentes simples**;
+* **mais prático que os concorrentes pesados**;
+* **mais orientado à receita e retenção do que à agenda pura**.
+
+## 6. Problema que o produto resolve
+
+Negócios com agendamento normalmente sofrem com:
+
+* agenda desorganizada;
+* cancelamentos e faltas;
+* pouca previsibilidade de receita;
+* dificuldade em controlar fluxo de caixa;
+* baixa reativação de clientes inativos;
+* perda de vendas por não acompanhar histórico do cliente;
+* dependência excessiva de anúncios para trazer novos clientes;
+* ausência de visão clara de frequência, ticket médio e recorrência.
+
+O produto deve resolver isso com uma camada operacional e uma camada relacional.
+
+## 7. Público-alvo inicial
+
+O produto nasce como **core horizontal**, mas a comunicação inicial deve mirar negócios com hora marcada, como:
+
+* barbearias;
+* salões;
+* estética;
+* clínicas leves;
+* studios;
+* prestadores de serviços com agenda.
+
+A lógica interna deve ser flexível, mas o posicionamento comercial inicial precisa ser claro.
+
+## 8. Proposta de valor
+
+### Para o cliente final
+
+Agendar rápido, com confiança, em uma experiência clara e simples.
+
+### Para o gestor
+
+Controlar agenda, caixa, clientes e retorno em um só lugar.
+
+### Proposta principal
+
+**“Um sistema de agendamentos que ajuda seu negócio a vender de novo para quem já comprou.”**
+
+### Proposta estendida
+
+**“Mais do que agenda: retenção, relacionamento, recorrência e faturamento.”**
+
+## 9. Pilares do produto
+
+### Pilar 1 — Operação
+
+Garantir o funcionamento diário do negócio:
+
+* serviços;
+* profissionais;
+* horários;
+* agenda;
+* status;
+* reagendamento;
+* cancelamento;
+* confirmação de execução.
+
+### Pilar 2 — Financeiro operacional
+
+Conectar operação à receita real:
+
+* entradas e saídas;
+* fluxo de caixa;
+* despesas fixas;
+* despesas variáveis;
+* despesas parceladas;
+* receitas fixas e variáveis;
+* receita confirmada apenas após execução manual do atendimento.
+
+### Pilar 3 — CRM e carteira de clientes
+
+Transformar cadastro em inteligência comercial:
+
+* histórico de agendamentos;
+* histórico de compras;
+* último atendimento;
+* último consumo;
+* frequência;
+* ticket médio;
+* serviços preferidos;
+* profissional preferido;
+* segmentação.
+
+### Pilar 4 — Retenção
+
+Manter o cliente ativo:
+
+* lembretes;
+* pós-atendimento;
+* campanhas de retorno;
+* mensagens de win-back;
+* promoções segmentadas;
+* aniversários;
+* alertas de inatividade.
+
+### Pilar 5 — Upsell e cross-sell
+
+Fazer o sistema sugerir novas oportunidades:
+
+* upgrade de serviço;
+* add-ons;
+* combos;
+* pacotes;
+* serviços complementares;
+* promoções baseadas em histórico.
+
+### Pilar 6 — Comunicação
+
+Manter o negócio próximo do cliente:
+
+* WhatsApp;
+* SMS;
+* e-mail;
+* central de mensagens;
+* histórico de contatos;
+* lembretes;
+* notificações;
+* campanhas.
+
+## 10. Escopo funcional do core v1
+
+## 10.1 Interface pública do cliente final
+
+Fluxo simples, sem inventar moda.
+
+Jornada:
+
+* acesso pela slug;
+* escolha de profissional;
+* escolha de serviço;
+* escolha de data e horário;
+* preenchimento de dados;
+* validação de pré-pagamento/sinal;
+* confirmação da reserva;
+* envio de notificação por WhatsApp/SMS;
+* reagendamento/cancelamento quando aplicável.
+
+### Regras
+
+* se o serviço exigir pré-pagamento, o horário só é reservado após validação;
+* se não exigir, a reserva pode ser confirmada diretamente;
+* lembretes e confirmações devem reduzir no-show sem criar atrito.
+
+## 10.2 Interface administrativa
+
+Painel com foco em clareza operacional.
+
+Módulos mínimos:
+
+* onboarding da conta;
+* criação de tenant;
+* definição de slug;
+* profissionais;
+* serviços;
+* catálogos;
+* horários;
+* agenda/calendário;
+* clientes;
+* caixa;
+* relatórios;
+* comunicação;
+* configurações.
+
+## 10.3 Agenda e calendário
+
+O painel precisa ter:
+
+* agenda do dia;
+* agenda semanal;
+* calendário;
+* visão por profissional;
+* visão por unidade no futuro;
+* status do agendamento.
+
+Status mínimos:
+
+* pendente;
+* aguardando pagamento;
+* confirmado;
+* concluído;
+* cancelado;
+* faltou;
+* reagendado.
+
+## 10.4 Financeiro
+
+Módulo essencial do produto, não acessório.
+
+Funcionalidades:
+
+* entradas;
+* saídas;
+* plano de contas simplificado;
+* despesas fixas;
+* despesas variáveis;
+* despesas parceladas;
+* receitas recorrentes e avulsas;
+* conciliação manual inicial;
+* vinculação da receita ao atendimento concluído.
+
+Regra central:
+**agendamento não concluído não vira receita realizada.**
+
+## 10.5 Carteira de clientes
+
+Esse módulo deve ser tratado como um dos núcleos do produto.
+
+Dados importantes:
+
+* último agendamento;
+* última compra;
+* frequência média;
+* total gasto;
+* ticket médio;
+* ticket máximo;
+* serviços consumidos;
+* intervalo médio entre visitas;
+* status de relacionamento.
+
+Segmentos mínimos:
+
+* novos clientes;
+* recorrentes;
+* inativos;
+* alto valor;
+* risco de churn;
+* clientes aptos para reativação;
+* clientes aptos para upsell.
+
+## 10.6 Relatórios
+
+O sistema precisa nascer com relatórios claros, não só tabelas.
+
+Relatórios mínimos:
+
+* agendamentos por período;
+* faturamento por período;
+* faturamento por serviço;
+* faturamento por profissional;
+* ticket médio;
+* taxa de no-show;
+* cancelamentos;
+* ocupação por horário;
+* clientes novos x recorrentes;
+* clientes inativos;
+* serviços mais vendidos;
+* intervalo médio entre retornos.
+
+## 10.7 Marketing relacional
+
+Esse é um diferencial-chave.
+
+Módulo inicial de relacionamento:
+
+* campanhas por segmento;
+* promoções;
+* mensagens de retorno;
+* follow-up após atendimento;
+* reativação de inativos;
+* campanhas de aniversário;
+* campanhas de horários vagos;
+* comunicações promocionais simples.
+
+O objetivo não é virar uma ferramenta de marketing completa no dia 1, mas sim reduzir a necessidade de “gastar para trazer de novo” quando a base já existe.
+
+## 11. Diferencial competitivo mínimo
+
+Para este produto ser melhor percebido que concorrentes, ele precisa nascer melhor em cinco pontos:
+
+### 1. Melhor leitura de cliente
+
+Não só cadastro, mas histórico útil para decisão.
+
+### 2. Melhor retenção
+
+Não só lembrete, mas rotina de retorno e reativação.
+
+### 3. Melhor monetização da base
+
+Não só agenda, mas upsell, cross-sell e campanhas.
+
+### 4. Melhor conexão entre agenda e caixa
+
+Não só horário ocupado, mas impacto financeiro real.
+
+### 5. Melhor simplicidade
+
+Ser poderoso sem ficar confuso.
+
+## 12. Posicionamento da marca/produto
+
+O produto não deve se vender como:
+
+* agenda online;
+* calendário de horários;
+* sistema simples de marcação.
+
+Ele deve se vender como:
+
+* plataforma de agendamento e retenção;
+* sistema de recorrência para negócios de serviço;
+* agenda com CRM, caixa e relacionamento;
+* sistema que ajuda o cliente a voltar e comprar de novo.
+
+## 13. Modelo comercial inicial
+
+### Plano Essencial
+
+* agenda;
+* profissionais;
+* serviços;
+* slug;
+* página pública;
+* lembretes;
+* clientes;
+* calendário.
+
+### Plano Gestão
+
+* tudo do Essencial;
+* fluxo de caixa;
+* relatórios;
+* carteira de clientes;
+* campanhas básicas;
+* integração com Google Agenda.
+
+### Plano Growth / Pro
+
+* tudo do Gestão;
+* segmentações avançadas;
+* campanhas mais completas;
+* automações;
+* pacote de horas;
+* customizações.
+
+## 14. Modelo de customização
+
+Esse produto terá uma camada importante de monetização por evolução controlada.
+
+O cliente contrata:
+
+* produto padrão;
+* plano;
+* pacote de horas.
+
+Essas horas poderão ser usadas para:
+
+* ajustes de fluxo;
+* campos específicos;
+* pequenos módulos;
+* relatórios especiais;
+* mudanças de interface;
+* integrações;
+* regras de negócio específicas.
+
+Regra de produto:
+
+* o que virar padrão recorrente entra no core;
+* o que for muito específico fica como customização.
+
+## 15. Diretriz tecnológica do projeto
+
+A tecnologia deve seguir função, não hábito.
+
+### Core transacional
+
+* backend modular transacional;
+* API REST;
+* banco relacional;
+* autenticação multi-tenant;
+* filas para notificações e jobs;
+* front web robusto.
+
+### Camada analítica futura
+
+* segmentação;
+* previsão;
+* inteligência de retenção;
+* motores de recomendação;
+* IA.
+
+A IA não é core do MVP.
+Ela é evolução estratégica.
+
+## 16. Métricas que o produto precisa acompanhar
+
+### Métricas operacionais
+
+* total de agendamentos;
+* taxa de confirmação;
+* taxa de comparecimento;
+* no-show;
+* cancelamentos;
+* ocupação da agenda.
+
+### Métricas comerciais
+
+* faturamento total;
+* faturamento por profissional;
+* faturamento por serviço;
+* ticket médio;
+* receita por cliente;
+* receita recorrente.
+
+### Métricas de retenção
+
+* taxa de retorno;
+* dias médios até novo agendamento;
+* percentual de clientes inativos;
+* taxa de reativação;
+* percentual de clientes recorrentes.
+
+### Métricas de upsell
+
+* adesão a add-ons;
+* upgrade de serviços;
+* campanhas convertidas;
+* ticket após recomendação;
+* serviços comprados por combinação.
+
+## 17. Não-objetivos do MVP
+
+Para não perder foco, o produto não deve começar com:
+
+* IA ampla e complexa;
+* omnichannel total;
+* automação de marketing de nível enterprise;
+* app mobile nativo completo;
+* marketplace;
+* loyalty avançado;
+* domínio customizado no dia 1;
+* multiunidade muito complexa;
+* excesso de personalização.
+
+## 18. Identidade conceitual do produto
+
+Este produto deve transmitir:
+
+* organização;
+* clareza;
+* crescimento;
+* proximidade;
+* recorrência;
+* inteligência comercial;
+* confiança;
+* controle;
+* modernidade sem exagero.
+
+Ele não deve parecer:
+
+* burocrático;
+* frio;
+* excessivamente corporativo;
+* “software de ERP pesado”;
+* visualmente datado;
+* confuso.
+
+## 19. Ponte para a próxima etapa: UI/UX Research
+
+Com este briefing, a próxima fase não é ainda desenhar tela.
+A próxima fase é pesquisar qual direção visual reforça melhor esses conceitos.
+
+A pesquisa de UI/UX deverá responder:
+
+* a marca deve parecer mais premium, acessível ou híbrida?
+* deve comunicar mais performance ou proximidade?
+* deve ter linguagem mais institucional ou mais moderna?
+* deve parecer mais “growth/CRM” ou mais “agenda/serviço”?
+* o wordmark deve transmitir confiança, fluidez, organização ou energia?
+* a marca deve parecer verticalizada ou horizontal?
+* como equilibrar simplicidade operacional com sensação de poder?
+
+## 20. Método-padrão do projeto
+
+Seu pipeline faz muito sentido. Eu estruturaria assim:
+
+### 1. Ideia
+
+Documento curto com visão, dor, oportunidade e hipótese de valor.
+
+### 2. Briefing
+
+Documento estratégico de fundação do produto.
+Saída esperada:
+
+* visão;
+* tese;
+* público;
+* posicionamento;
+* pilares;
+* escopo;
+* diferenciais;
+* metas;
+* restrições.
+
+### 3. UI/UX Research
+
+Pesquisa de concorrentes, repertório visual, padrões de interface, arquétipos de marca, linguagem, referências de dashboard e experiência pública.
+
+### 4. Style Guides
+
+Documento de identidade visual inicial contendo:
+
+* conceito de marca;
+* atributos;
+* direção estética;
+* logotipo;
+* **wordmark**;
+* símbolo;
+* tipografia;
+* cores;
+* grid;
+* contraste;
+* aplicações;
+* exemplos.
+
+### 5. Design System
+
+Transformação da identidade em sistema real:
+
+* tokens;
+* componentes;
+* estados;
+* espaçamentos;
+* padrões de feedback;
+* iconografia;
+* layouts.
+
+### 6. MAE
+
+Método de Arquitetura Estrutural:
+
+* estrutura técnica;
+* módulos;
+* domínio;
+* fluxos;
+* integrações;
+* entidades;
+* organização do sistema.
+
+### 7. MFEE
+
+Método de Fundação e Estruturação:
+
+* implantação;
+* fundação real do produto;
+* repositórios;
+* base técnica;
+* pipelines;
+* convenções;
+* preparação para evolução.
+
+## 21. Síntese final do briefing
+
+Este produto deve nascer com a seguinte verdade:
+
+**não vendemos agenda; vendemos retorno do cliente.**
+
+A agenda é a entrada.
+O valor real está em:
+
+* operar melhor;
+* perder menos horários;
+* entender melhor cada cliente;
+* trazer o cliente de volta;
+* vender mais para quem já comprou;
+* transformar base de clientes em receita recorrente.
+
+Esse é o eixo que pode te colocar acima dos concorrentes.
+
+---
+
+Na próxima etapa, eu posso transformar isso em um **documento de UI/UX Research Framework**, já preparado para você usar como padrão oficial entre **Briefing → Style Guide**.
+
+[1]: https://www.simplesagenda.com.br/site/Funcionalidades/fluxo-de-caixa.php?utm_source=chatgpt.com "Programa de Fluxo de Caixa"
+[2]: https://www.fresha.com/for-business/features "Salon Software Features | Booking, POS & Payments | Fresha"
+[3]: https://squareup.com/us/en/appointments/features "Booking System Features — Square Appointments"
+[4]: https://www.mindbodyonline.com/business/marketing "Marketing Tools | Mindbody"
+ 
