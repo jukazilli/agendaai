@@ -34,7 +34,13 @@ O projeto adota o Framework MAE + MFEE como esteira oficial de descoberta, estru
 4. Referencias controladas homologadas
 5. Benchmark nao homologado
 
-Como ainda nao existe codigo real, a documentacao homologada desta rodada passa a ser a fonte oficial do projeto.
+Durante a rodada puramente documental, a documentacao homologada foi a fonte oficial do projeto.
+
+Atualizacao em `17/03/2026`:
+
+- o repositorio ja possui codigo real implementado em `packages/` e `services/`;
+- portanto, modulos ja materializados passam a obedecer a precedencia declarada acima, com codigo vencendo docs quando houver conflito;
+- backlog, jornadas e governanca continuam mandando nos modulos ainda nao implementados.
 
 ## 5. Definition of Done estrutural
 

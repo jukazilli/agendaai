@@ -20,6 +20,17 @@
 - nao existe contrato executable de integracoes;
 - backlog fundacional ainda precisa ser atacado na ordem definida.
 
+## Atualizacao em 17-03-2026
+
+Este termo permanece como retrato da saida da fase documental, nao como espelho do estado atual do repo.
+
+Estado atual resumido:
+
+- backend real existe em `services/api-rest`;
+- `booking-web` e `admin-web` existem como superficies buildaveis, mas ainda parciais;
+- `B-01` a `B-06` estao fechados no backlog oficial;
+- o proximo gargalo real do produto e `B-07`.
+
 ## Decisao
 
 O projeto esta apto para sair da fase de estruturacao documental e entrar em fundacao tecnica controlada.
