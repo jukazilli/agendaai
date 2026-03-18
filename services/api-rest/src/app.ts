@@ -9,17 +9,19 @@ import {
   createProfessionalSchema,
   createServiceSchema,
   createTenantSchema,
+  publicCreateBookingInputSchema,
   setAvailabilityRulesSchema
 } from "@agendaai/contracts";
 
 import {
-  ApiRestStore,
   type AdminSessionRecord,
+  type ApiRestStorePort,
   type BookingPatchInput,
   type ClientPatchInput,
   type ProfessionalPatchInput,
   type ServicePatchInput
 } from "./store";
+import { createConfiguredStore } from "./postgres-store";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -29,7 +31,7 @@ declare module "fastify" {
 
 export interface BuildApiRestAppOptions {
   readonly logger?: boolean;
-  readonly store?: ApiRestStore;
+  readonly store?: ApiRestStorePort;
 }
 
 class ApiHttpError extends Error {
@@ -48,7 +50,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     logger: options.logger ?? false
   });
 
-  const store = options.store ?? new ApiRestStore();
+  const store = options.store ?? createConfiguredStore();
 
   app.setErrorHandler((error, _request, reply) => {
     const runtimeError = asErrorLike(error);
@@ -109,6 +111,14 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       return;
     }
 
+    if (runtimeError.message === "payment_required") {
+      reply.status(409).send({
+        error: "payment_required",
+        message: "This service requires deposit payment before online confirmation."
+      });
+      return;
+    }
+
     if (
       runtimeError.message === "service_not_available_for_professional" ||
       runtimeError.message === "professional_inactive" ||
@@ -141,7 +151,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       version: contractVersion
     });
 
-    const result = store.createTenant(command);
+    const result = await store.createTenant(command);
     reply.status(201);
     return result;
   });
@@ -149,7 +159,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
   app.post("/v1/admin/auth/sessions", async (request) => {
     const body = requireRecord(request.body);
     const credentials = parseCredentials(body);
-    const session = store.login(credentials.email, credentials.password);
+    const session = await store.login(credentials.email, credentials.password);
 
     if (!session) {
       throw new ApiHttpError(401, "invalid_credentials", "Email or password is invalid.");
@@ -160,7 +170,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
   app.get("/v1/public/tenants/:slug", async (request) => {
     const slug = readRequiredString((request.params as Record<string, unknown>).slug, "slug");
-    const tenant = store.getPublicTenantProfile(slug);
+    const tenant = await store.getPublicTenantProfile(slug);
 
     if (!tenant) {
       throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
@@ -171,7 +181,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
   app.get("/v1/public/tenants/:slug/catalog", async (request) => {
     const slug = readRequiredString((request.params as Record<string, unknown>).slug, "slug");
-    const catalog = store.getPublicCatalog(slug);
+    const catalog = await store.getPublicCatalog(slug);
 
     if (!catalog) {
       throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
@@ -182,7 +192,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
   app.get("/v1/public/tenants/:slug/services", async (request) => {
     const slug = readRequiredString((request.params as Record<string, unknown>).slug, "slug");
-    const catalog = store.getPublicCatalog(slug);
+    const catalog = await store.getPublicCatalog(slug);
 
     if (!catalog) {
       throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
@@ -195,7 +205,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
   app.get("/v1/public/tenants/:slug/professionals", async (request) => {
     const slug = readRequiredString((request.params as Record<string, unknown>).slug, "slug");
-    const tenant = store.getTenantBySlug(slug);
+    const tenant = await store.getTenantBySlug(slug);
 
     if (!tenant) {
       throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
@@ -208,13 +218,13 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         : undefined;
 
     return {
-      items: store.listProfessionalsForService(tenant.id, serviceId)
+      items: await store.listProfessionalsForService(tenant.id, serviceId)
     };
   });
 
   app.get("/v1/public/tenants/:slug/availability", async (request) => {
     const slug = readRequiredString((request.params as Record<string, unknown>).slug, "slug");
-    const tenant = store.getTenantBySlug(slug);
+    const tenant = await store.getTenantBySlug(slug);
 
     if (!tenant) {
       throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
@@ -226,19 +236,33 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     const date = readDateString(query.date, "date");
 
     return {
-      items: store.listAvailableSlots(tenant.id, serviceId, professionalId, date)
+      items: await store.listAvailableSlots(tenant.id, serviceId, professionalId, date)
     };
+  });
+
+  app.post("/v1/public/tenants/:slug/bookings", async (request, reply) => {
+    const slug = readRequiredString((request.params as Record<string, unknown>).slug, "slug");
+    const body = requireRecord(request.body);
+    const command = publicCreateBookingInputSchema.parse({
+      ...body,
+      version: contractVersion,
+      slug
+    });
+
+    const result = await store.createPublicBooking(command);
+    reply.status(201);
+    return result;
   });
 
   app.register(
     async (adminRoutes) => {
       adminRoutes.addHook("preHandler", async (request, reply) => {
-        authenticateAdminRequest(store, request, reply);
+        await authenticateAdminRequest(store, request, reply);
       });
 
       adminRoutes.get("/auth/session", async (request) => {
         const claims = requireAdminSession(request).claims;
-        const tenant = store.getTenantById(claims.tenantId);
+        const tenant = await store.getTenantById(claims.tenantId);
 
         if (!tenant) {
           throw new ApiHttpError(404, "tenant_not_found", "Tenant from session was not found.");
@@ -252,7 +276,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
       adminRoutes.get("/tenant", async (request) => {
         const claims = requireAdminSession(request).claims;
-        const tenant = store.getTenantById(claims.tenantId);
+        const tenant = await store.getTenantById(claims.tenantId);
 
         if (!tenant) {
           throw new ApiHttpError(404, "tenant_not_found", "Tenant from session was not found.");
@@ -270,7 +294,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           tenantId: claims.tenantId
         });
 
-        return store.updateTenantSlug(command);
+        return await store.updateTenantSlug(command);
       });
 
       adminRoutes.post("/services", async (request, reply) => {
@@ -282,7 +306,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           tenantId: claims.tenantId
         });
 
-        const service = store.createService(command);
+        const service = await store.createService(command);
         reply.status(201);
         return service;
       });
@@ -290,7 +314,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       adminRoutes.get("/services", async (request) => {
         const claims = requireAdminSession(request).claims;
         return {
-          items: store.listServices(claims.tenantId)
+          items: await store.listServices(claims.tenantId)
         };
       });
 
@@ -300,7 +324,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).serviceId,
           "serviceId"
         );
-        const service = store.getService(claims.tenantId, serviceId);
+        const service = await store.getService(claims.tenantId, serviceId);
 
         if (!service) {
           throw new ApiHttpError(404, "service_not_found", "Service was not found for this tenant.");
@@ -316,7 +340,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           "serviceId"
         );
         const patch = parseServicePatch(requireRecord(request.body));
-        const service = store.updateService(claims.tenantId, serviceId, patch);
+        const service = await store.updateService(claims.tenantId, serviceId, patch);
 
         if (!service) {
           throw new ApiHttpError(404, "service_not_found", "Service was not found for this tenant.");
@@ -331,7 +355,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).serviceId,
           "serviceId"
         );
-        const deleted = store.deleteService(claims.tenantId, serviceId);
+        const deleted = await store.deleteService(claims.tenantId, serviceId);
 
         if (!deleted) {
           throw new ApiHttpError(404, "service_not_found", "Service was not found for this tenant.");
@@ -349,7 +373,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           tenantId: claims.tenantId
         });
 
-        const professional = store.createProfessional(command);
+        const professional = await store.createProfessional(command);
         reply.status(201);
         return professional;
       });
@@ -357,7 +381,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       adminRoutes.get("/professionals", async (request) => {
         const claims = requireAdminSession(request).claims;
         return {
-          items: store.listProfessionals(claims.tenantId)
+          items: await store.listProfessionals(claims.tenantId)
         };
       });
 
@@ -367,7 +391,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).professionalId,
           "professionalId"
         );
-        const professional = store.getProfessional(claims.tenantId, professionalId);
+        const professional = await store.getProfessional(claims.tenantId, professionalId);
 
         if (!professional) {
           throw new ApiHttpError(
@@ -387,7 +411,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           "professionalId"
         );
         const patch = parseProfessionalPatch(requireRecord(request.body));
-        const professional = store.updateProfessional(claims.tenantId, professionalId, patch);
+        const professional = await store.updateProfessional(claims.tenantId, professionalId, patch);
 
         if (!professional) {
           throw new ApiHttpError(
@@ -406,7 +430,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).professionalId,
           "professionalId"
         );
-        const deleted = store.deleteProfessional(claims.tenantId, professionalId);
+        const deleted = await store.deleteProfessional(claims.tenantId, professionalId);
 
         if (!deleted) {
           throw new ApiHttpError(
@@ -434,7 +458,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         });
 
         return {
-          items: store.replaceAvailabilityRules(
+          items: await store.replaceAvailabilityRules(
             claims.tenantId,
             professionalId,
             command.rules
@@ -449,7 +473,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           "professionalId"
         );
 
-        const professional = store.getProfessional(claims.tenantId, professionalId);
+        const professional = await store.getProfessional(claims.tenantId, professionalId);
         if (!professional) {
           throw new ApiHttpError(
             404,
@@ -459,7 +483,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         }
 
         return {
-          items: store.listAvailabilityRules(claims.tenantId, professionalId)
+          items: await store.listAvailabilityRules(claims.tenantId, professionalId)
         };
       });
 
@@ -471,7 +495,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         const date = readDateString(query.date, "date");
 
         return {
-          items: store.listAvailableSlots(claims.tenantId, serviceId, professionalId, date)
+          items: await store.listAvailableSlots(claims.tenantId, serviceId, professionalId, date)
         };
       });
 
@@ -479,7 +503,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         const claims = requireAdminSession(request).claims;
         const body = requireRecord(request.body);
         const input = clientContactInputSchema.parse(body);
-        const client = store.createClient(claims.tenantId, input);
+        const client = await store.createClient(claims.tenantId, input);
 
         reply.status(201);
         return client;
@@ -488,7 +512,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       adminRoutes.get("/clients", async (request) => {
         const claims = requireAdminSession(request).claims;
         return {
-          items: store.listClients(claims.tenantId)
+          items: await store.listClients(claims.tenantId)
         };
       });
 
@@ -498,7 +522,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).clientId,
           "clientId"
         );
-        const client = store.getClient(claims.tenantId, clientId);
+        const client = await store.getClient(claims.tenantId, clientId);
 
         if (!client) {
           throw new ApiHttpError(404, "client_not_found", "Client was not found for this tenant.");
@@ -514,7 +538,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           "clientId"
         );
         const patch = parseClientPatch(requireRecord(request.body));
-        const client = store.updateClient(claims.tenantId, clientId, patch);
+        const client = await store.updateClient(claims.tenantId, clientId, patch);
 
         if (!client) {
           throw new ApiHttpError(404, "client_not_found", "Client was not found for this tenant.");
@@ -529,7 +553,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).clientId,
           "clientId"
         );
-        const deleted = store.deleteClient(claims.tenantId, clientId);
+        const deleted = await store.deleteClient(claims.tenantId, clientId);
 
         if (!deleted) {
           throw new ApiHttpError(404, "client_not_found", "Client was not found for this tenant.");
@@ -547,7 +571,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           tenantId: claims.tenantId
         });
 
-        const booking = store.createBooking(command);
+        const booking = await store.createBooking(command);
         reply.status(201);
         return booking;
       });
@@ -555,7 +579,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       adminRoutes.get("/bookings", async (request) => {
         const claims = requireAdminSession(request).claims;
         return {
-          items: store.listBookings(claims.tenantId)
+          items: await store.listBookings(claims.tenantId)
         };
       });
 
@@ -565,7 +589,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).bookingId,
           "bookingId"
         );
-        const booking = store.getBooking(claims.tenantId, bookingId);
+        const booking = await store.getBooking(claims.tenantId, bookingId);
 
         if (!booking) {
           throw new ApiHttpError(404, "booking_not_found", "Booking was not found for this tenant.");
@@ -581,7 +605,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           "bookingId"
         );
         const patch = parseBookingPatch(requireRecord(request.body));
-        const booking = store.updateBooking(claims.tenantId, bookingId, patch);
+        const booking = await store.updateBooking(claims.tenantId, bookingId, patch);
 
         if (!booking) {
           throw new ApiHttpError(404, "booking_not_found", "Booking was not found for this tenant.");
@@ -596,7 +620,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).bookingId,
           "bookingId"
         );
-        const deleted = store.deleteBooking(claims.tenantId, bookingId);
+        const deleted = await store.deleteBooking(claims.tenantId, bookingId);
 
         if (!deleted) {
           throw new ApiHttpError(404, "booking_not_found", "Booking was not found for this tenant.");
@@ -611,11 +635,11 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
   return app;
 }
 
-function authenticateAdminRequest(
-  store: ApiRestStore,
+async function authenticateAdminRequest(
+  store: ApiRestStorePort,
   request: FastifyRequest,
   reply: FastifyReply
-): void {
+): Promise<void> {
   const authorization = request.headers.authorization;
   if (!authorization || !authorization.startsWith("Bearer ")) {
     reply.status(401).send({
@@ -626,7 +650,7 @@ function authenticateAdminRequest(
   }
 
   const token = authorization.slice("Bearer ".length).trim();
-  const session = store.getSession(token);
+  const session = await store.getSession(token);
   if (!session) {
     reply.status(401).send({
       error: "invalid_session",

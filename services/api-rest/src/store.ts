@@ -10,6 +10,7 @@ import type {
   ClientContactInput,
   ConfigureTenantSlugCommand,
   CreateBookingCommand,
+  PublicCreateBookingInput,
   CreateProfessionalCommand,
   CreateServiceCommand,
   CreateTenantCommand,
@@ -43,6 +44,16 @@ export interface PublicCatalogSnapshot {
   readonly professionals: Professional[];
 }
 
+export interface PublicBookingResult {
+  readonly tenant: PublicTenantProfile;
+  readonly client: Client;
+  readonly service: Service;
+  readonly professional: Professional;
+  readonly booking: Booking;
+}
+
+export type MaybePromise<T> = T | Promise<T>;
+
 export interface ServicePatchInput {
   nome?: string;
   duracaoMin?: number;
@@ -73,7 +84,7 @@ export interface BookingPatchInput {
   endAt?: string;
 }
 
-interface StoredAdminUser extends AdminUser {
+export interface StoredAdminUser extends AdminUser {
   readonly password: string;
 }
 
@@ -89,7 +100,89 @@ export interface TenantOnboardingResult {
   readonly session: AdminSessionRecord;
 }
 
-export class ApiRestStore {
+export interface ApiRestStoreSnapshot {
+  readonly tenants: Tenant[];
+  readonly adminUsers: StoredAdminUser[];
+  readonly services: Service[];
+  readonly clients: Client[];
+  readonly professionals: Professional[];
+  readonly availabilityRules: AvailabilityRule[];
+  readonly bookings: Booking[];
+  readonly sessions: AdminSessionRecord[];
+}
+
+export interface ApiRestStorePort {
+  createTenant(command: CreateTenantCommand): MaybePromise<TenantOnboardingResult>;
+  login(email: string, password: string): MaybePromise<AdminSessionRecord | undefined>;
+  getSession(token: string): MaybePromise<AdminSessionRecord | undefined>;
+  getTenantById(tenantId: string): MaybePromise<Tenant | undefined>;
+  getTenantBySlug(slug: string): MaybePromise<Tenant | undefined>;
+  getPublicTenantProfile(slug: string): MaybePromise<PublicTenantProfile | undefined>;
+  getPublicCatalog(slug: string): MaybePromise<PublicCatalogSnapshot | undefined>;
+  updateTenantSlug(command: ConfigureTenantSlugCommand): MaybePromise<Tenant>;
+  listServices(tenantId: string): MaybePromise<Service[]>;
+  getService(tenantId: string, serviceId: string): MaybePromise<Service | undefined>;
+  createService(command: CreateServiceCommand): MaybePromise<Service>;
+  updateService(
+    tenantId: string,
+    serviceId: string,
+    patch: ServicePatchInput
+  ): MaybePromise<Service | undefined>;
+  deleteService(tenantId: string, serviceId: string): MaybePromise<boolean>;
+  listClients(tenantId: string): MaybePromise<Client[]>;
+  getClient(tenantId: string, clientId: string): MaybePromise<Client | undefined>;
+  createClient(tenantId: string, input: ClientContactInput): MaybePromise<Client>;
+  updateClient(
+    tenantId: string,
+    clientId: string,
+    patch: ClientPatchInput
+  ): MaybePromise<Client | undefined>;
+  deleteClient(tenantId: string, clientId: string): MaybePromise<boolean>;
+  listProfessionals(tenantId: string): MaybePromise<Professional[]>;
+  listProfessionalsForService(
+    tenantId: string,
+    serviceId?: string
+  ): MaybePromise<Professional[]>;
+  getProfessional(
+    tenantId: string,
+    professionalId: string
+  ): MaybePromise<Professional | undefined>;
+  createProfessional(command: CreateProfessionalCommand): MaybePromise<Professional>;
+  updateProfessional(
+    tenantId: string,
+    professionalId: string,
+    patch: ProfessionalPatchInput
+  ): MaybePromise<Professional | undefined>;
+  deleteProfessional(tenantId: string, professionalId: string): MaybePromise<boolean>;
+  replaceAvailabilityRules(
+    tenantId: string,
+    professionalId: string,
+    rules: AvailabilityRuleInput[]
+  ): MaybePromise<AvailabilityRule[]>;
+  listAvailabilityRules(
+    tenantId: string,
+    professionalId: string
+  ): MaybePromise<AvailabilityRule[]>;
+  listAvailableSlots(
+    tenantId: string,
+    serviceId: string,
+    professionalId: string,
+    date: string,
+    bookingToIgnoreId?: string
+  ): MaybePromise<PublicAvailabilitySlot[]>;
+  listBookings(tenantId: string): MaybePromise<Booking[]>;
+  getBooking(tenantId: string, bookingId: string): MaybePromise<Booking | undefined>;
+  createBooking(command: CreateBookingCommand): MaybePromise<Booking>;
+  updateBooking(
+    tenantId: string,
+    bookingId: string,
+    patch: BookingPatchInput
+  ): MaybePromise<Booking | undefined>;
+  deleteBooking(tenantId: string, bookingId: string): MaybePromise<boolean>;
+  createPublicBooking(input: PublicCreateBookingInput): MaybePromise<PublicBookingResult>;
+}
+
+export class ApiRestStore implements ApiRestStorePort {
   private readonly tenants = new Map<string, Tenant>();
   private readonly tenantIdsBySlug = new Map<string, string>();
   private readonly adminUsers = new Map<string, StoredAdminUser>();
@@ -100,6 +193,12 @@ export class ApiRestStore {
   private readonly availabilityRules = new Map<string, AvailabilityRule>();
   private readonly bookings = new Map<string, Booking>();
   private readonly sessions = new Map<string, AdminSessionRecord>();
+
+  constructor(snapshot?: ApiRestStoreSnapshot) {
+    if (snapshot) {
+      this.restoreSnapshot(snapshot);
+    }
+  }
 
   createTenant(command: CreateTenantCommand): TenantOnboardingResult {
     this.assertSlugAvailable(command.slug);
@@ -630,6 +729,61 @@ export class ApiRestStore {
     return true;
   }
 
+  createPublicBooking(input: PublicCreateBookingInput): PublicBookingResult {
+    const tenant = this.getTenantBySlug(input.slug);
+    if (!tenant) {
+      throw new Error("tenant_not_found");
+    }
+
+    const service = this.getService(tenant.id, input.serviceId);
+    if (!service) {
+      throw new Error("service_not_found");
+    }
+
+    if (service.exigeSinal) {
+      throw new Error("payment_required");
+    }
+
+    const professional = this.getProfessional(tenant.id, input.professionalId);
+    if (!professional) {
+      throw new Error("professional_not_found");
+    }
+
+    const normalizedEmail = input.client.email.trim().toLowerCase();
+    const normalizedPhone = input.client.telefone.trim();
+
+    const existingClient = this.listClients(tenant.id).find(
+      (client) => client.email === normalizedEmail || client.telefone === normalizedPhone
+    );
+
+    const client =
+      existingClient ??
+      this.createClient(tenant.id, {
+        ...input.client,
+        email: normalizedEmail,
+        telefone: normalizedPhone
+      });
+
+    const booking = this.createBooking({
+      version: "v1",
+      tenantId: tenant.id,
+      clientId: client.id,
+      serviceId: service.id,
+      professionalId: professional.id,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      status: "confirmado"
+    });
+
+    return {
+      tenant: this.toPublicTenantProfile(tenant),
+      client,
+      service,
+      professional,
+      booking
+    };
+  }
+
   private issueSession(adminUser: StoredAdminUser): AdminSessionRecord {
     const session: AdminSessionRecord = {
       token: randomUUID(),
@@ -750,6 +904,74 @@ export class ApiRestStore {
       role: adminUser.role,
       status: adminUser.status
     };
+  }
+
+  private toPublicTenantProfile(tenant: Tenant): PublicTenantProfile {
+    return {
+      slug: tenant.slug,
+      nome: tenant.nome,
+      timezone: tenant.timezone
+    };
+  }
+
+  exportSnapshot(): ApiRestStoreSnapshot {
+    return {
+      tenants: [...this.tenants.values()],
+      adminUsers: [...this.adminUsers.values()],
+      services: [...this.services.values()],
+      clients: [...this.clients.values()],
+      professionals: [...this.professionals.values()],
+      availabilityRules: [...this.availabilityRules.values()],
+      bookings: [...this.bookings.values()],
+      sessions: [...this.sessions.values()]
+    };
+  }
+
+  restoreSnapshot(snapshot: ApiRestStoreSnapshot): void {
+    this.tenants.clear();
+    this.tenantIdsBySlug.clear();
+    this.adminUsers.clear();
+    this.adminUserIdsByEmail.clear();
+    this.services.clear();
+    this.clients.clear();
+    this.professionals.clear();
+    this.availabilityRules.clear();
+    this.bookings.clear();
+    this.sessions.clear();
+
+    for (const tenant of snapshot.tenants) {
+      this.tenants.set(tenant.id, tenant);
+      this.tenantIdsBySlug.set(tenant.slug, tenant.id);
+    }
+
+    for (const adminUser of snapshot.adminUsers) {
+      this.adminUsers.set(adminUser.id, adminUser);
+      this.adminUserIdsByEmail.set(adminUser.email, adminUser.id);
+    }
+
+    for (const service of snapshot.services) {
+      this.services.set(service.id, service);
+    }
+
+    for (const client of snapshot.clients) {
+      this.clients.set(client.id, client);
+    }
+
+    for (const professional of snapshot.professionals) {
+      this.professionals.set(professional.id, professional);
+    }
+
+    for (const availabilityRule of snapshot.availabilityRules) {
+      this.availabilityRules.set(availabilityRule.id, availabilityRule);
+    }
+
+    for (const booking of snapshot.bookings) {
+      this.bookings.set(booking.id, booking);
+    }
+
+    for (const session of snapshot.sessions) {
+      this.sessions.set(session.token, session);
+    }
   }
 }
 

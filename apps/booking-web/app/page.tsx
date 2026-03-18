@@ -2,20 +2,18 @@ import Link from "next/link";
 
 export default function HomePage() {
   return (
-    <main className="page">
-      <section className="hero">
+    <main className="landing-page">
+      <section className="landing-shell">
         <p className="eyebrow">AgendaAI / booking-web</p>
-        <h1>Base do agendamento publico por slug.</h1>
+        <h1>Agendamento publico pronto para mobile.</h1>
         <p className="description">
-          Esta app ainda nao implementa disponibilidade, pagamento ou fechamento de
-          reserva. O objetivo do B-01 aqui e deixar a stack pronta para evoluir com
-          seguranca.
+          Use o link do seu negocio para abrir a jornada de booking. A demo padrao do
+          staging fica disponivel no slug abaixo.
         </p>
         <div className="actions">
-          <Link href="/demo-studio">Abrir slug de exemplo</Link>
+          <Link href="/demo-studio">Abrir demo-studio</Link>
         </div>
       </section>
     </main>
   );
 }
-

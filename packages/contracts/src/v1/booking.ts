@@ -37,8 +37,7 @@ export const publicCreateBookingInputSchema = contractEnvelopeSchema.extend({
   professionalId: entityIdSchema,
   startAt: dateTimeStringSchema,
   endAt: dateTimeStringSchema,
-  client: clientContactInputSchema,
-  exigeSinal: z.boolean()
+  client: clientContactInputSchema
 });
 
 export type Booking = z.infer<typeof bookingSchema>;

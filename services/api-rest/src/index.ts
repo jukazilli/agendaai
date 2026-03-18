@@ -1,16 +1,20 @@
 import { pathToFileURL } from "node:url";
 
 import { buildApiRestApp, type BuildApiRestAppOptions } from "./app";
-import { ApiRestStore } from "./store";
+import { createConfiguredStore, PostgresApiRestStore } from "./postgres-store";
 
 export { buildApiRestApp, type BuildApiRestAppOptions } from "./app";
 export {
   ApiRestStore,
+  type ApiRestStorePort,
   type AdminSessionRecord,
+  type ApiRestStoreSnapshot,
   type PublicAvailabilitySlot,
+  type PublicBookingResult,
   type PublicCatalogSnapshot,
   type PublicTenantProfile
 } from "./store";
+export { createConfiguredStore, PostgresApiRestStore } from "./postgres-store";
 
 export const apiRestFoundation = {
   serviceName: "@agendaai/api-rest",
@@ -23,7 +27,7 @@ export async function startApiRestServer(
 ) {
   const app = buildApiRestApp({
     logger: options.logger ?? true,
-    store: options.store ?? new ApiRestStore()
+    store: options.store ?? createConfiguredStore()
   });
 
   const port = options.port ?? Number(process.env.PORT ?? 3333);

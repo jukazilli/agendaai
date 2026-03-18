@@ -1,21 +1,40 @@
+import { notFound } from "next/navigation";
+
+import { BookingFlow } from "./booking-flow";
+import { PublicApiError, getPublicCatalog } from "../../lib/public-api";
+
 interface BookingSlugPageProps {
   params: Promise<{
     slug: string;
   }>;
 }
 
+function formatToday(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = `${now.getMonth() + 1}`.padStart(2, "0");
+  const day = `${now.getDate()}`.padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export default async function BookingSlugPage({ params }: BookingSlugPageProps) {
   const { slug } = await params;
-  return (
-    <main className="page">
-      <section className="panel">
-        <p className="eyebrow">slug detectado</p>
-        <h1>/{slug}</h1>
-        <p className="description">
-          A rota dinamica ja esta pronta para receber o fluxo publico real quando os
-          contratos de tenant, auth e disponibilidade forem congelados.
-        </p>
-      </section>
-    </main>
-  );
+
+  try {
+    const catalog = await getPublicCatalog(slug);
+
+    return (
+      <BookingFlow
+        slug={slug}
+        initialCatalog={catalog}
+        initialDate={formatToday()}
+      />
+    );
+  } catch (error: unknown) {
+    if (error instanceof PublicApiError && error.status === 404) {
+      notFound();
+    }
+
+    throw error;
+  }
 }

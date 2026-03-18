@@ -364,3 +364,92 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
     await app.close();
   }
 });
+
+test("booking publico confirma servico sem sinal e bloqueia servico com pagamento pendente", async () => {
+  const app = await createApp();
+
+  try {
+    const onboarding = await onboardTenant(app, "publico");
+
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Sessao Expressa",
+      duracaoMin: 30,
+      precoBase: 80,
+      exigeSinal: false
+    });
+
+    const professional = await createProfessional(app, onboarding.session.token, [service.id], {
+      nome: "Ana Lima"
+    });
+
+    await setAvailability(app, onboarding.session.token, professional.id, [
+      {
+        weekday: 5,
+        faixa: {
+          startTime: "09:00",
+          endTime: "12:00"
+        }
+      }
+    ]);
+
+    const publicBookingResponse = await app.inject({
+      method: "POST",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/bookings`,
+      payload: {
+        serviceId: service.id,
+        professionalId: professional.id,
+        startAt: "2026-03-20T09:00:00-03:00",
+        endAt: "2026-03-20T09:30:00-03:00",
+        client: {
+          nome: "Julia Ramos",
+          telefone: "11977776666",
+          email: "julia@agendaai.test",
+          origem: "google"
+        }
+      }
+    });
+
+    assert.equal(publicBookingResponse.statusCode, 201);
+    const publicPayload = publicBookingResponse.json();
+    assert.equal(publicPayload.booking.status, "confirmado");
+    assert.equal(publicPayload.client.email, "julia@agendaai.test");
+
+    const adminBookings = await app.inject({
+      method: "GET",
+      url: "/v1/admin/bookings",
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(adminBookings.statusCode, 200);
+    assert.equal(adminBookings.json().items.length, 1);
+
+    const serviceWithSignal = await createService(app, onboarding.session.token, {
+      nome: "Coloracao Premium",
+      duracaoMin: 60,
+      precoBase: 180,
+      exigeSinal: true
+    });
+
+    const blockedResponse = await app.inject({
+      method: "POST",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/bookings`,
+      payload: {
+        serviceId: serviceWithSignal.id,
+        professionalId: professional.id,
+        startAt: "2026-03-20T10:00:00-03:00",
+        endAt: "2026-03-20T11:00:00-03:00",
+        client: {
+          nome: "Julia Ramos",
+          telefone: "11977776666",
+          email: "julia@agendaai.test",
+          origem: "google"
+        }
+      }
+    });
+
+    assert.equal(blockedResponse.statusCode, 409);
+    assert.equal(blockedResponse.json().error, "payment_required");
+  } finally {
+    await app.close();
+  }
+});

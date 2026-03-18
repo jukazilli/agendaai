@@ -53,3 +53,23 @@ O corte de `18/03/2026` so pode ser tratado como pronto se:
 4. `pnpm build` passar;
 5. `pnpm --filter @agendaai/api-rest test` passar;
 6. a doc final refletir exatamente o que entrou.
+
+## 6. Status apos execucao
+
+Status final desta sprint curta: pronto para demonstracao.
+
+Evidencias fechadas nesta rodada:
+
+1. `/:slug` carrega dados reais do tenant e do catalogo;
+2. a jornada publica fecha booking sem sinal obrigatorio;
+3. `pnpm --filter @agendaai/api-rest test` passou;
+4. `pnpm lint` passou;
+5. `pnpm build` passou;
+6. smoke mobile e smoke HTTP foram executados sobre o slug `demo-studio-20260317`.
+
+Fora do corte por decisao explicita:
+
+1. `B-08` pagamento e sinal por provider;
+2. notificacoes;
+3. dashboard admin;
+4. timezone hardening.
