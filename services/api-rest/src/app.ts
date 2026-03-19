@@ -14,11 +14,15 @@ import {
   createTenantSchema,
   paymentWebhookNotificationSchema,
   publicCreateBookingInputSchema,
+  reportingRangeValues,
+  reportingReturnWindowValues,
   servicePaymentPolicySchema,
   setAvailabilityRulesSchema,
   tenantPaymentSettingsSchema,
   type Booking,
   type PaymentIntent,
+  type ReportingRange,
+  type ReportingReturnWindow,
   type Service,
   type TenantPaymentSettings
 } from "@agendaai/contracts";
@@ -37,6 +41,7 @@ import {
   type MercadoPagoGateway
 } from "./mercado-pago";
 import { createConfiguredStore } from "./postgres-store";
+import { buildAdminReportsReadModel } from "./reporting-read-model";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -810,6 +815,41 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         };
       });
 
+      adminRoutes.get("/read-models/reports", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const query = (request.query ?? {}) as Record<string, unknown>;
+        const range = readStringEnum(
+          query.range ?? "30d",
+          reportingRangeValues,
+          "range"
+        ) as ReportingRange;
+        const returnWindow = readStringEnum(
+          query.returnWindow ?? "30d",
+          reportingReturnWindowValues,
+          "returnWindow"
+        ) as ReportingReturnWindow;
+        const serviceId =
+          typeof query.serviceId === "string" && query.serviceId.trim().length > 0
+            ? query.serviceId.trim()
+            : undefined;
+        const professionalId =
+          typeof query.professionalId === "string" && query.professionalId.trim().length > 0
+            ? query.professionalId.trim()
+            : undefined;
+
+        return buildAdminReportsReadModel({
+          range,
+          serviceId,
+          professionalId,
+          returnWindow,
+          clients: await store.listClients(claims.tenantId),
+          bookings: await store.listBookings(claims.tenantId),
+          services: await store.listServices(claims.tenantId),
+          professionals: await store.listProfessionals(claims.tenantId),
+          paymentIntents: await store.listPaymentIntents(claims.tenantId)
+        });
+      });
+
       adminRoutes.get("/bookings/:bookingId", async (request) => {
         const claims = requireAdminSession(request).claims;
         const bookingId = readRequiredString(
@@ -1075,6 +1115,23 @@ function readBookingStatus(
   }
 
   return candidate as BookingPatchInput["status"];
+}
+
+function readStringEnum<const TValues extends readonly string[]>(
+  value: unknown,
+  values: TValues,
+  fieldName: string
+): TValues[number] {
+  const candidate = readRequiredString(value, fieldName);
+  if (!values.includes(candidate as TValues[number])) {
+    throw new ApiHttpError(
+      400,
+      "invalid_body",
+      `Field '${fieldName}' must be one of: ${values.join(", ")}.`
+    );
+  }
+
+  return candidate as TValues[number];
 }
 
 function createTenantPaymentSettings(

@@ -96,7 +96,7 @@ Em `19/03/2026`, o `admin-web` passou a refletir a primeira materializacao real 
 - configuracoes separadas da operacao, concentrando slug, Mercado Pago e ambiente administrativo;
 - agenda com timeline diaria por data, selecao de booking, reagendamento por slot real e grade semanal de capacidade por profissional dentro da mesma rota.
 - clientes com recorte de retorno por janela, ultimo atendimento concluido e receita derivada.
-- relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior e recorte de retorno reaproveitado do shell atual.
+- relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior e read model minimo de receita/recorrencia vindo do `api-rest`.
 
 Este documento continua sendo a referencia oficial para:
 

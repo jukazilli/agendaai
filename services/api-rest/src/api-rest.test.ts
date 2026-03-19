@@ -91,6 +91,44 @@ async function createProfessional(
   return response.json();
 }
 
+async function createClient(
+  app: FastifyInstance,
+  token: string,
+  overrides: Record<string, unknown> = {}
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: "/v1/admin/clients",
+    headers: authHeaders(token),
+    payload: {
+      nome: "Cliente Base",
+      telefone: "11999990000",
+      email: `cliente-${Math.random().toString(16).slice(2)}@agendaai.test`,
+      origem: "site",
+      ...overrides
+    }
+  });
+
+  assert.equal(response.statusCode, 201);
+  return response.json();
+}
+
+async function createBooking(
+  app: FastifyInstance,
+  token: string,
+  payload: Record<string, unknown>
+) {
+  const response = await app.inject({
+    method: "POST",
+    url: "/v1/admin/bookings",
+    headers: authHeaders(token),
+    payload
+  });
+
+  assert.equal(response.statusCode, 201, response.body);
+  return response.json();
+}
+
 async function setAvailability(
   app: FastifyInstance,
   token: string,
@@ -150,6 +188,23 @@ function createFakeMercadoPagoGateway(overrides: {
     async findPaymentByExternalReference(_accessToken, externalReference) {
       return overrides.findPaymentByExternalReference?.(externalReference);
     }
+  };
+}
+
+function buildIsoWindow(
+  daysOffset: number,
+  startHour: number,
+  startMinute: number,
+  durationMinutes: number
+) {
+  const startAt = new Date();
+  startAt.setHours(startHour, startMinute, 0, 0);
+  startAt.setDate(startAt.getDate() + daysOffset);
+
+  const endAt = new Date(startAt.getTime() + durationMinutes * 60000);
+  return {
+    startAt: startAt.toISOString(),
+    endAt: endAt.toISOString()
   };
 }
 
@@ -593,6 +648,116 @@ test("admin configura Mercado Pago e politica de cobranca por servico", async ()
     assert.equal(serviceRead.statusCode, 200);
     assert.equal(serviceRead.json().paymentPolicy.collectionMode, "deposit");
     assert.equal(serviceRead.json().paymentPolicy.checkoutMode, "checkout_pro");
+  } finally {
+    await app.close();
+  }
+});
+
+test("read model administrativo de relatorios agrega financeiro minimo e recorrencia basica", async () => {
+  const app = await createApp();
+
+  try {
+    const onboarding = await onboardTenant(app, "read-model");
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Corte Recorrente",
+      duracaoMin: 45,
+      precoBase: 65,
+      exigeSinal: false
+    });
+    const professional = await createProfessional(app, onboarding.session.token, [service.id], {
+      nome: "Ana Lima"
+    });
+
+    await setAvailability(
+      app,
+      onboarding.session.token,
+      professional.id,
+      Array.from({ length: 7 }, (_, weekday) => ({
+        weekday,
+        faixa: {
+          startTime: "08:00",
+          endTime: "18:00"
+        }
+      }))
+    );
+
+    const returningClient = await createClient(app, onboarding.session.token, {
+      nome: "Cliente Retorno",
+      email: "retorno@agendaai.test"
+    });
+    const inactiveClient = await createClient(app, onboarding.session.token, {
+      nome: "Cliente Inativo",
+      email: "inativo@agendaai.test"
+    });
+    const neverCompletedClient = await createClient(app, onboarding.session.token, {
+      nome: "Cliente Novo",
+      email: "novo@agendaai.test"
+    });
+
+    await createBooking(app, onboarding.session.token, {
+      clientId: returningClient.id,
+      serviceId: service.id,
+      professionalId: professional.id,
+      status: "concluido",
+      ...buildIsoWindow(-20, 9, 30, 45)
+    });
+    await createBooking(app, onboarding.session.token, {
+      clientId: returningClient.id,
+      serviceId: service.id,
+      professionalId: professional.id,
+      status: "concluido",
+      ...buildIsoWindow(-5, 9, 30, 45)
+    });
+    await createBooking(app, onboarding.session.token, {
+      clientId: inactiveClient.id,
+      serviceId: service.id,
+      professionalId: professional.id,
+      status: "concluido",
+      ...buildIsoWindow(-50, 10, 15, 45)
+    });
+    await createBooking(app, onboarding.session.token, {
+      clientId: neverCompletedClient.id,
+      serviceId: service.id,
+      professionalId: professional.id,
+      status: "pendente",
+      ...buildIsoWindow(-2, 11, 0, 45)
+    });
+
+    const response = await app.inject({
+      method: "GET",
+      url: "/v1/admin/read-models/reports?range=30d&returnWindow=30d",
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(response.statusCode, 200);
+    const payload = response.json();
+
+    assert.equal(payload.current.bookingsCount, 3);
+    assert.equal(payload.current.completedCount, 2);
+    assert.equal(payload.current.recognizedRevenue, 130);
+    assert.equal(payload.previous?.recognizedRevenue, 65);
+    assert.equal(payload.services.length, 1);
+    assert.equal(payload.professionals.length, 1);
+    assert.equal(payload.clientRecurrence.returningCount, 1);
+    assert.equal(payload.clientRecurrence.inactiveCount, 1);
+    assert.equal(payload.clientRecurrence.neverCompletedCount, 1);
+    assert.equal(payload.clientRecurrence.clientsWithRecurrence, 1);
+    assert.equal(payload.clientRecurrence.averageRecurrenceDays, 15);
+    assert.equal(
+      payload.clientRecurrence.returnBuckets.find((item: { id: string }) => item.id === "return_0_30")
+        ?.clientsCount,
+      1
+    );
+    assert.equal(
+      payload.clientRecurrence.returnBuckets.find((item: { id: string }) => item.id === "return_31_60")
+        ?.clientsCount,
+      1
+    );
+    assert.equal(
+      payload.clientRecurrence.returnBuckets.find((item: { id: string }) => item.id === "never_completed")
+        ?.clientsCount,
+      1
+    );
   } finally {
     await app.close();
   }

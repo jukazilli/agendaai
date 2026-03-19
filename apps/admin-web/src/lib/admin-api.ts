@@ -1,4 +1,5 @@
 import type {
+  AdminReportsReadModel,
   AdminSessionClaimsContract,
   AvailabilityRule,
   Booking,
@@ -63,6 +64,13 @@ export interface AvailabilitySlot {
 
 export interface PaymentIntentSyncPayload {
   readonly paymentId?: string;
+}
+
+export interface ReportsReadModelQuery {
+  readonly range: "7d" | "30d" | "all";
+  readonly returnWindow: "30d" | "60d" | "90d";
+  readonly serviceId?: string;
+  readonly professionalId?: string;
 }
 
 interface ApiErrorPayload {
@@ -157,6 +165,26 @@ export async function fetchAdminBootstrap(
     clients: clients.items,
     bookings: bookings.items
   };
+}
+
+export async function fetchAdminReportsReadModel(
+  apiBaseUrl: string,
+  token: string,
+  query: ReportsReadModelQuery
+): Promise<AdminReportsReadModel> {
+  const url = new URL("/v1/admin/read-models/reports", `${resolveAdminApiBaseUrl(apiBaseUrl)}/`);
+  url.searchParams.set("range", query.range);
+  url.searchParams.set("returnWindow", query.returnWindow);
+  if (query.serviceId) {
+    url.searchParams.set("serviceId", query.serviceId);
+  }
+  if (query.professionalId) {
+    url.searchParams.set("professionalId", query.professionalId);
+  }
+
+  return await requestJson<AdminReportsReadModel>(apiBaseUrl, url.pathname + url.search, {
+    token
+  });
 }
 
 export async function updateTenantSlug(

@@ -124,3 +124,27 @@ export type {
   CreateBookingCommand,
   PublicCreateBookingInput
 } from "./v1/booking";
+
+export {
+  adminReportsReadModelSchema,
+  reportingFiltersSchema,
+  reportingGroupSummarySchema,
+  reportingInactiveClientSnapshotSchema,
+  reportingMetricSummarySchema,
+  reportingRangeSchema,
+  reportingRangeValues,
+  reportingReturnBucketSchema,
+  reportingReturnWindowSchema,
+  reportingReturnWindowValues
+} from "./v1/reporting";
+export type {
+  AdminReportsReadModel,
+  ReportingClientRecurrenceSummary,
+  ReportingFilters,
+  ReportingGroupSummary,
+  ReportingInactiveClientSnapshot,
+  ReportingMetricSummary,
+  ReportingRange,
+  ReportingReturnBucket,
+  ReportingReturnWindow
+} from "./v1/reporting";

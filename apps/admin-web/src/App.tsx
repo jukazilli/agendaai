@@ -7,12 +7,15 @@ import {
   paymentCollectionModeValues,
   paymentMethodValues,
   paymentProviderStatusValues,
+  type AdminReportsReadModel,
   type AvailabilityRule,
   type Booking,
   type Client,
   type CreateTenantCommand,
   type PaymentIntent,
   type Professional,
+  type ReportingGroupSummary,
+  type ReportingMetricSummary,
   type Service,
   type TenantPaymentSettings
 } from "@agendaai/contracts";
@@ -25,6 +28,7 @@ import {
   createProfessional,
   createService,
   createTenantOnboarding,
+  fetchAdminReportsReadModel,
   fetchAvailabilitySlots,
   fetchAdminBootstrap,
   fetchProfessionalAvailability,
@@ -179,13 +183,8 @@ interface ClientPortfolioSummary {
   readonly returningCount: number;
 }
 
-interface ReportGroupSummary {
-  readonly id: string;
-  readonly label: string;
-  readonly bookingsCount: number;
-  readonly completedCount: number;
-  readonly recognizedRevenue: number;
-}
+type ReportGroupSummary = ReportingGroupSummary;
+type ReportMetricSummary = ReportingMetricSummary;
 
 interface AdminRouteDefinition {
   readonly label: string;
@@ -365,6 +364,9 @@ export function App() {
   const [reportsRange, setReportsRange] = useState<DashboardRange>("30d");
   const [reportsServiceFilter, setReportsServiceFilter] = useState("all");
   const [reportsProfessionalFilter, setReportsProfessionalFilter] = useState("all");
+  const [reportsReadModel, setReportsReadModel] = useState<AdminReportsReadModel | null>(null);
+  const [reportsReadModelError, setReportsReadModelError] = useState<string | null>(null);
+  const [isLoadingReportsReadModel, setIsLoadingReportsReadModel] = useState(false);
   const [clientReturnWindow, setClientReturnWindow] = useState<ClientReturnWindow>("30d");
   const [clientSegmentFilter, setClientSegmentFilter] = useState<ClientSegmentFilter>("all");
   const [loginForm, setLoginForm] = useState({
@@ -463,6 +465,60 @@ export function App() {
       ignore = true;
     };
   }, [apiBaseUrl, sessionToken]);
+
+  useEffect(() => {
+    if (!sessionToken) {
+      setReportsReadModel(null);
+      setReportsReadModelError(null);
+      setIsLoadingReportsReadModel(false);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingReportsReadModel(true);
+
+    async function loadReportsReadModel() {
+      try {
+        const nextReadModel = await fetchAdminReportsReadModel(apiBaseUrl, sessionToken, {
+          range: reportsRange,
+          serviceId: reportsServiceFilter !== "all" ? reportsServiceFilter : undefined,
+          professionalId:
+            reportsProfessionalFilter !== "all" ? reportsProfessionalFilter : undefined,
+          returnWindow: clientReturnWindow
+        });
+
+        if (!ignore) {
+          setReportsReadModel(nextReadModel);
+          setReportsReadModelError(null);
+        }
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+        if (error instanceof AdminApiError && error.status === 401) {
+          setSessionToken("");
+        }
+        setReportsReadModel(null);
+        setReportsReadModelError(toErrorMessage(error));
+      } finally {
+        if (!ignore) {
+          setIsLoadingReportsReadModel(false);
+        }
+      }
+    }
+
+    void loadReportsReadModel();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    apiBaseUrl,
+    clientReturnWindow,
+    reportsProfessionalFilter,
+    reportsRange,
+    reportsServiceFilter,
+    sessionToken
+  ]);
 
   useEffect(() => {
     if (!bootstrap) {
@@ -613,11 +669,16 @@ export function App() {
     buildRevenueEntries(previousReportBookings, services, professionals, clients, paymentIntents),
     previousReportBookings
   );
-  const reportServiceSummaries = buildServiceReportSummaries(reportBookings, services);
+  const reportServiceSummaries = buildServiceReportSummaries(
+    reportBookings,
+    services,
+    paymentIntents
+  );
   const reportProfessionalSummaries = buildProfessionalReportSummaries(
     reportBookings,
     professionals,
-    services
+    services,
+    paymentIntents
   );
   const bookingSummary = summarizeBookings(bookings);
   const agendaBookings = filterAgendaBookings(bookings, bookingFilter);
@@ -634,6 +695,41 @@ export function App() {
   );
   const clientPortfolioSummary = summarizeClientPortfolio(clientInsights, clientReturnWindow);
   const inactiveClientInsights = filterClientInsights(clientInsights, "inactive", clientReturnWindow);
+  const fallbackReportCurrent = buildReportMetricSummary(reportBookings, services, paymentIntents);
+  const fallbackReportPrevious =
+    reportsRange === "all"
+      ? undefined
+      : buildReportMetricSummary(previousReportBookings, services, paymentIntents);
+  const activeReportCurrent = reportsReadModel?.current ?? fallbackReportCurrent;
+  const activeReportPrevious = reportsReadModel?.previous ?? fallbackReportPrevious;
+  const activeReportServiceSummaries = reportsReadModel?.services ?? reportServiceSummaries;
+  const activeReportProfessionalSummaries =
+    reportsReadModel?.professionals ?? reportProfessionalSummaries;
+  const activeClientRecurrence =
+    reportsReadModel?.clientRecurrence ??
+    ({
+      window: clientReturnWindow,
+      returningCount: clientPortfolioSummary.returningCount,
+      inactiveCount: clientPortfolioSummary.inactiveCount,
+      neverCompletedCount: clientPortfolioSummary.neverCompletedCount,
+      clientsWithRecurrence: 0,
+      averageRecurrenceDays: null,
+      returnBuckets: [],
+      inactiveClients: inactiveClientInsights.slice(0, 8).map((entry) => ({
+        clientId: entry.client.id,
+        nome: entry.client.nome,
+        email: entry.client.email,
+        telefone: entry.client.telefone,
+        origem: entry.client.origem,
+        completedBookings: entry.completedBookings,
+        recognizedRevenue: entry.recognizedRevenue,
+        lastCompletedAt: entry.lastCompletedBooking?.endAt,
+        daysSinceLastCompleted: entry.lastCompletedBooking
+          ? calculateDaysSinceIso(entry.lastCompletedBooking.endAt)
+          : undefined,
+        averageRecurrenceDays: null
+      }))
+    } satisfies NonNullable<AdminReportsReadModel["clientRecurrence"]>);
   const pendingPaymentCount = paymentIntents.filter((intent) =>
     ["pending", "in_process", "authorized", "draft"].includes(intent.status)
   ).length;
@@ -2275,53 +2371,69 @@ export function App() {
           <div className="stats-strip">
             <article className="stat-card">
               <span>Bookings no periodo</span>
-              <strong>{reportBookings.length}</strong>
+              <strong>{activeReportCurrent.bookingsCount}</strong>
               <small>
                 {resolveReportComparisonLabel(
-                  reportBookings.length,
-                  previousReportBookings.length,
+                  activeReportCurrent.bookingsCount,
+                  activeReportPrevious?.bookingsCount ?? 0,
                   "count",
-                  reportsRange !== "all"
+                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
                 )}
               </small>
             </article>
             <article className="stat-card">
               <span>Receita reconhecida</span>
-              <strong>{formatCurrency(reportRevenueSummary.recognizedRevenue)}</strong>
+              <strong>{formatCurrency(activeReportCurrent.recognizedRevenue)}</strong>
               <small>
                 {resolveReportComparisonLabel(
-                  reportRevenueSummary.recognizedRevenue,
-                  previousReportRevenueSummary.recognizedRevenue,
+                  activeReportCurrent.recognizedRevenue,
+                  activeReportPrevious?.recognizedRevenue ?? 0,
                   "currency",
-                  reportsRange !== "all"
+                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
                 )}
               </small>
             </article>
             <article className="stat-card">
               <span>Entrada online aprovada</span>
-              <strong>{formatCurrency(reportRevenueSummary.approvedOnlineRevenue)}</strong>
+              <strong>{formatCurrency(activeReportCurrent.approvedOnlineRevenue)}</strong>
               <small>
                 {resolveReportComparisonLabel(
-                  reportRevenueSummary.approvedOnlineRevenue,
-                  previousReportRevenueSummary.approvedOnlineRevenue,
+                  activeReportCurrent.approvedOnlineRevenue,
+                  activeReportPrevious?.approvedOnlineRevenue ?? 0,
                   "currency",
-                  reportsRange !== "all"
+                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
                 )}
               </small>
             </article>
             <article className="stat-card">
               <span>No-show</span>
-              <strong>{formatPercentage(reportRevenueSummary.noShowRate)}</strong>
+              <strong>
+                {formatPercentage(
+                  activeReportCurrent.bookingsCount > 0
+                    ? activeReportCurrent.noShowCount / activeReportCurrent.bookingsCount
+                    : 0
+                )}
+              </strong>
               <small>
                 {resolveReportComparisonLabel(
-                  reportRevenueSummary.noShowRate,
-                  previousReportRevenueSummary.noShowRate,
+                  activeReportCurrent.bookingsCount > 0
+                    ? activeReportCurrent.noShowCount / activeReportCurrent.bookingsCount
+                    : 0,
+                  activeReportPrevious && activeReportPrevious.bookingsCount > 0
+                    ? activeReportPrevious.noShowCount / activeReportPrevious.bookingsCount
+                    : 0,
                   "percentage",
-                  reportsRange !== "all"
+                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
                 )}
               </small>
             </article>
           </div>
+          {isLoadingReportsReadModel ? (
+            <p className="empty-state">Atualizando read model de relatorios...</p>
+          ) : null}
+          {reportsReadModelError ? (
+            <div className="feedback-banner is-error">{reportsReadModelError}</div>
+          ) : null}
         </article>
 
         <section className="workspace-grid">
@@ -2335,8 +2447,8 @@ export function App() {
             </div>
 
             <div className="records-column">
-              {reportServiceSummaries.length ? (
-                reportServiceSummaries.map((entry) => (
+              {activeReportServiceSummaries.length ? (
+                activeReportServiceSummaries.map((entry) => (
                   <article className="record-card" key={entry.id}>
                     <div className="record-card-header">
                       <div className="record-stack">
@@ -2350,7 +2462,7 @@ export function App() {
                     <div className="record-meta">
                       <span>Concluidos {entry.completedCount}</span>
                       <span className="status-pill is-neutral">
-                        Ticket medio {formatCurrency(entry.completedCount > 0 ? entry.recognizedRevenue / entry.completedCount : 0)}
+                        Ticket medio {formatCurrency(entry.averageTicket)}
                       </span>
                     </div>
                   </article>
@@ -2371,8 +2483,8 @@ export function App() {
             </div>
 
             <div className="records-column">
-              {reportProfessionalSummaries.length ? (
-                reportProfessionalSummaries.map((entry) => (
+              {activeReportProfessionalSummaries.length ? (
+                activeReportProfessionalSummaries.map((entry) => (
                   <article className="record-card" key={entry.id}>
                     <div className="record-card-header">
                       <div className="record-stack">
@@ -2386,7 +2498,7 @@ export function App() {
                     <div className="record-meta">
                       <span>Concluidos {entry.completedCount}</span>
                       <span className="status-pill is-neutral">
-                        Ticket medio {formatCurrency(entry.completedCount > 0 ? entry.recognizedRevenue / entry.completedCount : 0)}
+                        Ticket medio {formatCurrency(entry.averageTicket)}
                       </span>
                     </div>
                   </article>
@@ -2411,40 +2523,70 @@ export function App() {
             <div className="stats-strip">
               <article className="stat-card">
                 <span>Com retorno</span>
-                <strong>{clientPortfolioSummary.returningCount}</strong>
+                <strong>{activeClientRecurrence.returningCount}</strong>
               </article>
               <article className="stat-card">
                 <span>Sem retorno</span>
-                <strong>{clientPortfolioSummary.inactiveCount}</strong>
+                <strong>{activeClientRecurrence.inactiveCount}</strong>
               </article>
               <article className="stat-card">
                 <span>Nunca concluiu</span>
-                <strong>{clientPortfolioSummary.neverCompletedCount}</strong>
+                <strong>{activeClientRecurrence.neverCompletedCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Recorrencia media</span>
+                <strong>
+                  {activeClientRecurrence.averageRecurrenceDays === null
+                    ? "n/d"
+                    : `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`}
+                </strong>
               </article>
             </div>
 
             <div className="records-column">
-              {inactiveClientInsights.length ? (
-                inactiveClientInsights.slice(0, 8).map((entry) => (
-                  <article className="record-card" key={entry.client.id}>
+              {activeClientRecurrence.returnBuckets.length ? (
+                activeClientRecurrence.returnBuckets.map((bucket) => (
+                  <article className="list-card" key={bucket.id}>
+                    <strong>{bucket.label}</strong>
+                    <p>{bucket.clientsCount} cliente(s) neste bucket de retorno.</p>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">Buckets de retorno ainda nao disponiveis neste recorte.</p>
+              )}
+            </div>
+
+            <div className="records-column">
+              {activeClientRecurrence.inactiveClients.length ? (
+                activeClientRecurrence.inactiveClients.map((entry) => (
+                  <article className="record-card" key={entry.clientId}>
                     <div className="record-card-header">
                       <div className="record-stack">
-                        <strong>{entry.client.nome}</strong>
-                        <span>{entry.client.email}</span>
+                        <strong>{entry.nome}</strong>
+                        <span>{entry.email}</span>
                       </div>
                       <span className="status-pill is-warning">
-                        {formatClientSegment("inactive", clientReturnWindow)}
+                        {formatClientSegment("inactive", activeClientRecurrence.window)}
                       </span>
                     </div>
                     <div className="record-meta">
-                      <span>Ultimo atendimento {entry.lastCompletedBooking ? formatDateTime(entry.lastCompletedBooking.endAt) : "nunca"}</span>
+                      <span>
+                        Ultimo atendimento {entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "nunca"}
+                      </span>
                       <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
+                      <span>
+                        Recorrencia media{" "}
+                        {entry.averageRecurrenceDays === null
+                          ? "n/d"
+                          : `${Math.round(entry.averageRecurrenceDays)} dias`}
+                      </span>
                     </div>
                   </article>
                 ))
               ) : (
                 <p className="empty-state">
-                  Nenhum cliente sem retorno identificado na janela de {resolveClientReturnWindowLabel(clientReturnWindow)}.
+                  Nenhum cliente sem retorno identificado na janela de{" "}
+                  {resolveClientReturnWindowLabel(activeClientRecurrence.window)}.
                 </p>
               )}
             </div>
@@ -2465,8 +2607,8 @@ export function App() {
                 <p>Ja existe para o mesmo periodo imediatamente anterior, desde que o filtro nao esteja em `Tudo`.</p>
               </div>
               <div className="list-card">
-                <strong>Cohort e recorrencia (nao funcional)</strong>
-                <p>Os relatorios ainda nao calculam cohort de retorno, ciclo medio de recompra ou previsao de reativacao.</p>
+                <strong>Recorrencia basica (funcional)</strong>
+                <p>O modulo agora recebe buckets de retorno e media simples entre atendimentos concluidos a partir de um read model do `api-rest`.</p>
               </div>
               <div className="list-card">
                 <strong>Financeiro persistido (nao funcional)</strong>
@@ -4032,11 +4174,39 @@ function summarizeRevenueEntries(
   };
 }
 
+function buildReportMetricSummary(
+  bookings: readonly Booking[],
+  services: readonly Service[],
+  paymentIntents: readonly PaymentIntent[]
+): ReportMetricSummary {
+  const completedBookings = bookings.filter((booking) => booking.status === "concluido");
+  const recognizedRevenue = completedBookings.reduce((total, booking) => {
+    const service = services.find((item) => item.id === booking.serviceId);
+    return total + (service?.precoBase ?? 0);
+  }, 0);
+  const approvedOnlineRevenue = completedBookings.reduce((total, booking) => {
+    const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+    return total + (paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? paymentIntent.amount : 0);
+  }, 0);
+
+  return {
+    bookingsCount: bookings.length,
+    completedCount: completedBookings.length,
+    cancelledCount: bookings.filter((booking) => booking.status === "cancelado").length,
+    noShowCount: bookings.filter((booking) => booking.status === "faltou").length,
+    recognizedRevenue,
+    approvedOnlineRevenue,
+    averageTicket: completedBookings.length > 0 ? recognizedRevenue / completedBookings.length : 0,
+    uniqueClients: new Set(bookings.map((booking) => booking.clientId)).size
+  };
+}
+
 function buildServiceReportSummaries(
   bookings: readonly Booking[],
-  services: readonly Service[]
+  services: readonly Service[],
+  paymentIntents: readonly PaymentIntent[]
 ): ReportGroupSummary[] {
-  const grouped = new Map<string, ReportGroupSummary>();
+  const grouped = new Map<string, ReportGroupSummary & { readonly clientIds: Set<string> }>();
 
   for (const booking of bookings) {
     const service = services.find((item) => item.id === booking.serviceId);
@@ -4047,36 +4217,56 @@ function buildServiceReportSummaries(
         label: service?.nome ?? "Servico removido",
         bookingsCount: 0,
         completedCount: 0,
-        recognizedRevenue: 0
-      } satisfies ReportGroupSummary);
+        recognizedRevenue: 0,
+        approvedOnlineRevenue: 0,
+        averageTicket: 0,
+        uniqueClients: 0,
+        clientIds: new Set<string>()
+      } satisfies ReportGroupSummary & { readonly clientIds: Set<string> });
+    const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+    const nextCompletedCount =
+      existing.completedCount + (booking.status === "concluido" ? 1 : 0);
+    const nextRecognizedRevenue =
+      existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0);
+    const nextApprovedOnlineRevenue =
+      existing.approvedOnlineRevenue +
+      (booking.status === "concluido" && paymentIntent && isApprovedPaymentIntent(paymentIntent.status)
+        ? paymentIntent.amount
+        : 0);
+    existing.clientIds.add(booking.clientId);
 
     grouped.set(booking.serviceId, {
       ...existing,
       bookingsCount: existing.bookingsCount + 1,
-      completedCount:
-        existing.completedCount + (booking.status === "concluido" ? 1 : 0),
-      recognizedRevenue:
-        existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0)
+      completedCount: nextCompletedCount,
+      recognizedRevenue: nextRecognizedRevenue,
+      approvedOnlineRevenue: nextApprovedOnlineRevenue,
+      averageTicket: nextCompletedCount > 0 ? nextRecognizedRevenue / nextCompletedCount : 0,
+      uniqueClients: existing.clientIds.size,
+      clientIds: existing.clientIds
     });
   }
 
-  return [...grouped.values()].sort((left, right) => {
-    if (right.recognizedRevenue !== left.recognizedRevenue) {
-      return right.recognizedRevenue - left.recognizedRevenue;
-    }
-    if (right.bookingsCount !== left.bookingsCount) {
-      return right.bookingsCount - left.bookingsCount;
-    }
-    return left.label.localeCompare(right.label);
-  });
+  return [...grouped.values()]
+    .map(({ clientIds: _clientIds, ...entry }) => entry)
+    .sort((left, right) => {
+      if (right.recognizedRevenue !== left.recognizedRevenue) {
+        return right.recognizedRevenue - left.recognizedRevenue;
+      }
+      if (right.bookingsCount !== left.bookingsCount) {
+        return right.bookingsCount - left.bookingsCount;
+      }
+      return left.label.localeCompare(right.label);
+    });
 }
 
 function buildProfessionalReportSummaries(
   bookings: readonly Booking[],
   professionals: readonly Professional[],
-  services: readonly Service[]
+  services: readonly Service[],
+  paymentIntents: readonly PaymentIntent[]
 ): ReportGroupSummary[] {
-  const grouped = new Map<string, ReportGroupSummary>();
+  const grouped = new Map<string, ReportGroupSummary & { readonly clientIds: Set<string> }>();
 
   for (const booking of bookings) {
     const professional = professionals.find((item) => item.id === booking.professionalId);
@@ -4088,28 +4278,51 @@ function buildProfessionalReportSummaries(
         label: professional?.nome ?? "Profissional removido",
         bookingsCount: 0,
         completedCount: 0,
-        recognizedRevenue: 0
-      } satisfies ReportGroupSummary);
+        recognizedRevenue: 0,
+        approvedOnlineRevenue: 0,
+        averageTicket: 0,
+        uniqueClients: 0,
+        clientIds: new Set<string>()
+      } satisfies ReportGroupSummary & { readonly clientIds: Set<string> });
+    const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+    const nextCompletedCount =
+      existing.completedCount + (booking.status === "concluido" ? 1 : 0);
+    const nextRecognizedRevenue =
+      existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0);
+    const nextApprovedOnlineRevenue =
+      existing.approvedOnlineRevenue +
+      (booking.status === "concluido" && paymentIntent && isApprovedPaymentIntent(paymentIntent.status)
+        ? paymentIntent.amount
+        : 0);
+    existing.clientIds.add(booking.clientId);
 
     grouped.set(booking.professionalId, {
       ...existing,
       bookingsCount: existing.bookingsCount + 1,
-      completedCount:
-        existing.completedCount + (booking.status === "concluido" ? 1 : 0),
-      recognizedRevenue:
-        existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0)
+      completedCount: nextCompletedCount,
+      recognizedRevenue: nextRecognizedRevenue,
+      approvedOnlineRevenue: nextApprovedOnlineRevenue,
+      averageTicket: nextCompletedCount > 0 ? nextRecognizedRevenue / nextCompletedCount : 0,
+      uniqueClients: existing.clientIds.size,
+      clientIds: existing.clientIds
     });
   }
 
-  return [...grouped.values()].sort((left, right) => {
-    if (right.recognizedRevenue !== left.recognizedRevenue) {
-      return right.recognizedRevenue - left.recognizedRevenue;
-    }
-    if (right.bookingsCount !== left.bookingsCount) {
-      return right.bookingsCount - left.bookingsCount;
-    }
-    return left.label.localeCompare(right.label);
-  });
+  return [...grouped.values()]
+    .map(({ clientIds: _clientIds, ...entry }) => entry)
+    .sort((left, right) => {
+      if (right.recognizedRevenue !== left.recognizedRevenue) {
+        return right.recognizedRevenue - left.recognizedRevenue;
+      }
+      if (right.bookingsCount !== left.bookingsCount) {
+        return right.bookingsCount - left.bookingsCount;
+      }
+      return left.label.localeCompare(right.label);
+    });
+}
+
+function isApprovedPaymentIntent(status: PaymentIntent["status"]): boolean {
+  return status === "approved" || status === "authorized";
 }
 
 function resolveBookingActions(booking: Booking): BookingAction[] {
