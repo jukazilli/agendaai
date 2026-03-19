@@ -157,6 +157,7 @@ export interface ApiRestStorePort {
     tenantId: string,
     externalReference: string
   ): MaybePromise<PaymentIntent | undefined>;
+  listPaymentIntents(tenantId: string): MaybePromise<PaymentIntent[]>;
   updatePaymentIntent(
     tenantId: string,
     paymentIntentId: string,
@@ -472,6 +473,12 @@ export class ApiRestStore implements ApiRestStorePort {
       (paymentIntent) =>
         paymentIntent.tenantId === tenantId &&
         paymentIntent.externalReference === externalReference
+    );
+  }
+
+  listPaymentIntents(tenantId: string): PaymentIntent[] {
+    return [...this.paymentIntents.values()].filter(
+      (paymentIntent) => paymentIntent.tenantId === tenantId
     );
   }
 

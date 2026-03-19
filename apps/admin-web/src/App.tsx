@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type JSX } from "react";
 
 import {
   defaultServicePaymentPolicy,
@@ -11,6 +11,7 @@ import {
   type Booking,
   type Client,
   type CreateTenantCommand,
+  type PaymentIntent,
   type Professional,
   type Service,
   type TenantPaymentSettings
@@ -29,6 +30,7 @@ import {
   resolveAdminApiBaseUrl,
   savePaymentSettings,
   saveProfessionalAvailability,
+  syncPaymentIntent,
   updateBooking,
   updateProfessional,
   updateService,
@@ -36,6 +38,14 @@ import {
 } from "./lib/admin-api";
 
 type AuthMode = "login" | "onboarding";
+type AdminRoute =
+  | "dashboard"
+  | "operacional"
+  | "agenda"
+  | "catalogo"
+  | "profissionais"
+  | "clientes"
+  | "configuracoes";
 type BookingFilter = "today" | "open" | "all";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
@@ -111,11 +121,114 @@ interface ClientInsight {
   readonly lastBooking?: Booking;
 }
 
+interface AdminRouteDefinition {
+  readonly label: string;
+  readonly shortLabel: string;
+  readonly section: "Gestao do negocio" | "Dia a dia" | "Administracao";
+  readonly eyebrow: string;
+  readonly title: string;
+  readonly description: string;
+  readonly stage: "funcional" | "parcial";
+}
+
 const API_BASE_STORAGE_KEY = "agendaai.admin.apiBaseUrl";
 const SESSION_STORAGE_KEY = "agendaai.admin.sessionToken";
+const DEPLOY_ADMIN_API_BASE_URL =
+  (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
+  DEFAULT_ADMIN_API_BASE_URL;
 const BOOKING_BASE_URL =
   (import.meta.env.VITE_BOOKING_BASE_URL as string | undefined)?.trim() || "http://127.0.0.1:3000";
 const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
+const defaultAdminRoute: AdminRoute = "operacional";
+const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
+  dashboard: {
+    label: "Dashboard",
+    shortLabel: "DG",
+    section: "Gestao do negocio",
+    eyebrow: "Gestao do negocio",
+    title: "Visao gerencial do tenant",
+    description:
+      "Resumo executivo do que ja existe no runtime e dos blocos que ainda nao contam com read model dedicado.",
+    stage: "parcial"
+  },
+  operacional: {
+    label: "Operacao diaria",
+    shortLabel: "OP",
+    section: "Dia a dia",
+    eyebrow: "Dia a dia",
+    title: "Fila operacional do dia",
+    description:
+      "Agenda administrativa para confirmar, concluir ou cancelar atendimentos sem misturar implantacao e configuracao.",
+    stage: "funcional"
+  },
+  agenda: {
+    label: "Agenda / calendario",
+    shortLabel: "AG",
+    section: "Dia a dia",
+    eyebrow: "Planejamento",
+    title: "Agenda e leitura de capacidade",
+    description:
+      "Timeline operacional disponivel hoje; grade visual de calendario, reagendamento drag-and-drop e planejamento avancado seguem fora do corte.",
+    stage: "parcial"
+  },
+  catalogo: {
+    label: "Catalogo",
+    shortLabel: "CT",
+    section: "Administracao",
+    eyebrow: "Administracao",
+    title: "Servicos e politica comercial",
+    description:
+      "Cadastro real de servicos e cobranca. Produtos, kits, combos e add-ons continuam fora dos contratos atuais.",
+    stage: "funcional"
+  },
+  profissionais: {
+    label: "Profissionais",
+    shortLabel: "PF",
+    section: "Administracao",
+    eyebrow: "Administracao",
+    title: "Equipe e disponibilidade semanal",
+    description:
+      "Cadastro da equipe, especialidades e agenda operacional semanal por profissional.",
+    stage: "funcional"
+  },
+  clientes: {
+    label: "Clientes",
+    shortLabel: "CL",
+    section: "Administracao",
+    eyebrow: "Administracao",
+    title: "Base derivada da jornada real",
+    description:
+      "Clientes capturados pelo fluxo publico com leitura de historico basica. CRM, segmentacao, WhatsApp e LTV seguem sem contrato dedicado.",
+    stage: "parcial"
+  },
+  configuracoes: {
+    label: "Configuracoes",
+    shortLabel: "CF",
+    section: "Administracao",
+    eyebrow: "Implantacao",
+    title: "Perfil do negocio e cobranca",
+    description:
+      "Slug publica, Mercado Pago, ambiente administrativo e parametros do tenant em uma area separada da operacao.",
+    stage: "funcional"
+  }
+};
+const adminNavigationSections: ReadonlyArray<{
+  readonly label: AdminRouteDefinition["section"];
+  readonly routes: readonly AdminRoute[];
+}> = [
+  {
+    label: "Gestao do negocio",
+    routes: ["dashboard"]
+  },
+  {
+    label: "Dia a dia",
+    routes: ["operacional", "agenda"]
+  },
+  {
+    label: "Administracao",
+    routes: ["catalogo", "profissionais", "clientes", "configuracoes"]
+  }
+];
 
 const defaultPaymentForm: PaymentFormState = {
   status: "draft",
@@ -146,10 +259,25 @@ const defaultServiceForm: ServiceFormState = {
   acceptedMethods: [...defaultServicePaymentPolicy.acceptedMethods]
 };
 
+function isAdminRoute(value: string): value is AdminRoute {
+  return Object.prototype.hasOwnProperty.call(adminRouteDefinitions, value);
+}
+
+function readAdminRouteFromHash(): AdminRoute {
+  if (typeof window === "undefined") {
+    return defaultAdminRoute;
+  }
+
+  const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
+  return isAdminRoute(hash) ? hash : defaultAdminRoute;
+}
+
 export function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
+  const [currentRoute, setCurrentRoute] = useState<AdminRoute>(readAdminRouteFromHash);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState(() =>
-    loadStoredValue(API_BASE_STORAGE_KEY, DEFAULT_ADMIN_API_BASE_URL)
+    loadStoredValue(API_BASE_STORAGE_KEY, DEPLOY_ADMIN_API_BASE_URL)
   );
   const [sessionToken, setSessionToken] = useState(() => loadStoredValue(SESSION_STORAGE_KEY, ""));
   const [bootstrap, setBootstrap] = useState<AdminBootstrapPayload | null>(null);
@@ -187,6 +315,22 @@ export function App() {
   useEffect(() => {
     storeValue(API_BASE_STORAGE_KEY, apiBaseUrl);
   }, [apiBaseUrl]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncRouteFromHash = () => {
+      setCurrentRoute(readAdminRouteFromHash());
+    };
+
+    syncRouteFromHash();
+    window.addEventListener("hashchange", syncRouteFromHash);
+    return () => {
+      window.removeEventListener("hashchange", syncRouteFromHash);
+    };
+  }, []);
 
   useEffect(() => {
     storeValue(SESSION_STORAGE_KEY, sessionToken);
@@ -297,9 +441,13 @@ export function App() {
   const professionals = bootstrap?.professionals ?? [];
   const clients = bootstrap?.clients ?? [];
   const bookings = bootstrap?.bookings ?? [];
+  const paymentIntents = bootstrap?.paymentIntents ?? [];
   const bookingSummary = summarizeBookings(bookings);
   const agendaBookings = filterAgendaBookings(bookings, bookingFilter);
   const clientInsights = buildClientInsights(clients, bookings);
+  const pendingPaymentCount = paymentIntents.filter((intent) =>
+    ["pending", "in_process", "authorized", "draft"].includes(intent.status)
+  ).length;
 
   async function refreshAdminState(): Promise<void> {
     if (!sessionToken) {
@@ -438,6 +586,1247 @@ export function App() {
       });
     });
   }
+
+  async function handlePaymentSync(paymentIntent: PaymentIntent): Promise<void> {
+    await runAction(async () => {
+      await syncPaymentIntent(apiBaseUrl, sessionToken, paymentIntent.id, {
+        paymentId: paymentIntent.paymentId
+      });
+      await refreshAdminState();
+      setFeedback({
+        tone: "success",
+        message: "Status de pagamento sincronizado."
+      });
+    });
+  }
+
+  function navigateTo(route: AdminRoute): void {
+    const nextHash = `#${route}`;
+    if (typeof window !== "undefined" && window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
+    setCurrentRoute(route);
+    setIsSidebarOpen(false);
+  }
+
+  function handleRefreshClick(): void {
+    void runAction(async () => {
+      await refreshAdminState();
+      setFeedback({ tone: "info", message: "Painel administrativo atualizado." });
+    });
+  }
+
+  function renderAgendaRecords(): JSX.Element {
+    if (!agendaBookings.length) {
+      return (
+        <p className="empty-state">Nenhum booking encontrado para este filtro operacional.</p>
+      );
+    }
+
+    return (
+      <>
+        {agendaBookings.map((booking) => {
+          const service = services.find((item) => item.id === booking.serviceId);
+          const professional = professionals.find((item) => item.id === booking.professionalId);
+          const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+          const actions = resolveBookingActions(booking);
+          const canSyncPayment = paymentIntent !== undefined && paymentIntent.status !== "approved";
+
+          return (
+            <article className="record-card agenda-card" key={booking.id}>
+              <div className="record-card-header">
+                <div className="record-stack">
+                  <strong>{resolveBookingTitle(booking, services, professionals)}</strong>
+                  <span>{resolveClientName(booking.clientId, clients)}</span>
+                </div>
+                <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                  {formatBookingStatus(booking.status)}
+                </span>
+              </div>
+
+              <div className="record-meta">
+                <span>{formatDateTime(booking.startAt)}</span>
+                <span>{service ? formatCurrency(service.precoBase) : "Preco nao encontrado"}</span>
+                <span>{professional?.nome ?? "Profissional nao encontrado"}</span>
+              </div>
+
+              {paymentIntent ? (
+                <div className="record-meta">
+                  <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
+                    Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
+                  </span>
+                  {paymentIntent.paymentId ? (
+                    <span className="status-pill is-neutral">MP {paymentIntent.paymentId}</span>
+                  ) : (
+                    <span className="status-pill is-neutral">Sem `paymentId` conciliado</span>
+                  )}
+                </div>
+              ) : null}
+
+              {booking.status === "aguardando pagamento" ? (
+                <p className="helper">
+                  Este horario segue bloqueado aguardando a conciliacao do pagamento online.
+                </p>
+              ) : null}
+
+              {actions.length || canSyncPayment ? (
+                <div className="record-card-actions">
+                  {actions.map((action) => (
+                    <button
+                      className={resolveActionButtonClassName(action.tone)}
+                      disabled={isBusy}
+                      key={action.label}
+                      onClick={() => void handleBookingStatusAction(booking.id, action.nextStatus)}
+                      type="button"
+                    >
+                      {action.label}
+                    </button>
+                  ))}
+                  {paymentIntent && canSyncPayment ? (
+                    <button
+                      className="secondary-button"
+                      disabled={isBusy}
+                      onClick={() => void handlePaymentSync(paymentIntent)}
+                      type="button"
+                    >
+                      Atualizar pagamento
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="helper">Nenhuma acao operacional adicional para este status.</p>
+              )}
+            </article>
+          );
+        })}
+      </>
+    );
+  }
+
+  function renderClientRecords(): JSX.Element {
+    if (!clientInsights.length) {
+      return <p className="empty-state">Nenhum cliente cadastrado ainda.</p>;
+    }
+
+    return (
+      <>
+        {clientInsights.map((entry) => (
+          <article className="record-card" key={entry.client.id}>
+            <div className="record-card-header">
+              <div className="record-stack">
+                <strong>{entry.client.nome}</strong>
+                <span>{entry.client.email}</span>
+              </div>
+              <span className="status-pill is-neutral">{entry.totalBookings} bookings</span>
+            </div>
+
+            <div className="record-meta">
+              <span>{entry.client.telefone || "Sem telefone"}</span>
+              <span>Origem {entry.client.origem}</span>
+              <span>
+                Ultimo movimento{" "}
+                {entry.lastBooking ? formatDateTime(entry.lastBooking.startAt) : "sem booking"}
+              </span>
+            </div>
+
+            <div className="record-meta">
+              <span className="status-pill is-info">Em aberto {entry.openBookings}</span>
+              <span className="status-pill is-success">
+                Concluidos {entry.completedBookings}
+              </span>
+            </div>
+          </article>
+        ))}
+      </>
+    );
+  }
+
+  function renderSlugPanel(): JSX.Element {
+    return (
+      <article className="panel">
+        <form className="stack-form" onSubmit={handleSaveSlug}>
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Implantacao</p>
+              <h2>Perfil publico do negocio</h2>
+            </div>
+            <span className="helper-chip">Funcional</span>
+          </div>
+
+          <div className="form-grid">
+            <label className="field">
+              <span>Nome</span>
+              <input disabled type="text" value={tenant?.nome ?? ""} />
+            </label>
+            <label className="field">
+              <span>Status</span>
+              <input disabled type="text" value={tenant?.status ?? ""} />
+            </label>
+            <label className="field">
+              <span>Timezone</span>
+              <input disabled type="text" value={tenant?.timezone ?? ""} />
+            </label>
+            <label className="field">
+              <span>Slug</span>
+              <input
+                required
+                type="text"
+                value={slug}
+                onChange={(event) => setSlug(sanitizeSlug(event.target.value))}
+              />
+            </label>
+            <label className="field field-wide">
+              <span>URL publica</span>
+              <input disabled type="text" value={publicBookingUrl} />
+            </label>
+          </div>
+
+          <div className="button-row">
+            <button className="primary-button" disabled={isBusy} type="submit">
+              Salvar slug
+            </button>
+            <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+              Abrir booking publico
+            </a>
+          </div>
+        </form>
+      </article>
+    );
+  }
+
+  function renderPaymentsPanel(): JSX.Element {
+    return (
+      <article className="panel">
+        <form className="stack-form" onSubmit={handleSavePayments}>
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Pagamentos</p>
+              <h2>Mercado Pago do tenant</h2>
+            </div>
+            <span className="helper-chip">Checkout Pro recomendado</span>
+          </div>
+
+          <div className="form-grid">
+            <label className="field">
+              <span>Status</span>
+              <select
+                value={paymentForm.status}
+                onChange={(event) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    status: event.target.value as PaymentProviderStatus
+                  })
+                }
+              >
+                {paymentProviderStatusValues.map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Checkout</span>
+              <select
+                value={paymentForm.checkoutMode}
+                onChange={(event) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    checkoutMode: event.target.value as PaymentCheckoutMode
+                  })
+                }
+              >
+                {paymentCheckoutModeValues.map((mode) => (
+                  <option key={mode} value={mode}>
+                    {mode}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Public key</span>
+              <input
+                type="text"
+                value={paymentForm.publicKey}
+                onChange={(event) =>
+                  setPaymentForm({ ...paymentForm, publicKey: event.target.value })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Access token</span>
+              <input
+                type="password"
+                value={paymentForm.accessToken}
+                onChange={(event) =>
+                  setPaymentForm({ ...paymentForm, accessToken: event.target.value })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Collector ID</span>
+              <input
+                type="text"
+                value={paymentForm.collectorId}
+                onChange={(event) =>
+                  setPaymentForm({ ...paymentForm, collectorId: event.target.value })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Statement descriptor</span>
+              <input
+                type="text"
+                value={paymentForm.statementDescriptor}
+                onChange={(event) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    statementDescriptor: event.target.value
+                  })
+                }
+              />
+            </label>
+            <label className="field field-wide">
+              <span>Notification URL</span>
+              <input
+                type="url"
+                value={paymentForm.notificationUrl}
+                onChange={(event) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    notificationUrl: event.target.value
+                  })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Back success</span>
+              <input
+                type="url"
+                value={paymentForm.backSuccess}
+                onChange={(event) =>
+                  setPaymentForm({ ...paymentForm, backSuccess: event.target.value })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Back pending</span>
+              <input
+                type="url"
+                value={paymentForm.backPending}
+                onChange={(event) =>
+                  setPaymentForm({ ...paymentForm, backPending: event.target.value })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Back failure</span>
+              <input
+                type="url"
+                value={paymentForm.backFailure}
+                onChange={(event) =>
+                  setPaymentForm({ ...paymentForm, backFailure: event.target.value })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Parcelas</span>
+              <input
+                min="1"
+                type="number"
+                value={paymentForm.defaultInstallments}
+                onChange={(event) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    defaultInstallments: event.target.value
+                  })
+                }
+              />
+            </label>
+            <label className="field">
+              <span>Expiracao</span>
+              <input
+                min="1"
+                type="number"
+                value={paymentForm.expirationMinutes}
+                onChange={(event) =>
+                  setPaymentForm({
+                    ...paymentForm,
+                    expirationMinutes: event.target.value
+                  })
+                }
+              />
+            </label>
+          </div>
+
+          <label className="toggle-field">
+            <input
+              checked={paymentForm.binaryMode}
+              type="checkbox"
+              onChange={(event) =>
+                setPaymentForm({ ...paymentForm, binaryMode: event.target.checked })
+              }
+            />
+            <span>Ativar `binary_mode`</span>
+          </label>
+
+          <button className="primary-button" disabled={isBusy} type="submit">
+            Salvar provider
+          </button>
+        </form>
+      </article>
+    );
+  }
+
+  function renderCatalogPanel(): JSX.Element {
+    return (
+      <article className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Catalogo</p>
+            <h2>Servicos e politica comercial</h2>
+          </div>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setSelectedServiceId("");
+              setServiceForm(defaultServiceForm);
+            }}
+            type="button"
+          >
+            Novo servico
+          </button>
+        </div>
+
+        <div className="editor-layout">
+          <div className="entity-list">
+            {services.length ? (
+              services.map((service) => (
+                <button
+                  className={service.id === selectedServiceId ? "entity-card is-active" : "entity-card"}
+                  key={service.id}
+                  onClick={() => setSelectedServiceId(service.id)}
+                  type="button"
+                >
+                  <strong>{service.nome}</strong>
+                  <span>
+                    {service.duracaoMin} min - {formatCurrency(service.precoBase)}
+                  </span>
+                  <small>
+                    {service.paymentPolicy.collectionMode === "none"
+                      ? "Reserva imediata"
+                      : service.paymentPolicy.collectionMode}
+                  </small>
+                </button>
+              ))
+            ) : (
+              <p className="empty-state">Nenhum servico cadastrado ainda.</p>
+            )}
+          </div>
+
+          <form className="stack-form" onSubmit={handleSaveService}>
+            <div className="form-grid">
+              <label className="field">
+                <span>Nome</span>
+                <input
+                  required
+                  type="text"
+                  value={serviceForm.nome}
+                  onChange={(event) => setServiceForm({ ...serviceForm, nome: event.target.value })}
+                />
+              </label>
+              <label className="field">
+                <span>Duracao</span>
+                <input
+                  required
+                  min="1"
+                  type="number"
+                  value={serviceForm.duracaoMin}
+                  onChange={(event) =>
+                    setServiceForm({ ...serviceForm, duracaoMin: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Preco</span>
+                <input
+                  required
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={serviceForm.precoBase}
+                  onChange={(event) =>
+                    setServiceForm({ ...serviceForm, precoBase: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Status</span>
+                <input
+                  required
+                  type="text"
+                  value={serviceForm.status}
+                  onChange={(event) =>
+                    setServiceForm({ ...serviceForm, status: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Cobranca</span>
+                <select
+                  value={serviceForm.collectionMode}
+                  onChange={(event) =>
+                    setServiceForm({
+                      ...serviceForm,
+                      collectionMode: event.target.value as PaymentCollectionMode
+                    })
+                  }
+                >
+                  {paymentCollectionModeValues.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {mode}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Checkout</span>
+                <select
+                  disabled={serviceForm.collectionMode === "none"}
+                  value={serviceForm.checkoutMode}
+                  onChange={(event) =>
+                    setServiceForm({
+                      ...serviceForm,
+                      checkoutMode: event.target.value as PaymentCheckoutMode
+                    })
+                  }
+                >
+                  {paymentCheckoutModeValues.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {mode}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Tipo</span>
+                <select
+                  disabled={serviceForm.collectionMode === "none"}
+                  value={serviceForm.chargeType}
+                  onChange={(event) =>
+                    setServiceForm({
+                      ...serviceForm,
+                      chargeType: event.target.value as PaymentChargeType
+                    })
+                  }
+                >
+                  {paymentChargeTypeValues.map((mode) => (
+                    <option key={mode} value={mode}>
+                      {mode}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {serviceForm.chargeType === "fixed" ? (
+                <label className="field">
+                  <span>Valor</span>
+                  <input
+                    min="0"
+                    step="0.01"
+                    type="number"
+                    value={serviceForm.fixedAmount}
+                    onChange={(event) =>
+                      setServiceForm({ ...serviceForm, fixedAmount: event.target.value })
+                    }
+                  />
+                </label>
+              ) : (
+                <label className="field">
+                  <span>Percentual</span>
+                  <input
+                    max="100"
+                    min="1"
+                    type="number"
+                    value={serviceForm.percentage}
+                    onChange={(event) =>
+                      setServiceForm({ ...serviceForm, percentage: event.target.value })
+                    }
+                  />
+                </label>
+              )}
+            </div>
+
+            <fieldset className="checkbox-group">
+              <legend>Meios aceitos</legend>
+              {paymentMethodValues.map((method) => (
+                <label className="check-item" key={method}>
+                  <input
+                    checked={serviceForm.acceptedMethods.includes(method)}
+                    type="checkbox"
+                    onChange={() =>
+                      setServiceForm({
+                        ...serviceForm,
+                        acceptedMethods: toggleArrayValue(serviceForm.acceptedMethods, method)
+                      })
+                    }
+                  />
+                  <span>{method}</span>
+                </label>
+              ))}
+            </fieldset>
+
+            <button className="primary-button" disabled={isBusy} type="submit">
+              {selectedServiceId ? "Salvar servico" : "Criar servico"}
+            </button>
+          </form>
+        </div>
+      </article>
+    );
+  }
+
+  function renderProfessionalsPanel(): JSX.Element {
+    return (
+      <article className="panel">
+        <div className="panel-header">
+          <div>
+            <p className="eyebrow">Equipe</p>
+            <h2>Profissionais e agenda semanal</h2>
+          </div>
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setSelectedProfessionalId("");
+              setProfessionalForm({ nome: "", status: "active", especialidades: [] });
+              setAvailabilityDays(createDefaultAvailabilityDays());
+            }}
+            type="button"
+          >
+            Novo profissional
+          </button>
+        </div>
+
+        <div className="editor-layout">
+          <div className="entity-list">
+            {professionals.length ? (
+              professionals.map((professional) => (
+                <button
+                  className={
+                    professional.id === selectedProfessionalId
+                      ? "entity-card is-active"
+                      : "entity-card"
+                  }
+                  key={professional.id}
+                  onClick={() => setSelectedProfessionalId(professional.id)}
+                  type="button"
+                >
+                  <strong>{professional.nome}</strong>
+                  <span>{professional.especialidades.length} servicos</span>
+                  <small>{professional.status}</small>
+                </button>
+              ))
+            ) : (
+              <p className="empty-state">Nenhum profissional cadastrado ainda.</p>
+            )}
+          </div>
+
+          <div className="stack-form split-stack">
+            <form className="stack-form" onSubmit={handleSaveProfessional}>
+              <div className="form-grid">
+                <label className="field">
+                  <span>Nome</span>
+                  <input
+                    required
+                    type="text"
+                    value={professionalForm.nome}
+                    onChange={(event) =>
+                      setProfessionalForm({ ...professionalForm, nome: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Status</span>
+                  <input
+                    required
+                    type="text"
+                    value={professionalForm.status}
+                    onChange={(event) =>
+                      setProfessionalForm({ ...professionalForm, status: event.target.value })
+                    }
+                  />
+                </label>
+              </div>
+
+              <fieldset className="checkbox-group">
+                <legend>Especialidades</legend>
+                {services.length ? (
+                  services.map((service) => (
+                    <label className="check-item" key={service.id}>
+                      <input
+                        checked={professionalForm.especialidades.includes(service.id)}
+                        type="checkbox"
+                        onChange={() =>
+                          setProfessionalForm({
+                            ...professionalForm,
+                            especialidades: toggleArrayValue(
+                              professionalForm.especialidades,
+                              service.id
+                            )
+                          })
+                        }
+                      />
+                      <span>{service.nome}</span>
+                    </label>
+                  ))
+                ) : (
+                  <p className="helper">Cadastre servicos antes de vincular equipe.</p>
+                )}
+              </fieldset>
+
+              <button className="primary-button" disabled={isBusy} type="submit">
+                {selectedProfessionalId ? "Salvar profissional" : "Criar profissional"}
+              </button>
+            </form>
+
+            <form className="stack-form" onSubmit={handleSaveAvailability}>
+              <div className="panel-header compact">
+                <div>
+                  <p className="eyebrow">Disponibilidade</p>
+                  <h3>Semana operacional</h3>
+                </div>
+              </div>
+
+              <div className="availability-list">
+                {availabilityDays.map((day) => (
+                  <div className="availability-row" key={day.weekday}>
+                    <label className="check-item inline">
+                      <input
+                        checked={day.enabled}
+                        type="checkbox"
+                        onChange={(event) =>
+                          setAvailabilityDays((current) =>
+                            current.map((item) =>
+                              item.weekday === day.weekday
+                                ? { ...item, enabled: event.target.checked }
+                                : item
+                            )
+                          )
+                        }
+                      />
+                      <span>{weekdayLabels[day.weekday]}</span>
+                    </label>
+                    <input
+                      disabled={!day.enabled}
+                      type="time"
+                      value={day.startTime}
+                      onChange={(event) =>
+                        setAvailabilityDays((current) =>
+                          current.map((item) =>
+                            item.weekday === day.weekday
+                              ? { ...item, startTime: event.target.value }
+                              : item
+                          )
+                        )
+                      }
+                    />
+                    <input
+                      disabled={!day.enabled}
+                      type="time"
+                      value={day.endTime}
+                      onChange={(event) =>
+                        setAvailabilityDays((current) =>
+                          current.map((item) =>
+                            item.weekday === day.weekday
+                              ? { ...item, endTime: event.target.value }
+                              : item
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <button
+                className="primary-button"
+                disabled={isBusy || !selectedProfessionalId}
+                type="submit"
+              >
+                Salvar disponibilidade
+              </button>
+            </form>
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  function renderOperationalView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <div className="stats-strip stats-strip-compact">
+          <article className="stat-card">
+            <span>Hoje</span>
+            <strong>{bookingSummary.today}</strong>
+          </article>
+          <article className="stat-card">
+            <span>Abertas</span>
+            <strong>{bookingSummary.open}</strong>
+          </article>
+          <article className="stat-card">
+            <span>Confirmadas</span>
+            <strong>{bookingSummary.confirmed}</strong>
+          </article>
+          <article className="stat-card">
+            <span>Concluidas</span>
+            <strong>{bookingSummary.completed}</strong>
+          </article>
+          <article className="stat-card">
+            <span>Pagto pendente</span>
+            <strong>{pendingPaymentCount}</strong>
+          </article>
+        </div>
+
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Operacao do dia</p>
+              <h2>Agenda administrativa</h2>
+            </div>
+            <div className="mode-switch">
+              <button
+                className={bookingFilter === "today" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setBookingFilter("today")}
+                type="button"
+              >
+                Hoje
+              </button>
+              <button
+                className={bookingFilter === "open" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setBookingFilter("open")}
+                type="button"
+              >
+                Em aberto
+              </button>
+              <button
+                className={bookingFilter === "all" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setBookingFilter("all")}
+                type="button"
+              >
+                Tudo
+              </button>
+            </div>
+          </div>
+
+          <div className="record-meta">
+            <span className="status-pill is-neutral">Hoje {bookingSummary.today}</span>
+            <span className="status-pill is-info">Abertas {bookingSummary.open}</span>
+            <span className="status-pill is-success">Confirmadas {bookingSummary.confirmed}</span>
+            <span className="status-pill is-success">Concluidas {bookingSummary.completed}</span>
+          </div>
+
+          <div className="records-column">{renderAgendaRecords()}</div>
+        </article>
+      </section>
+    );
+  }
+
+  function renderDashboardView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <section className="hero-grid">
+          <article className="hero-card">
+            <p className="eyebrow">Tenant ativo</p>
+            <h2>{tenant?.nome}</h2>
+            <p className="description">
+              Booking publico para o cliente e shell admin para implantacao, cobranca e operacao do negocio.
+            </p>
+            <div className="hero-meta">
+              <span>/{tenant?.slug}</span>
+              <span>{tenant?.timezone}</span>
+              <span>{resolveAdminApiBaseUrl(apiBaseUrl)}</span>
+            </div>
+            <div className="button-row">
+              <a className="link-chip" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                Abrir booking publico
+              </a>
+              <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
+                Ir para operacao diaria
+              </button>
+            </div>
+          </article>
+
+          <div className="stats-strip">
+            <article className="stat-card">
+              <span>Servicos</span>
+              <strong>{services.length}</strong>
+            </article>
+            <article className="stat-card">
+              <span>Profissionais</span>
+              <strong>{professionals.length}</strong>
+            </article>
+            <article className="stat-card">
+              <span>Hoje</span>
+              <strong>{bookingSummary.today}</strong>
+            </article>
+            <article className="stat-card">
+              <span>Abertas</span>
+              <strong>{bookingSummary.open}</strong>
+            </article>
+            <article className="stat-card">
+              <span>Clientes</span>
+              <strong>{clients.length}</strong>
+            </article>
+            <article className="stat-card">
+              <span>Pagto pendente</span>
+              <strong>{pendingPaymentCount}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Leitura real do sistema</p>
+                <h2>Pontos sustentados hoje pelo bootstrap</h2>
+              </div>
+              <span className="helper-chip">Funcional</span>
+            </div>
+
+            <div className="records-grid metrics-grid">
+              <article className="list-card">
+                <strong>Agenda do dia</strong>
+                <p>{bookingSummary.today} booking(s) no recorte de hoje com mutacao operacional ativa.</p>
+              </article>
+              <article className="list-card">
+                <strong>Catalogo comercial</strong>
+                <p>{services.length} servico(s) com politica de cobranca configuravel por tenant.</p>
+              </article>
+              <article className="list-card">
+                <strong>Equipe publicada</strong>
+                <p>{professionals.length} profissional(is) com especialidades e disponibilidade semanal.</p>
+              </article>
+              <article className="list-card">
+                <strong>Clientes capturados</strong>
+                <p>{clients.length} cliente(s) lidos do runtime real via bookings publicados.</p>
+              </article>
+            </div>
+
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => navigateTo("catalogo")} type="button">
+                Revisar catalogo
+              </button>
+              <button className="secondary-button" onClick={() => navigateTo("profissionais")} type="button">
+                Revisar equipe
+              </button>
+              <button className="secondary-button" onClick={() => navigateTo("configuracoes")} type="button">
+                Abrir configuracoes
+              </button>
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Analiticos</p>
+                <h2>Blocos ainda sem contrato dedicado</h2>
+              </div>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>Grafico de faturamento vs agendamentos (nao funcional)</strong>
+                <p>O `api-rest` ainda nao entrega agregados diarios ou serie historica para desenhar o grafico do mock.</p>
+              </div>
+              <div className="list-card">
+                <strong>Dica automatica de reativacao (nao funcional)</strong>
+                <p>Nao existe read model de ociosidade, clientes inativos nem motor de recomendacao no contrato atual.</p>
+              </div>
+              <div className="list-card">
+                <strong>Relatorios de faturamento e ticket medio (nao funcional)</strong>
+                <p>Os contratos atuais entregam bookings e clientes, mas nao consolidam receita paga por periodo.</p>
+              </div>
+            </div>
+          </article>
+        </section>
+      </section>
+    );
+  }
+
+  function renderAgendaView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Agenda / calendario</p>
+                <h2>Timeline operacional publicada</h2>
+              </div>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+
+            <p className="helper">
+              A lista cronologica de bookings ja existe. A grade visual de calendario completo, com drag-and-drop e reagendamento, ainda nao faz parte do contrato atual.
+            </p>
+
+            <div className="mode-switch">
+              <button
+                className={bookingFilter === "today" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setBookingFilter("today")}
+                type="button"
+              >
+                Hoje
+              </button>
+              <button
+                className={bookingFilter === "open" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setBookingFilter("open")}
+                type="button"
+              >
+                Em aberto
+              </button>
+              <button
+                className={bookingFilter === "all" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setBookingFilter("all")}
+                type="button"
+              >
+                Tudo
+              </button>
+            </div>
+
+            <div className="records-column">{renderAgendaRecords()}</div>
+          </article>
+
+          <aside className="panel aside-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Lacunas</p>
+                <h3>O que ainda falta nesta tela</h3>
+              </div>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>Calendario mensal/semanal (nao funcional)</strong>
+                <p>Sem componente de grade e sem endpoint dedicado para ocupacao agregada.</p>
+              </div>
+              <div className="list-card">
+                <strong>Reagendamento visual (nao funcional)</strong>
+                <p>A API atual aceita mutacao de booking, mas o shell ainda nao expõe UX de mover horario em calendario.</p>
+              </div>
+              <div className="list-card">
+                <strong>Capacidade e horas ociosas (nao funcional)</strong>
+                <p>Nao existe consolidacao semanal para calcular o insight do mock com confiabilidade.</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </section>
+    );
+  }
+
+  function renderCatalogView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <section className="workspace-grid">
+          {renderCatalogPanel()}
+
+          <aside className="panel aside-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Escopo</p>
+                <h3>Mapa do que entra aqui</h3>
+              </div>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>Servicos e preco</strong>
+                <p>Ja ligados ao runtime com status, duracao, preco e politica de pagamento.</p>
+              </div>
+              <div className="list-card">
+                <strong>Produtos, kits, combos e add-ons (nao funcional)</strong>
+                <p>Esses itens fazem parte do desvio beta maior, mas ainda nao existem nos contratos do AgendaAI.</p>
+              </div>
+              <div className="list-card">
+                <strong>Publicacao de catalogo</strong>
+                <p>Hoje a publicacao acontece implicitamente pela `slug` e pelos servicos ativos vinculados a profissionais.</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </section>
+    );
+  }
+
+  function renderProfessionalsView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <section className="workspace-grid">
+          {renderProfessionalsPanel()}
+
+          <aside className="panel aside-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Resumo</p>
+                <h3>Capacidade operacional atual</h3>
+              </div>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>{professionals.length} profissional(is)</strong>
+                <p>Com especialidades vinculadas a {services.length} servico(s) publicados.</p>
+              </div>
+              <div className="list-card">
+                <strong>Agenda semanal</strong>
+                <p>A disponibilidade salva alimenta o booking publico por profissional.</p>
+              </div>
+              <div className="list-card">
+                <strong>Ferias, bloqueios e excecoes (nao funcional)</strong>
+                <p>O contrato atual cobre agenda semanal base, sem calendario de excecoes por data.</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </section>
+    );
+  }
+
+  function renderClientsView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Clientes e CRM</p>
+                <h2>Clientes capturados pela jornada real</h2>
+              </div>
+              <span className="helper-chip">Leitura derivada de booking</span>
+            </div>
+
+            <div className="records-column">{renderClientRecords()}</div>
+          </article>
+
+          <aside className="panel aside-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Lacunas</p>
+                <h3>Camadas ainda nao implementadas</h3>
+              </div>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>WhatsApp operacional (nao funcional)</strong>
+                <p>O mock sugere acao de confirmacao por canal, mas nao ha integracao nem contrato de notificacao.</p>
+              </div>
+              <div className="list-card">
+                <strong>LTV e score de risco (nao funcional)</strong>
+                <p>Os contratos atuais nao consolidam gasto total, recorrencia ou classificacao automatica de cliente.</p>
+              </div>
+              <div className="list-card">
+                <strong>Clientes sem compra (nao funcional)</strong>
+                <p>A leitura atual mostra bookings concluidos e abertos, sem um relatorio dedicado de inatividade.</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </section>
+    );
+  }
+
+  function renderSettingsView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <section className="workspace-grid settings-grid">
+          {renderSlugPanel()}
+          {renderPaymentsPanel()}
+        </section>
+
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Conectividade</p>
+                <h2>Ambiente administrativo</h2>
+              </div>
+              <span className="helper-chip">Suporte operacional</span>
+            </div>
+
+            <div className="records-grid metrics-grid">
+              <div className="list-card">
+                <strong>API base</strong>
+                <p>{resolveAdminApiBaseUrl(apiBaseUrl)}</p>
+              </div>
+              <div className="list-card">
+                <strong>Tenant slug</strong>
+                <p>/{tenant?.slug ?? "-"}</p>
+              </div>
+              <div className="list-card">
+                <strong>Timezone</strong>
+                <p>{tenant?.timezone ?? "-"}</p>
+              </div>
+              <div className="list-card">
+                <strong>Publicacao</strong>
+                <p>{publicBookingUrl || "Sem slug publicada"}</p>
+              </div>
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Itens fora do corte</p>
+                <h2>Configuracoes futuras</h2>
+              </div>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>Assinatura AgendaAI (nao funcional)</strong>
+                <p>Billing do proprio SaaS ainda nao existe no runtime do projeto.</p>
+              </div>
+              <div className="list-card">
+                <strong>Webhooks e observabilidade avancada (nao funcional)</strong>
+                <p>Hoje o owner edita URLs e credenciais; nao existe painel de eventos ou health check de integracoes.</p>
+              </div>
+              <div className="list-card">
+                <strong>Homologacao Mercado Pago</strong>
+                <p>Os campos ja existem, mas a conexao real depende das credenciais de homologacao e de uma `notification_url` publica.</p>
+              </div>
+            </div>
+          </article>
+        </section>
+      </section>
+    );
+  }
+
+  function renderCurrentView(): JSX.Element {
+    switch (currentRoute) {
+      case "dashboard":
+        return renderDashboardView();
+      case "operacional":
+        return renderOperationalView();
+      case "agenda":
+        return renderAgendaView();
+      case "catalogo":
+        return renderCatalogView();
+      case "profissionais":
+        return renderProfessionalsView();
+      case "clientes":
+        return renderClientsView();
+      case "configuracoes":
+        return renderSettingsView();
+      default:
+        return renderOperationalView();
+    }
+  }
+
+  const currentRouteDefinition = adminRouteDefinitions[currentRoute];
 
   if (!sessionToken) {
     return (
@@ -622,814 +2011,103 @@ export function App() {
 
   return (
     <main className="shell admin-shell">
-      <header className="topbar">
-        <div>
-          <p className="eyebrow">AgendaAI / admin shell</p>
-          <h1>Implantacao e operacao do dia.</h1>
-        </div>
-        <div className="topbar-actions">
-          <button
-            className="secondary-button"
-            disabled={isBusy}
-            onClick={() => void refreshAdminState()}
-            type="button"
-          >
-            Atualizar
-          </button>
-          <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
-            Sair
-          </button>
-        </div>
-      </header>
+      {isSidebarOpen ? (
+        <button
+          aria-label="Fechar navegacao"
+          className="sidebar-overlay"
+          onClick={() => setIsSidebarOpen(false)}
+          type="button"
+        />
+      ) : null}
 
-      <section className="hero-grid">
-        <article className="hero-card">
-          <p className="eyebrow">Tenant ativo</p>
-          <h2>{tenant?.nome}</h2>
-          <p className="description">
-            Slug publica para o cliente; aqui ficam catalogo, equipe, agenda operacional, clientes
-            e cobranca.
-          </p>
-          <div className="hero-meta">
-            <span>/{tenant?.slug}</span>
-            <span>{tenant?.timezone}</span>
-            <span>{resolveAdminApiBaseUrl(apiBaseUrl)}</span>
+      <aside className={`admin-sidebar${isSidebarOpen ? " is-open" : ""}`}>
+        <div className="admin-sidebar-header">
+          <div className="brand-mark">AI</div>
+          <div className="brand-copy">
+            <p className="eyebrow">AgendaAI</p>
+            <strong>Admin shell</strong>
           </div>
+        </div>
+
+        <article className="sidebar-tenant-card">
+          <p className="eyebrow">Tenant ativo</p>
+          <strong>{tenant?.nome}</strong>
+          <span>/{tenant?.slug}</span>
+          <small>{tenant?.timezone}</small>
+        </article>
+
+        <nav className="sidebar-nav">
+          {adminNavigationSections.map((section) => (
+            <div className="sidebar-nav-group" key={section.label}>
+              <p className="sidebar-nav-label">{section.label}</p>
+              {section.routes.map((route) => {
+                const definition = adminRouteDefinitions[route];
+                return (
+                  <button
+                    className={currentRoute === route ? "sidebar-nav-item is-active" : "sidebar-nav-item"}
+                    key={route}
+                    onClick={() => navigateTo(route)}
+                    type="button"
+                  >
+                    <span className="sidebar-nav-glyph">{definition.shortLabel}</span>
+                    <span className="sidebar-nav-copy">
+                      <strong>{definition.label}</strong>
+                      <small>{definition.stage === "funcional" ? "funcional" : "parcial"}</small>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
           <a className="link-chip" href={publicBookingUrl} rel="noreferrer" target="_blank">
             Abrir booking publico
           </a>
-        </article>
-
-        <div className="stats-strip">
-          <article className="stat-card">
-            <span>Servicos</span>
-            <strong>{services.length}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Profissionais</span>
-            <strong>{professionals.length}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Hoje</span>
-            <strong>{bookingSummary.today}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Abertas</span>
-            <strong>{bookingSummary.open}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Clientes</span>
-            <strong>{clients.length}</strong>
-          </article>
         </div>
-      </section>
+      </aside>
 
-      {feedback ? <div className={`feedback-banner is-${feedback.tone}`}>{feedback.message}</div> : null}
-      {bootError ? <div className="feedback-banner is-error">{bootError}</div> : null}
-
-      <section className="workspace-grid">
-        <article className="panel">
-          <form className="stack-form" onSubmit={handleSaveSlug}>
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Implantacao</p>
-                <h2>Slug publica</h2>
-              </div>
-            </div>
-
-            <div className="form-grid">
-              <label className="field">
-                <span>Nome</span>
-                <input disabled type="text" value={tenant?.nome ?? ""} />
-              </label>
-              <label className="field">
-                <span>Status</span>
-                <input disabled type="text" value={tenant?.status ?? ""} />
-              </label>
-              <label className="field">
-                <span>Timezone</span>
-                <input disabled type="text" value={tenant?.timezone ?? ""} />
-              </label>
-              <label className="field">
-                <span>Slug</span>
-                <input
-                  required
-                  type="text"
-                  value={slug}
-                  onChange={(event) => setSlug(sanitizeSlug(event.target.value))}
-                />
-              </label>
-              <label className="field field-wide">
-                <span>URL publica</span>
-                <input disabled type="text" value={publicBookingUrl} />
-              </label>
-            </div>
-
-            <button className="primary-button" disabled={isBusy} type="submit">
-              Salvar slug
-            </button>
-          </form>
-        </article>
-
-        <article className="panel">
-          <form className="stack-form" onSubmit={handleSavePayments}>
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Pagamentos</p>
-                <h2>Mercado Pago do tenant</h2>
-              </div>
-              <span className="helper-chip">Checkout Pro recomendado</span>
-            </div>
-
-            <div className="form-grid">
-              <label className="field">
-                <span>Status</span>
-                <select
-                  value={paymentForm.status}
-                  onChange={(event) =>
-                    setPaymentForm({
-                      ...paymentForm,
-                      status: event.target.value as PaymentProviderStatus
-                    })
-                  }
-                >
-                  {paymentProviderStatusValues.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Checkout</span>
-                <select
-                  value={paymentForm.checkoutMode}
-                  onChange={(event) =>
-                    setPaymentForm({
-                      ...paymentForm,
-                      checkoutMode: event.target.value as PaymentCheckoutMode
-                    })
-                  }
-                >
-                  {paymentCheckoutModeValues.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Public key</span>
-                <input
-                  type="text"
-                  value={paymentForm.publicKey}
-                  onChange={(event) =>
-                    setPaymentForm({ ...paymentForm, publicKey: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Access token</span>
-                <input
-                  type="password"
-                  value={paymentForm.accessToken}
-                  onChange={(event) =>
-                    setPaymentForm({ ...paymentForm, accessToken: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Collector ID</span>
-                <input
-                  type="text"
-                  value={paymentForm.collectorId}
-                  onChange={(event) =>
-                    setPaymentForm({ ...paymentForm, collectorId: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Statement descriptor</span>
-                <input
-                  type="text"
-                  value={paymentForm.statementDescriptor}
-                  onChange={(event) =>
-                    setPaymentForm({
-                      ...paymentForm,
-                      statementDescriptor: event.target.value
-                    })
-                  }
-                />
-              </label>
-              <label className="field field-wide">
-                <span>Notification URL</span>
-                <input
-                  type="url"
-                  value={paymentForm.notificationUrl}
-                  onChange={(event) =>
-                    setPaymentForm({
-                      ...paymentForm,
-                      notificationUrl: event.target.value
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Back success</span>
-                <input
-                  type="url"
-                  value={paymentForm.backSuccess}
-                  onChange={(event) =>
-                    setPaymentForm({ ...paymentForm, backSuccess: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Back pending</span>
-                <input
-                  type="url"
-                  value={paymentForm.backPending}
-                  onChange={(event) =>
-                    setPaymentForm({ ...paymentForm, backPending: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Back failure</span>
-                <input
-                  type="url"
-                  value={paymentForm.backFailure}
-                  onChange={(event) =>
-                    setPaymentForm({ ...paymentForm, backFailure: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Parcelas</span>
-                <input
-                  min="1"
-                  type="number"
-                  value={paymentForm.defaultInstallments}
-                  onChange={(event) =>
-                    setPaymentForm({
-                      ...paymentForm,
-                      defaultInstallments: event.target.value
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Expiracao</span>
-                <input
-                  min="1"
-                  type="number"
-                  value={paymentForm.expirationMinutes}
-                  onChange={(event) =>
-                    setPaymentForm({
-                      ...paymentForm,
-                      expirationMinutes: event.target.value
-                    })
-                  }
-                />
-              </label>
-            </div>
-
-            <label className="toggle-field">
-              <input
-                checked={paymentForm.binaryMode}
-                type="checkbox"
-                onChange={(event) =>
-                  setPaymentForm({ ...paymentForm, binaryMode: event.target.checked })
-                }
-              />
-              <span>Ativar `binary_mode`</span>
-            </label>
-
-            <button className="primary-button" disabled={isBusy} type="submit">
-              Salvar provider
-            </button>
-          </form>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Catalogo</p>
-              <h2>Servicos e politica comercial</h2>
-            </div>
+      <div className="admin-stage">
+        <header className="admin-header">
+          <div className="admin-header-main">
             <button
-              className="secondary-button"
-              onClick={() => {
-                setSelectedServiceId("");
-                setServiceForm(defaultServiceForm);
-              }}
+              className="secondary-button menu-button"
+              onClick={() => setIsSidebarOpen(true)}
               type="button"
             >
-              Novo servico
+              Menu
             </button>
-          </div>
-
-          <div className="editor-layout">
-            <div className="entity-list">
-              {services.length ? (
-                services.map((service) => (
-                  <button
-                    className={service.id === selectedServiceId ? "entity-card is-active" : "entity-card"}
-                    key={service.id}
-                    onClick={() => setSelectedServiceId(service.id)}
-                    type="button"
-                  >
-                    <strong>{service.nome}</strong>
-                    <span>
-                      {service.duracaoMin} min - {formatCurrency(service.precoBase)}
-                    </span>
-                    <small>
-                      {service.paymentPolicy.collectionMode === "none"
-                        ? "Reserva imediata"
-                        : service.paymentPolicy.collectionMode}
-                    </small>
-                  </button>
-                ))
-              ) : (
-                <p className="empty-state">Nenhum servico cadastrado ainda.</p>
-              )}
-            </div>
-
-            <form className="stack-form" onSubmit={handleSaveService}>
-              <div className="form-grid">
-                <label className="field">
-                  <span>Nome</span>
-                  <input
-                    required
-                    type="text"
-                    value={serviceForm.nome}
-                    onChange={(event) =>
-                      setServiceForm({ ...serviceForm, nome: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Duracao</span>
-                  <input
-                    required
-                    min="1"
-                    type="number"
-                    value={serviceForm.duracaoMin}
-                    onChange={(event) =>
-                      setServiceForm({ ...serviceForm, duracaoMin: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Preco</span>
-                  <input
-                    required
-                    min="0"
-                    step="0.01"
-                    type="number"
-                    value={serviceForm.precoBase}
-                    onChange={(event) =>
-                      setServiceForm({ ...serviceForm, precoBase: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Status</span>
-                  <input
-                    required
-                    type="text"
-                    value={serviceForm.status}
-                    onChange={(event) =>
-                      setServiceForm({ ...serviceForm, status: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Cobranca</span>
-                  <select
-                    value={serviceForm.collectionMode}
-                    onChange={(event) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        collectionMode: event.target.value as PaymentCollectionMode
-                      })
-                    }
-                  >
-                    {paymentCollectionModeValues.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Checkout</span>
-                  <select
-                    disabled={serviceForm.collectionMode === "none"}
-                    value={serviceForm.checkoutMode}
-                    onChange={(event) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        checkoutMode: event.target.value as PaymentCheckoutMode
-                      })
-                    }
-                  >
-                    {paymentCheckoutModeValues.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Tipo</span>
-                  <select
-                    disabled={serviceForm.collectionMode === "none"}
-                    value={serviceForm.chargeType}
-                    onChange={(event) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        chargeType: event.target.value as PaymentChargeType
-                      })
-                    }
-                  >
-                    {paymentChargeTypeValues.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {serviceForm.chargeType === "fixed" ? (
-                  <label className="field">
-                    <span>Valor</span>
-                    <input
-                      min="0"
-                      step="0.01"
-                      type="number"
-                      value={serviceForm.fixedAmount}
-                      onChange={(event) =>
-                        setServiceForm({ ...serviceForm, fixedAmount: event.target.value })
-                      }
-                    />
-                  </label>
-                ) : (
-                  <label className="field">
-                    <span>Percentual</span>
-                    <input
-                      max="100"
-                      min="1"
-                      type="number"
-                      value={serviceForm.percentage}
-                      onChange={(event) =>
-                        setServiceForm({ ...serviceForm, percentage: event.target.value })
-                      }
-                    />
-                  </label>
-                )}
-              </div>
-
-              <fieldset className="checkbox-group">
-                <legend>Meios aceitos</legend>
-                {paymentMethodValues.map((method) => (
-                  <label className="check-item" key={method}>
-                    <input
-                      checked={serviceForm.acceptedMethods.includes(method)}
-                      type="checkbox"
-                      onChange={() =>
-                        setServiceForm({
-                          ...serviceForm,
-                          acceptedMethods: toggleArrayValue(serviceForm.acceptedMethods, method)
-                        })
-                      }
-                    />
-                    <span>{method}</span>
-                  </label>
-                ))}
-              </fieldset>
-
-              <button className="primary-button" disabled={isBusy} type="submit">
-                {selectedServiceId ? "Salvar servico" : "Criar servico"}
-              </button>
-            </form>
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
             <div>
-              <p className="eyebrow">Equipe</p>
-              <h2>Profissionais e agenda semanal</h2>
+              <p className="eyebrow">{currentRouteDefinition.eyebrow}</p>
+              <h1>{currentRouteDefinition.title}</h1>
+              <p className="description">{currentRouteDefinition.description}</p>
             </div>
-            <button
-              className="secondary-button"
-              onClick={() => {
-                setSelectedProfessionalId("");
-                setProfessionalForm({ nome: "", status: "active", especialidades: [] });
-                setAvailabilityDays(createDefaultAvailabilityDays());
-              }}
-              type="button"
+          </div>
+
+          <div className="admin-header-actions">
+            <span
+              className={`status-pill ${
+                currentRouteDefinition.stage === "funcional" ? "is-success" : "is-warning"
+              }`}
             >
-              Novo profissional
+              {currentRouteDefinition.stage}
+            </span>
+            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+              Atualizar
+            </button>
+            <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
+              Sair
             </button>
           </div>
+        </header>
 
-          <div className="editor-layout">
-            <div className="entity-list">
-              {professionals.length ? (
-                professionals.map((professional) => (
-                  <button
-                    className={
-                      professional.id === selectedProfessionalId
-                        ? "entity-card is-active"
-                        : "entity-card"
-                    }
-                    key={professional.id}
-                    onClick={() => setSelectedProfessionalId(professional.id)}
-                    type="button"
-                  >
-                    <strong>{professional.nome}</strong>
-                    <span>{professional.especialidades.length} servicos</span>
-                    <small>{professional.status}</small>
-                  </button>
-                ))
-              ) : (
-                <p className="empty-state">Nenhum profissional cadastrado ainda.</p>
-              )}
-            </div>
-
-            <div className="stack-form split-stack">
-              <form className="stack-form" onSubmit={handleSaveProfessional}>
-                <div className="form-grid">
-                  <label className="field">
-                    <span>Nome</span>
-                    <input
-                      required
-                      type="text"
-                      value={professionalForm.nome}
-                      onChange={(event) =>
-                        setProfessionalForm({ ...professionalForm, nome: event.target.value })
-                      }
-                    />
-                  </label>
-                  <label className="field">
-                    <span>Status</span>
-                    <input
-                      required
-                      type="text"
-                      value={professionalForm.status}
-                      onChange={(event) =>
-                        setProfessionalForm({ ...professionalForm, status: event.target.value })
-                      }
-                    />
-                  </label>
-                </div>
-
-                <fieldset className="checkbox-group">
-                  <legend>Especialidades</legend>
-                  {services.length ? (
-                    services.map((service) => (
-                      <label className="check-item" key={service.id}>
-                        <input
-                          checked={professionalForm.especialidades.includes(service.id)}
-                          type="checkbox"
-                          onChange={() =>
-                            setProfessionalForm({
-                              ...professionalForm,
-                              especialidades: toggleArrayValue(
-                                professionalForm.especialidades,
-                                service.id
-                              )
-                            })
-                          }
-                        />
-                        <span>{service.nome}</span>
-                      </label>
-                    ))
-                  ) : (
-                    <p className="helper">Cadastre servicos antes de vincular equipe.</p>
-                  )}
-                </fieldset>
-
-                <button className="primary-button" disabled={isBusy} type="submit">
-                  {selectedProfessionalId ? "Salvar profissional" : "Criar profissional"}
-                </button>
-              </form>
-
-              <form className="stack-form" onSubmit={handleSaveAvailability}>
-                <div className="panel-header compact">
-                  <div>
-                    <p className="eyebrow">Disponibilidade</p>
-                    <h3>Semana operacional</h3>
-                  </div>
-                </div>
-
-                <div className="availability-list">
-                  {availabilityDays.map((day) => (
-                    <div className="availability-row" key={day.weekday}>
-                      <label className="check-item inline">
-                        <input
-                          checked={day.enabled}
-                          type="checkbox"
-                          onChange={(event) =>
-                            setAvailabilityDays((current) =>
-                              current.map((item) =>
-                                item.weekday === day.weekday
-                                  ? { ...item, enabled: event.target.checked }
-                                  : item
-                              )
-                            )
-                          }
-                        />
-                        <span>{weekdayLabels[day.weekday]}</span>
-                      </label>
-                      <input
-                        disabled={!day.enabled}
-                        type="time"
-                        value={day.startTime}
-                        onChange={(event) =>
-                          setAvailabilityDays((current) =>
-                            current.map((item) =>
-                              item.weekday === day.weekday
-                                ? { ...item, startTime: event.target.value }
-                                : item
-                            )
-                          )
-                        }
-                      />
-                      <input
-                        disabled={!day.enabled}
-                        type="time"
-                        value={day.endTime}
-                        onChange={(event) =>
-                          setAvailabilityDays((current) =>
-                            current.map((item) =>
-                              item.weekday === day.weekday
-                                ? { ...item, endTime: event.target.value }
-                                : item
-                            )
-                          )
-                        }
-                      />
-                    </div>
-                  ))}
-                </div>
-
-                <button
-                  className="primary-button"
-                  disabled={isBusy || !selectedProfessionalId}
-                  type="submit"
-                >
-                  Salvar disponibilidade
-                </button>
-              </form>
-            </div>
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Operacao do dia</p>
-              <h2>Agenda administrativa</h2>
-            </div>
-            <div className="mode-switch">
-              <button
-                className={bookingFilter === "today" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("today")}
-                type="button"
-              >
-                Hoje
-              </button>
-              <button
-                className={bookingFilter === "open" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("open")}
-                type="button"
-              >
-                Em aberto
-              </button>
-              <button
-                className={bookingFilter === "all" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("all")}
-                type="button"
-              >
-                Tudo
-              </button>
-            </div>
-          </div>
-
-          <div className="record-meta">
-            <span className="status-pill is-neutral">Hoje {bookingSummary.today}</span>
-            <span className="status-pill is-info">Abertas {bookingSummary.open}</span>
-            <span className="status-pill is-success">Confirmadas {bookingSummary.confirmed}</span>
-            <span className="status-pill is-success">Concluidas {bookingSummary.completed}</span>
-          </div>
-
-          <div className="records-column">
-            {agendaBookings.length ? (
-              agendaBookings.map((booking) => {
-                const service = services.find((item) => item.id === booking.serviceId);
-                const professional = professionals.find((item) => item.id === booking.professionalId);
-                const actions = resolveBookingActions(booking);
-
-                return (
-                  <article className="record-card agenda-card" key={booking.id}>
-                    <div className="record-card-header">
-                      <div className="record-stack">
-                        <strong>{resolveBookingTitle(booking, services, professionals)}</strong>
-                        <span>{resolveClientName(booking.clientId, clients)}</span>
-                      </div>
-                      <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
-                        {formatBookingStatus(booking.status)}
-                      </span>
-                    </div>
-
-                    <div className="record-meta">
-                      <span>{formatDateTime(booking.startAt)}</span>
-                      <span>{service ? formatCurrency(service.precoBase) : "Preco nao encontrado"}</span>
-                      <span>{professional?.nome ?? "Profissional nao encontrado"}</span>
-                    </div>
-
-                    {booking.status === "aguardando pagamento" ? (
-                      <p className="helper">
-                        Este horario segue bloqueado aguardando a conciliacao do pagamento online.
-                      </p>
-                    ) : null}
-
-                    {actions.length ? (
-                      <div className="record-card-actions">
-                        {actions.map((action) => (
-                          <button
-                            className={resolveActionButtonClassName(action.tone)}
-                            disabled={isBusy}
-                            key={action.label}
-                            onClick={() => void handleBookingStatusAction(booking.id, action.nextStatus)}
-                            type="button"
-                          >
-                            {action.label}
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="helper">Nenhuma acao operacional adicional para este status.</p>
-                    )}
-                  </article>
-                );
-              })
-            ) : (
-              <p className="empty-state">
-                Nenhum booking encontrado para este filtro operacional.
-              </p>
-            )}
-          </div>
-        </article>
-
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Clientes e CRM</p>
-              <h2>Clientes capturados pela jornada real</h2>
-            </div>
-            <span className="helper-chip">Leitura derivada de booking</span>
-          </div>
-
-          <div className="records-column">
-            {clientInsights.length ? (
-              clientInsights.map((entry) => (
-                <article className="record-card" key={entry.client.id}>
-                  <div className="record-card-header">
-                    <div className="record-stack">
-                      <strong>{entry.client.nome}</strong>
-                      <span>{entry.client.email}</span>
-                    </div>
-                    <span className="status-pill is-neutral">
-                      {entry.totalBookings} bookings
-                    </span>
-                  </div>
-
-                  <div className="record-meta">
-                    <span>{entry.client.telefone || "Sem telefone"}</span>
-                    <span>Origem {entry.client.origem}</span>
-                    <span>
-                      Ultimo movimento{" "}
-                      {entry.lastBooking ? formatDateTime(entry.lastBooking.startAt) : "sem booking"}
-                    </span>
-                  </div>
-
-                  <div className="record-meta">
-                    <span className="status-pill is-info">Em aberto {entry.openBookings}</span>
-                    <span className="status-pill is-success">
-                      Concluidos {entry.completedBookings}
-                    </span>
-                  </div>
-                </article>
-              ))
-            ) : (
-              <p className="empty-state">Nenhum cliente cadastrado ainda.</p>
-            )}
-          </div>
-        </article>
-      </section>
+        <section className="admin-content">
+          {feedback ? <div className={`feedback-banner is-${feedback.tone}`}>{feedback.message}</div> : null}
+          {bootError ? <div className="feedback-banner is-error">{bootError}</div> : null}
+          {renderCurrentView()}
+        </section>
+      </div>
     </main>
   );
 }
@@ -1674,6 +2352,23 @@ function resolveBookingStatusTone(status: Booking["status"]): string {
   }
 }
 
+function resolvePaymentIntentTone(status: PaymentIntent["status"]): string {
+  switch (status) {
+    case "approved":
+    case "authorized":
+      return "success";
+    case "rejected":
+    case "cancelled":
+    case "charged_back":
+    case "refunded":
+      return "danger";
+    case "expired":
+      return "warning";
+    default:
+      return "info";
+  }
+}
+
 function resolveActionButtonClassName(tone: BookingAction["tone"]): string {
   if (tone === "primary") {
     return "primary-button";
@@ -1689,6 +2384,11 @@ function formatBookingStatus(status: Booking["status"]): string {
     return status;
   }
   return `${status.slice(0, 1).toUpperCase()}${status.slice(1)}`;
+}
+
+function formatPaymentIntentStatus(status: PaymentIntent["status"]): string {
+  const label = status.replace(/_/g, " ");
+  return `${label.slice(0, 1).toUpperCase()}${label.slice(1)}`;
 }
 
 function isOpenBookingStatus(status: Booking["status"]): boolean {

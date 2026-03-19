@@ -4,6 +4,7 @@ import type {
   Booking,
   Client,
   CreateTenantCommand,
+  PaymentIntent,
   Professional,
   Service,
   Tenant,
@@ -30,6 +31,7 @@ export interface TenantOnboardingResponse {
 export interface AdminBootstrapPayload {
   readonly session: AdminSessionEnvelope;
   readonly paymentSettings?: TenantPaymentSettings;
+  readonly paymentIntents: PaymentIntent[];
   readonly services: Service[];
   readonly professionals: Professional[];
   readonly clients: Client[];
@@ -49,6 +51,10 @@ export interface BookingPatchPayload {
   readonly status?: Booking["status"];
   readonly startAt?: string;
   readonly endAt?: string;
+}
+
+export interface PaymentIntentSyncPayload {
+  readonly paymentId?: string;
 }
 
 interface ApiErrorPayload {
@@ -109,11 +115,15 @@ export async function fetchAdminBootstrap(
   apiBaseUrl: string,
   token: string
 ): Promise<AdminBootstrapPayload> {
-  const [session, paymentSettings, services, professionals, clients, bookings] = await Promise.all([
+  const [session, paymentSettings, paymentIntents, services, professionals, clients, bookings] =
+    await Promise.all([
     requestJson<AdminSessionEnvelope>(apiBaseUrl, "/v1/admin/auth/session", {
       token
     }),
     requestJson<{ item?: TenantPaymentSettings }>(apiBaseUrl, "/v1/admin/payment-settings", {
+      token
+    }),
+    requestJson<{ items: PaymentIntent[] }>(apiBaseUrl, "/v1/admin/payment-intents", {
       token
     }),
     requestJson<{ items: Service[] }>(apiBaseUrl, "/v1/admin/services", {
@@ -133,6 +143,7 @@ export async function fetchAdminBootstrap(
   return {
     session,
     paymentSettings: paymentSettings.item,
+    paymentIntents: paymentIntents.items,
     services: services.items,
     professionals: professionals.items,
     clients: clients.items,
@@ -294,6 +305,23 @@ export async function updateBooking(
     token,
     body: payload
   });
+}
+
+export async function syncPaymentIntent(
+  apiBaseUrl: string,
+  token: string,
+  paymentIntentId: string,
+  payload?: PaymentIntentSyncPayload
+): Promise<{ item: PaymentIntent; booking: Booking }> {
+  return await requestJson<{ item: PaymentIntent; booking: Booking }>(
+    apiBaseUrl,
+    `/v1/admin/payment-intents/${paymentIntentId}/sync`,
+    {
+      method: "POST",
+      token,
+      body: payload
+    }
+  );
 }
 
 async function requestJson<T>(

@@ -803,6 +803,13 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         };
       });
 
+      adminRoutes.get("/payment-intents", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listPaymentIntents(claims.tenantId)
+        };
+      });
+
       adminRoutes.get("/bookings/:bookingId", async (request) => {
         const claims = requireAdminSession(request).claims;
         const bookingId = readRequiredString(
@@ -832,6 +839,25 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         }
 
         return booking;
+      });
+
+      adminRoutes.post("/payment-intents/:paymentIntentId/sync", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const paymentIntentId = readRequiredString(
+          (request.params as Record<string, unknown>).paymentIntentId,
+          "paymentIntentId"
+        );
+        const body = request.body ? requireRecord(request.body) : {};
+        const paymentId =
+          "paymentId" in body ? readRequiredString(body.paymentId, "paymentId") : undefined;
+
+        return await syncPaymentIntentByTenantId(
+          store,
+          mercadoPagoGateway,
+          claims.tenantId,
+          paymentIntentId,
+          paymentId
+        );
       });
 
       adminRoutes.delete("/bookings/:bookingId", async (request, reply) => {
@@ -1201,20 +1227,7 @@ async function readPublicPaymentIntentState(
     throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
   }
 
-  const paymentIntent = await store.getPaymentIntent(tenant.id, paymentIntentId);
-  if (!paymentIntent) {
-    throw new Error("payment_intent_not_found");
-  }
-
-  const booking = await store.getBooking(tenant.id, paymentIntent.bookingId);
-  if (!booking) {
-    throw new ApiHttpError(404, "booking_not_found", "Booking was not found for this payment.");
-  }
-
-  return {
-    item: paymentIntent,
-    booking
-  };
+  return await readPaymentIntentStateByTenantId(store, tenant.id, paymentIntentId);
 }
 
 async function syncPublicPaymentIntent(
@@ -1229,16 +1242,66 @@ async function syncPublicPaymentIntent(
     throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
   }
 
-  const paymentIntent = await store.getPaymentIntent(tenant.id, paymentIntentId);
+  return await syncPaymentIntentByTenantId(
+    store,
+    mercadoPagoGateway,
+    tenant.id,
+    paymentIntentId,
+    paymentId
+  );
+}
+
+async function readPaymentIntentStateByTenantId(
+  store: ApiRestStorePort,
+  tenantId: string,
+  paymentIntentId: string
+) {
+  const paymentIntent = await store.getPaymentIntent(tenantId, paymentIntentId);
+  if (!paymentIntent) {
+    throw new Error("payment_intent_not_found");
+  }
+
+  const booking = await store.getBooking(tenantId, paymentIntent.bookingId);
+  if (!booking) {
+    throw new ApiHttpError(404, "booking_not_found", "Booking was not found for this payment.");
+  }
+
+  return {
+    item: paymentIntent,
+    booking
+  };
+}
+
+async function syncPaymentIntentByTenantId(
+  store: ApiRestStorePort,
+  mercadoPagoGateway: MercadoPagoGateway,
+  tenantId: string,
+  paymentIntentId: string,
+  paymentId?: string
+) {
+  const paymentIntent = await store.getPaymentIntent(tenantId, paymentIntentId);
   if (!paymentIntent) {
     throw new Error("payment_intent_not_found");
   }
 
   if (!paymentId && !paymentIntent.paymentId) {
-    return await readPublicPaymentIntentState(store, slug, paymentIntentId);
+    const paymentSettings = await store.getPaymentSettings(tenantId);
+    if (!canSearchMercadoPagoPayment(paymentSettings)) {
+      return await readPaymentIntentStateByTenantId(store, tenantId, paymentIntentId);
+    }
+
+    const payment = await mercadoPagoGateway.findPaymentByExternalReference(
+      paymentSettings.accessToken,
+      paymentIntent.externalReference
+    );
+    if (!payment) {
+      return await readPaymentIntentStateByTenantId(store, tenantId, paymentIntentId);
+    }
+
+    return await reconcilePaymentState(store, tenantId, paymentIntentId, payment);
   }
 
-  const paymentSettings = await store.getPaymentSettings(tenant.id);
+  const paymentSettings = await store.getPaymentSettings(tenantId);
   assertActivePaymentSettings(paymentSettings);
 
   const payment = await mercadoPagoGateway.getPayment(
@@ -1246,7 +1309,18 @@ async function syncPublicPaymentIntent(
     paymentId ?? (paymentIntent.paymentId as string)
   );
 
-  return await reconcilePaymentState(store, tenant.id, paymentIntentId, payment);
+  return await reconcilePaymentState(store, tenantId, paymentIntentId, payment);
+}
+
+function canSearchMercadoPagoPayment(
+  paymentSettings?: TenantPaymentSettings
+): paymentSettings is TenantPaymentSettings & { accessToken: string } {
+  return Boolean(
+    paymentSettings &&
+      paymentSettings.provider === "mercado_pago" &&
+      paymentSettings.status === "active" &&
+      paymentSettings.accessToken
+  );
 }
 
 async function reconcilePaymentState(

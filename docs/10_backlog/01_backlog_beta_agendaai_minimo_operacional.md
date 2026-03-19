@@ -11,7 +11,7 @@ Ele nao substitui `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`.
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto |
 | --- | --- | --- | --- | --- | --- |
 | 1 | BA-01 | Autenticar admin no `admin-web` com tenant context real | B-05 | FECHADO | login, sessao e logout funcionando |
-| 2 | BA-02 | Materializar shell admin inicial com rota de implantacao | BA-01 | PARCIAL | shell admin com onboarding real, navegacao modular minima e rota de implantacao separada |
+| 2 | BA-02 | Materializar shell admin inicial com rota de implantacao | BA-01 | FECHADO | shell admin com onboarding real, navegacao modular minima e rota de implantacao separada |
 | 3 | BA-03 | Expor configuracao de slug, branding minimo e Mercado Pago na implantacao | BA-02, B-08 | EM FUNDACAO | slug e payment settings editaveis; branding minimo ainda pendente |
 
 ## Trilha Beta B - Catalogo comercial e cobranca
@@ -33,7 +33,7 @@ Ele nao substitui `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`.
 
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto |
 | --- | --- | --- | --- | --- | --- |
-| 9 | BA-09 | Agenda do dia no `admin-web` com acoes basicas | BA-01, BA-07 | PARCIAL | leitura de bookings pronta com filtros e acoes de confirmar, concluir e cancelar; calendario semanal e shell modular ainda pendentes |
+| 9 | BA-09 | Agenda do dia no `admin-web` com acoes basicas | BA-01, BA-07 | PARCIAL | leitura de bookings pronta com filtros e acoes de confirmar, concluir e cancelar; shell modular ja materializado, mas calendario semanal/rico ainda pendente |
 | 10 | BA-10 | Clientes derivados dos bookings reais | BA-09 | PARCIAL | ultima visita e leitura basica prontas; historico detalhado e segmentacao ainda pendentes |
 | 11 | BA-11 | Relatorios essenciais de beta | BA-09, BA-10 | NAO IMPLEMENTADO | agenda/receita/clientes sem retorno por periodo |
 

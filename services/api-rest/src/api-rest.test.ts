@@ -122,6 +122,14 @@ function createFakeMercadoPagoGateway(overrides: {
     statusDetail?: string;
     externalReference?: string;
   };
+  findPaymentByExternalReference?: (externalReference: string) =>
+    | {
+        id: string;
+        status: string;
+        statusDetail?: string;
+        externalReference?: string;
+      }
+    | undefined;
 } = {}): MercadoPagoGateway {
   return {
     async createPreference(request) {
@@ -138,6 +146,9 @@ function createFakeMercadoPagoGateway(overrides: {
         status: "approved",
         externalReference: "external-ref"
       };
+    },
+    async findPaymentByExternalReference(_accessToken, externalReference) {
+      return overrides.findPaymentByExternalReference?.(externalReference);
     }
   };
 }
@@ -783,6 +794,16 @@ test("sync e webhook reconciliam pagamento aprovado e confirmam booking", async 
     assert.equal(paymentIntentResponse.statusCode, 201);
     const created = paymentIntentResponse.json();
 
+    const adminPaymentIntentsResponse = await app.inject({
+      method: "GET",
+      url: "/v1/admin/payment-intents",
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(adminPaymentIntentsResponse.statusCode, 200);
+    assert.equal(adminPaymentIntentsResponse.json().items.length, 1);
+    assert.equal(adminPaymentIntentsResponse.json().items[0].bookingId, created.booking.id);
+
     const syncResponse = await app.inject({
       method: "POST",
       url: `/v1/public/tenants/${onboarding.tenant.slug}/payment-intents/${created.paymentIntent.id}/sync`,
@@ -794,6 +815,16 @@ test("sync e webhook reconciliam pagamento aprovado e confirmam booking", async 
     assert.equal(syncResponse.statusCode, 200);
     assert.equal(syncResponse.json().item.status, "approved");
     assert.equal(syncResponse.json().booking.status, "confirmado");
+
+    const adminSyncResponse = await app.inject({
+      method: "POST",
+      url: `/v1/admin/payment-intents/${created.paymentIntent.id}/sync`,
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(adminSyncResponse.statusCode, 200);
+    assert.equal(adminSyncResponse.json().item.status, "approved");
+    assert.equal(adminSyncResponse.json().booking.status, "confirmado");
 
     const webhookResponse = await app.inject({
       method: "POST",
@@ -810,6 +841,124 @@ test("sync e webhook reconciliam pagamento aprovado e confirmam booking", async 
 
     assert.equal(webhookResponse.statusCode, 200);
     assert.equal(webhookResponse.json().item.status, "approved");
+  } finally {
+    await app.close();
+  }
+});
+
+test("sync encontra pagamento por external reference quando paymentId ainda nao foi salvo", async () => {
+  let externalReference = "";
+
+  const app = await createApp(
+    createFakeMercadoPagoGateway({
+      createPreference(payload) {
+        externalReference = String(payload.external_reference);
+        return {
+          id: "pref-checkout-003",
+          initPoint: "https://mercadopago.test/checkout/pref-checkout-003"
+        };
+      },
+      getPayment() {
+        throw new Error("getPayment should not be called in external reference sync.");
+      },
+      findPaymentByExternalReference(candidateExternalReference) {
+        if (candidateExternalReference !== externalReference) {
+          return undefined;
+        }
+
+        return {
+          id: "payment-search-001",
+          status: "approved",
+          externalReference: candidateExternalReference
+        };
+      }
+    })
+  );
+
+  try {
+    const onboarding = await onboardTenant(app, "checkout-search");
+
+    await app.inject({
+      method: "PUT",
+      url: "/v1/admin/payment-settings",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "active",
+        checkoutMode: "checkout_pro",
+        publicKey: "APP_USR-public-key",
+        accessToken: "APP_USR-access-token",
+        notificationUrl: "https://agendaai.test/api/webhooks/mercado-pago",
+        backUrls: {
+          success: "https://agendaai.test/tenant-checkout-search",
+          pending: "https://agendaai.test/tenant-checkout-search",
+          failure: "https://agendaai.test/tenant-checkout-search"
+        },
+        autoReturn: "approved",
+        binaryMode: true,
+        defaultInstallments: 1,
+        expirationMinutes: 45
+      }
+    });
+
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Manicure Completa",
+      duracaoMin: 60,
+      precoBase: 150,
+      paymentPolicy: {
+        collectionMode: "deposit",
+        checkoutMode: "checkout_pro",
+        chargeType: "percentage",
+        percentage: 40,
+        currencyId: "BRL",
+        acceptedMethods: ["pix", "credit_card"],
+        capture: true
+      }
+    });
+
+    const professional = await createProfessional(app, onboarding.session.token, [service.id], {
+      nome: "Rafaela"
+    });
+
+    await setAvailability(app, onboarding.session.token, professional.id, [
+      {
+        weekday: 1,
+        faixa: {
+          startTime: "09:00",
+          endTime: "12:00"
+        }
+      }
+    ]);
+
+    const paymentIntentResponse = await app.inject({
+      method: "POST",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/payment-intents`,
+      payload: {
+        serviceId: service.id,
+        professionalId: professional.id,
+        startAt: "2026-03-23T09:00:00-03:00",
+        endAt: "2026-03-23T10:00:00-03:00",
+        client: {
+          nome: "Marina Teixeira",
+          telefone: "11933334444",
+          email: "marina@agendaai.test",
+          origem: "instagram"
+        }
+      }
+    });
+
+    assert.equal(paymentIntentResponse.statusCode, 201);
+    const created = paymentIntentResponse.json();
+
+    const syncResponse = await app.inject({
+      method: "POST",
+      url: `/v1/admin/payment-intents/${created.paymentIntent.id}/sync`,
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(syncResponse.statusCode, 200);
+    assert.equal(syncResponse.json().item.status, "approved");
+    assert.equal(syncResponse.json().item.paymentId, "payment-search-001");
+    assert.equal(syncResponse.json().booking.status, "confirmado");
   } finally {
     await app.close();
   }

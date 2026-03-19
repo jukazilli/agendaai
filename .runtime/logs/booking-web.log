@@ -29,3 +29,22 @@
  ✓ Compiled in 1305ms (556 modules)
  GET /demo-studio-20260317 200 in 706ms
  GET /demo-studio-20260317 200 in 699ms
+ ○ Compiling /_error ...
+ ✓ Compiled /_error in 4.2s (888 modules)
+ GET /demo-studio-20260317 500 in 20220ms
+ ○ Compiling / ...
+ ✓ Compiled / in 3s (951 modules)
+ GET / 200 in 4738ms
+ GET /demo-studio-20260317 500 in 5577ms
+ GET /demo-studio-20260317 500 in 313ms
+ GET / 200 in 660ms
+ GET /demo-studio-20260317 500 in 594ms
+ ELIFECYCLE  Command failed with exit code 4294967295.
+ GET /demo-studio-20260317 500 in 216ms
+ GET /demo-studio-20260317 500 in 340ms
+ GET /demo-studio-20260317 500 in 91ms
+ ○ Compiling /_not-found ...
+ ✓ Compiled /_not-found in 2.3s (901 modules)
+ GET /demo-studio-20260317 404 in 4648ms
+ GET /demo-studio-20260317 500 in 231ms
+ GET /demo-studio-20260317 500 in 67ms

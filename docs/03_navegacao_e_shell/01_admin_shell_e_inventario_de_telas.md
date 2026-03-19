@@ -88,9 +88,23 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 
 ## 7. Status atual da fundacao
 
-Em `18/03/2026`, a navegacao macro do admin ja estava documentada, mas o inventario de telas acima ainda nao havia sido congelado em artefato proprio. Este documento passa a ser a referencia oficial para:
+Em `19/03/2026`, o `admin-web` passou a refletir a primeira materializacao real deste inventario:
+
+- shell com navegacao lateral persistente no desktop e drawer no mobile;
+- modulos separados de `dashboard`, `operacional`, `agenda`, `catalogo`, `profissionais`, `clientes` e `configuracoes`;
+- dashboard com leitura real do bootstrap e lacunas marcadas como `(nao funcional)` quando o mock sugeria blocos sem contrato;
+- configuracoes separadas da operacao, concentrando slug, Mercado Pago e ambiente administrativo.
+
+Este documento continua sendo a referencia oficial para:
 
 - corte de shell admin;
 - definicao de rotas reais no `admin-web`;
 - backlog de separacao do shell;
 - validacao de user stories e specs por tela.
+
+As lacunas remanescentes deste shell agora deixaram de ser estruturais e passaram a ser funcionais:
+
+- calendario rico e reagendamento;
+- analytics agregados de faturamento, ocupacao e retencao;
+- branding minimo da implantacao;
+- financeiro operacional e relatorios.

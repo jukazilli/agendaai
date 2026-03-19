@@ -166,6 +166,11 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return this.store.getPaymentIntentByExternalReference(tenantId, externalReference);
   }
 
+  async listPaymentIntents(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listPaymentIntents(tenantId);
+  }
+
   async updatePaymentIntent(
     tenantId: string,
     paymentIntentId: string,

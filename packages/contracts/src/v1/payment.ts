@@ -157,6 +157,26 @@ export const tenantPaymentSettingsSchema = contractEnvelopeSchema
         path: ["backUrls"]
       });
     }
+
+    if (value.notificationUrl && !isHttpsUrl(value.notificationUrl)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "notificationUrl must use HTTPS when Mercado Pago settings are active.",
+        path: ["notificationUrl"]
+      });
+    }
+
+    if (value.backUrls) {
+      for (const [key, url] of Object.entries(value.backUrls)) {
+        if (!isHttpsUrl(url)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `backUrls.${key} must use HTTPS when Mercado Pago settings are active.`,
+            path: ["backUrls", key]
+          });
+        }
+      }
+    }
   });
 
 export const createPaymentIntentCommandSchema = contractEnvelopeSchema.extend({
@@ -209,3 +229,11 @@ export type TenantPaymentSettings = z.infer<typeof tenantPaymentSettingsSchema>;
 export type CreatePaymentIntentCommand = z.infer<typeof createPaymentIntentCommandSchema>;
 export type PaymentIntent = z.infer<typeof paymentIntentSchema>;
 export type PaymentWebhookNotification = z.infer<typeof paymentWebhookNotificationSchema>;
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === "https:";
+  } catch {
+    return false;
+  }
+}
