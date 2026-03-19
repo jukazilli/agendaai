@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type JSX } from "react";
+import { Fragment, useEffect, useState, type FormEvent, type JSX } from "react";
 
 import {
   defaultServicePaymentPolicy,
@@ -18,12 +18,14 @@ import {
 } from "@agendaai/contracts";
 
 import {
+  type AvailabilitySlot,
   AdminApiError,
   DEFAULT_ADMIN_API_BASE_URL,
   type AdminBootstrapPayload,
   createProfessional,
   createService,
   createTenantOnboarding,
+  fetchAvailabilitySlots,
   fetchAdminBootstrap,
   fetchProfessionalAvailability,
   loginAdmin,
@@ -47,6 +49,7 @@ type AdminRoute =
   | "clientes"
   | "configuracoes";
 type BookingFilter = "today" | "open" | "all";
+type AgendaViewMode = "day" | "week";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
 type PaymentChargeType = (typeof paymentChargeTypeValues)[number];
@@ -121,6 +124,28 @@ interface ClientInsight {
   readonly lastBooking?: Booking;
 }
 
+interface DayBookingSummary {
+  readonly total: number;
+  readonly open: number;
+  readonly confirmed: number;
+}
+
+interface WeekCapacitySummary {
+  readonly totalMinutes: number;
+  readonly bookedMinutes: number;
+  readonly freeMinutes: number;
+  readonly bookingsCount: number;
+  readonly openBookings: number;
+}
+
+interface WeekDayCapacitySummary {
+  readonly date: string;
+  readonly totalMinutes: number;
+  readonly bookedMinutes: number;
+  readonly bookingsCount: number;
+  readonly openBookings: number;
+}
+
 interface AdminRouteDefinition {
   readonly label: string;
   readonly shortLabel: string;
@@ -168,7 +193,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     eyebrow: "Planejamento",
     title: "Agenda e leitura de capacidade",
     description:
-      "Timeline operacional disponivel hoje; grade visual de calendario, reagendamento drag-and-drop e planejamento avancado seguem fora do corte.",
+      "Timeline diaria com reagendamento por slot real e leitura semanal de capacidade; grade mensal e drag-and-drop seguem fora do corte.",
     stage: "parcial"
   },
   catalogo: {
@@ -311,6 +336,18 @@ export function App() {
   const [availabilityDays, setAvailabilityDays] = useState<AvailabilityDayState[]>(
     createDefaultAvailabilityDays()
   );
+  const [agendaViewMode, setAgendaViewMode] = useState<AgendaViewMode>("day");
+  const [agendaDate, setAgendaDate] = useState(() => formatDateInputValue(new Date()));
+  const [agendaProfessionalFilter, setAgendaProfessionalFilter] = useState("all");
+  const [selectedAgendaBookingId, setSelectedAgendaBookingId] = useState("");
+  const [rescheduleDate, setRescheduleDate] = useState(() => formatDateInputValue(new Date()));
+  const [agendaSlots, setAgendaSlots] = useState<AvailabilitySlot[]>([]);
+  const [selectedAgendaSlotStartAt, setSelectedAgendaSlotStartAt] = useState("");
+  const [isLoadingAgendaSlots, setIsLoadingAgendaSlots] = useState(false);
+  const [weeklyAvailabilityByProfessional, setWeeklyAvailabilityByProfessional] = useState<
+    Record<string, AvailabilityRule[]>
+  >({});
+  const [isLoadingWeeklyAvailability, setIsLoadingWeeklyAvailability] = useState(false);
 
   useEffect(() => {
     storeValue(API_BASE_STORAGE_KEY, apiBaseUrl);
@@ -435,6 +472,49 @@ export function App() {
     };
   }, [apiBaseUrl, selectedProfessionalId, sessionToken]);
 
+  useEffect(() => {
+    const nextProfessionals = bootstrap?.professionals ?? [];
+    if (!sessionToken || nextProfessionals.length === 0) {
+      setWeeklyAvailabilityByProfessional({});
+      setIsLoadingWeeklyAvailability(false);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingWeeklyAvailability(true);
+
+    async function loadWeeklyAvailability() {
+      try {
+        const entries = await Promise.all(
+          nextProfessionals.map(async (professional) => [
+            professional.id,
+            await fetchProfessionalAvailability(apiBaseUrl, sessionToken, professional.id)
+          ] as const)
+        );
+
+        if (!ignore) {
+          setWeeklyAvailabilityByProfessional(Object.fromEntries(entries));
+        }
+      } catch (error) {
+        if (!ignore) {
+          setFeedback({
+            tone: "error",
+            message: toErrorMessage(error)
+          });
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingWeeklyAvailability(false);
+        }
+      }
+    }
+
+    void loadWeeklyAvailability();
+    return () => {
+      ignore = true;
+    };
+  }, [apiBaseUrl, bootstrap?.professionals, sessionToken]);
+
   const tenant = bootstrap?.session.tenant;
   const publicBookingUrl = tenant ? `${BOOKING_BASE_URL.replace(/\/+$/, "")}/${tenant.slug}` : "";
   const services = bootstrap?.services ?? [];
@@ -444,10 +524,137 @@ export function App() {
   const paymentIntents = bootstrap?.paymentIntents ?? [];
   const bookingSummary = summarizeBookings(bookings);
   const agendaBookings = filterAgendaBookings(bookings, bookingFilter);
+  const dayAgendaBookings = filterBookingsByDate(bookings, agendaDate);
+  const filteredDayAgendaBookings =
+    agendaProfessionalFilter === "all"
+      ? dayAgendaBookings
+      : dayAgendaBookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
   const clientInsights = buildClientInsights(clients, bookings);
   const pendingPaymentCount = paymentIntents.filter((intent) =>
     ["pending", "in_process", "authorized", "draft"].includes(intent.status)
   ).length;
+  const selectedAgendaBooking =
+    filteredDayAgendaBookings.find((booking) => booking.id === selectedAgendaBookingId) ??
+    bookings.find((booking) => booking.id === selectedAgendaBookingId);
+  const selectedAgendaPaymentIntent =
+    paymentIntents.find((intent) => intent.bookingId === selectedAgendaBooking?.id);
+  const agendaDaySummary = summarizeDayBookings(filteredDayAgendaBookings);
+  const agendaWeekDates = buildAgendaWeekDates(agendaDate);
+  const weekAgendaBookings = filterBookingsByDates(bookings, agendaWeekDates);
+  const filteredWeekProfessionals =
+    agendaProfessionalFilter === "all"
+      ? professionals
+      : professionals.filter((professional) => professional.id === agendaProfessionalFilter);
+  const filteredWeekBookings =
+    agendaProfessionalFilter === "all"
+      ? weekAgendaBookings
+      : weekAgendaBookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
+  const weekCapacitySummary = summarizeWeekCapacity(
+    filteredWeekBookings,
+    agendaWeekDates,
+    filteredWeekProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+  const weekDaySummaries = buildWeekDaySummaries(
+    filteredWeekBookings,
+    agendaWeekDates,
+    filteredWeekProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+  const weekProfessionalSummaries = buildWeekProfessionalSummaries(
+    filteredWeekBookings,
+    agendaWeekDates,
+    filteredWeekProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+
+  useEffect(() => {
+    if (agendaProfessionalFilter === "all") {
+      return;
+    }
+
+    if (!professionals.some((professional) => professional.id === agendaProfessionalFilter)) {
+      setAgendaProfessionalFilter("all");
+    }
+  }, [agendaProfessionalFilter, professionals]);
+
+  useEffect(() => {
+    if (!filteredDayAgendaBookings.length) {
+      if (selectedAgendaBookingId) {
+        setSelectedAgendaBookingId("");
+      }
+      return;
+    }
+
+    if (!filteredDayAgendaBookings.some((booking) => booking.id === selectedAgendaBookingId)) {
+      const nextBooking = filteredDayAgendaBookings[0];
+      setSelectedAgendaBookingId(nextBooking.id);
+      setRescheduleDate(extractDatePart(nextBooking.startAt));
+    }
+  }, [filteredDayAgendaBookings, selectedAgendaBookingId]);
+
+  useEffect(() => {
+    if (!selectedAgendaBooking || !sessionToken) {
+      setAgendaSlots([]);
+      setSelectedAgendaSlotStartAt("");
+      setIsLoadingAgendaSlots(false);
+      return;
+    }
+
+    const booking = selectedAgendaBooking;
+    let ignore = false;
+    setIsLoadingAgendaSlots(true);
+
+    async function loadAgendaSlots() {
+      try {
+        const slots = await fetchAvailabilitySlots(apiBaseUrl, sessionToken, {
+          serviceId: booking.serviceId,
+          professionalId: booking.professionalId,
+          date: rescheduleDate
+        });
+
+        if (ignore) {
+          return;
+        }
+
+        setAgendaSlots(slots);
+        setSelectedAgendaSlotStartAt((current) => {
+          if (current && slots.some((slot) => slot.startAt === current)) {
+            return current;
+          }
+
+          const currentBookingSlot = slots.find((slot) => slot.startAt === booking.startAt);
+          return currentBookingSlot?.startAt ?? "";
+        });
+      } catch (error) {
+        if (!ignore) {
+          setFeedback({
+            tone: "error",
+            message: toErrorMessage(error)
+          });
+          setAgendaSlots([]);
+          setSelectedAgendaSlotStartAt("");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingAgendaSlots(false);
+        }
+      }
+    }
+
+    void loadAgendaSlots();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    apiBaseUrl,
+    rescheduleDate,
+    selectedAgendaBooking?.id,
+    selectedAgendaBooking?.professionalId,
+    selectedAgendaBooking?.serviceId,
+    selectedAgendaBooking?.startAt,
+    sessionToken
+  ]);
 
   async function refreshAdminState(): Promise<void> {
     if (!sessionToken) {
@@ -600,6 +807,39 @@ export function App() {
     });
   }
 
+  async function handleRescheduleBooking(): Promise<void> {
+    if (!selectedAgendaBooking) {
+      setFeedback({
+        tone: "error",
+        message: "Selecione uma booking para reagendar."
+      });
+      return;
+    }
+
+    const nextSlot = agendaSlots.find((slot) => slot.startAt === selectedAgendaSlotStartAt);
+    if (!nextSlot) {
+      setFeedback({
+        tone: "error",
+        message: "Escolha um novo horario disponivel antes de salvar o reagendamento."
+      });
+      return;
+    }
+
+    await runAction(async () => {
+      await updateBooking(apiBaseUrl, sessionToken, selectedAgendaBooking.id, {
+        startAt: nextSlot.startAt,
+        endAt: nextSlot.endAt
+      });
+      await refreshAdminState();
+      setAgendaDate(nextSlot.date);
+      setSelectedAgendaBookingId(selectedAgendaBooking.id);
+      setFeedback({
+        tone: "success",
+        message: `Booking reagendada para ${formatDateTime(nextSlot.startAt)}.`
+      });
+    });
+  }
+
   function navigateTo(route: AdminRoute): void {
     const nextHash = `#${route}`;
     if (typeof window !== "undefined" && window.location.hash !== nextHash) {
@@ -614,6 +854,28 @@ export function App() {
       await refreshAdminState();
       setFeedback({ tone: "info", message: "Painel administrativo atualizado." });
     });
+  }
+
+  function handleAgendaDateShift(days: number): void {
+    setAgendaDate((current) => addDaysToDateValue(current, days));
+  }
+
+  function handleAgendaBookingSelection(booking: Booking): void {
+    setSelectedAgendaBookingId(booking.id);
+    setAgendaDate(extractDatePart(booking.startAt));
+    setRescheduleDate(extractDatePart(booking.startAt));
+    setSelectedAgendaSlotStartAt(booking.startAt);
+  }
+
+  function handleOpenAgendaBooking(booking: Booking): void {
+    handleAgendaBookingSelection(booking);
+    setAgendaViewMode("day");
+    navigateTo("agenda");
+  }
+
+  function handleOpenAgendaWeekBooking(booking: Booking): void {
+    handleAgendaBookingSelection(booking);
+    setAgendaViewMode("day");
   }
 
   function renderAgendaRecords(): JSX.Element {
@@ -671,6 +933,16 @@ export function App() {
 
               {actions.length || canSyncPayment ? (
                 <div className="record-card-actions">
+                  {canRescheduleBooking(booking) ? (
+                    <button
+                      className="secondary-button"
+                      disabled={isBusy}
+                      onClick={() => handleOpenAgendaBooking(booking)}
+                      type="button"
+                    >
+                      Reagendar
+                    </button>
+                  ) : null}
                   {actions.map((action) => (
                     <button
                       className={resolveActionButtonClassName(action.tone)}
@@ -1626,6 +1898,446 @@ export function App() {
     );
   }
 
+  function renderAgendaWeekView(): JSX.Element {
+    return (
+      <>
+        <div className="records-grid capacity-grid">
+          <div className="stat-card">
+            <span>Capacidade semanal</span>
+            <strong>{formatMinutesAsHours(weekCapacitySummary.totalMinutes)}</strong>
+            <small>{filteredWeekProfessionals.length} profissional(is) no recorte</small>
+          </div>
+          <div className="stat-card">
+            <span>Horas ocupadas</span>
+            <strong>{formatMinutesAsHours(weekCapacitySummary.bookedMinutes)}</strong>
+            <small>{weekCapacitySummary.bookingsCount} booking(s) distribuidas</small>
+          </div>
+          <div className="stat-card">
+            <span>Horas livres</span>
+            <strong>{formatMinutesAsHours(weekCapacitySummary.freeMinutes)}</strong>
+            <small>{weekCapacitySummary.totalMinutes > 0 ? formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes) : "Sem disponibilidade publicada"}</small>
+          </div>
+          <div className="stat-card">
+            <span>Em aberto na semana</span>
+            <strong>{weekCapacitySummary.openBookings}</strong>
+            <small>Confirmadas, pendentes e aguardando pagamento</small>
+          </div>
+        </div>
+
+        <section className="agenda-week-layout">
+          <article className="panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Calendario semanal</p>
+                <h3>Grade densa por profissional</h3>
+              </div>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+
+            {isLoadingWeeklyAvailability ? (
+              <p className="helper">Carregando disponibilidade semanal da equipe...</p>
+            ) : filteredWeekProfessionals.length ? (
+              <div className="week-grid-shell">
+                <div className="week-grid">
+                  <div className="week-grid-header is-professional">Profissional</div>
+                  {agendaWeekDates.map((date) => {
+                    const daySummary = weekDaySummaries.find((item) => item.date === date);
+                    return (
+                      <div className="week-grid-header" key={date}>
+                        <strong>{formatAgendaDayLabel(date)}</strong>
+                        <small>
+                          {formatMinutesAsHours(daySummary?.bookedMinutes ?? 0)}
+                          {" / "}
+                          {formatMinutesAsHours(daySummary?.totalMinutes ?? 0)}
+                        </small>
+                      </div>
+                    );
+                  })}
+
+                  {filteredWeekProfessionals.map((professional) => {
+                    const professionalSummary = weekProfessionalSummaries.find(
+                      (item) => item.professionalId === professional.id
+                    );
+
+                    return (
+                      <Fragment key={professional.id}>
+                        <div className="week-professional-cell">
+                          <strong>{professional.nome}</strong>
+                          <small>
+                            {formatMinutesAsHours(professionalSummary?.bookedMinutes ?? 0)}
+                            {" / "}
+                            {formatMinutesAsHours(professionalSummary?.totalMinutes ?? 0)}
+                          </small>
+                        </div>
+
+                        {agendaWeekDates.map((date) => {
+                          const cell = buildWeekGridCell(
+                            date,
+                            professional.id,
+                            filteredWeekBookings,
+                            weeklyAvailabilityByProfessional
+                          );
+                          return (
+                            <div className="week-day-cell" key={`${professional.id}-${date}`}>
+                              <div className="week-day-cell-meta">
+                                <span className="status-pill is-neutral">
+                                  {cell.rule ? `${cell.rule.faixa.startTime} - ${cell.rule.faixa.endTime}` : "Sem escala"}
+                                </span>
+                                <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
+                                  {cell.totalMinutes > 0
+                                    ? `${formatUtilization(cell.bookedMinutes, cell.totalMinutes)} ocupacao`
+                                    : "Sem capacidade"}
+                                </span>
+                              </div>
+
+                              <div className="week-bookings-list">
+                                {cell.bookings.length ? (
+                                  cell.bookings.map((booking) => {
+                                    const service = services.find((item) => item.id === booking.serviceId);
+                                    return (
+                                      <button
+                                        className="week-booking-chip"
+                                        key={booking.id}
+                                        onClick={() => handleOpenAgendaWeekBooking(booking)}
+                                        type="button"
+                                      >
+                                        <strong>{formatTimeRange(booking.startAt, booking.endAt)}</strong>
+                                        <span>{service?.nome ?? "Servico"}</span>
+                                        <small>{resolveClientName(booking.clientId, clients)}</small>
+                                      </button>
+                                    );
+                                  })
+                                ) : (
+                                  <p className="helper">Sem booking</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </Fragment>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="empty-state">Nenhum profissional publicado para montar a grade semanal.</p>
+            )}
+          </article>
+
+          <aside className="panel aside-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Capacidade</p>
+                <h3>Leitura agregada da semana</h3>
+              </div>
+            </div>
+
+            <div className="records-column">
+              {weekDaySummaries.map((summary) => (
+                <div className="list-card" key={summary.date}>
+                  <strong>{formatAgendaDayLabel(summary.date)}</strong>
+                  <div className="record-meta">
+                    <span className="status-pill is-neutral">
+                      {formatMinutesAsHours(summary.bookedMinutes)} / {formatMinutesAsHours(summary.totalMinutes)}
+                    </span>
+                    <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
+                      {summary.totalMinutes > 0
+                        ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                        : "Sem capacidade"}
+                    </span>
+                  </div>
+                  <p>
+                    {summary.bookingsCount} booking(s) na data, {summary.openBookings} em aberto.
+                  </p>
+                </div>
+              ))}
+
+              <div className="list-card">
+                <strong>Lacunas desta tela</strong>
+                <p>Drag-and-drop, bloqueios por excecao, grade mensal e alertas preditivos continuam fora do contrato atual.</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </>
+    );
+  }
+
+  function renderAgendaViewV2(): JSX.Element {
+    const selectedService = services.find((item) => item.id === selectedAgendaBooking?.serviceId);
+    const selectedProfessional = professionals.find(
+      (item) => item.id === selectedAgendaBooking?.professionalId
+    );
+    const selectedClient = clients.find((item) => item.id === selectedAgendaBooking?.clientId);
+
+    return (
+      <section className="view-stack">
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Agenda / calendario</p>
+              <h2>Agenda diaria e leitura semanal</h2>
+            </div>
+            <span className="status-pill is-warning">Parcial</span>
+          </div>
+
+          <p className="helper">
+            O shell agora opera a linha do dia com selecao de booking e reagendamento por slot real, alem de uma grade semanal de capacidade por profissional. Grade mensal e drag-and-drop continuam fora do corte.
+          </p>
+
+          <div className="timeline-toolbar">
+            <div className="button-row">
+              <button
+                className={agendaViewMode === "day" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setAgendaViewMode("day")}
+                type="button"
+              >
+                Dia
+              </button>
+              <button
+                className={agendaViewMode === "week" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setAgendaViewMode("week")}
+                type="button"
+              >
+                Semana
+              </button>
+            </div>
+
+            <div className="button-row">
+              <button
+                className="secondary-button"
+                onClick={() => handleAgendaDateShift(agendaViewMode === "week" ? -7 : -1)}
+                type="button"
+              >
+                {agendaViewMode === "week" ? "Semana anterior" : "Dia anterior"}
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
+                type="button"
+              >
+                {agendaViewMode === "week" ? "Esta semana" : "Hoje"}
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => handleAgendaDateShift(agendaViewMode === "week" ? 7 : 1)}
+                type="button"
+              >
+                {agendaViewMode === "week" ? "Proxima semana" : "Proximo dia"}
+              </button>
+            </div>
+
+            <div className="field timeline-date-field">
+              <label htmlFor="agenda-date">Data da agenda</label>
+              <input
+                id="agenda-date"
+                onChange={(event) => setAgendaDate(event.target.value)}
+                type="date"
+                value={agendaDate}
+              />
+            </div>
+
+            <div className="field timeline-date-field">
+              <label htmlFor="agenda-professional-filter">Profissional</label>
+              <select
+                id="agenda-professional-filter"
+                onChange={(event) => setAgendaProfessionalFilter(event.target.value)}
+                value={agendaProfessionalFilter}
+              >
+                <option value="all">Todos os profissionais</option>
+                {professionals.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {agendaViewMode === "day" ? (
+            <div className="record-meta">
+              <span className="status-pill is-neutral">{formatAgendaDayLabel(agendaDate)}</span>
+              <span className="status-pill is-info">{agendaDaySummary.total} booking(s) no dia</span>
+              <span className="status-pill is-info">Em aberto {agendaDaySummary.open}</span>
+              <span className="status-pill is-success">Confirmadas {agendaDaySummary.confirmed}</span>
+            </div>
+          ) : (
+            <div className="record-meta">
+              <span className="status-pill is-neutral">{formatAgendaWeekLabel(agendaWeekDates)}</span>
+              <span className="status-pill is-info">
+                {formatMinutesAsHours(weekCapacitySummary.bookedMinutes)} ocupadas
+              </span>
+              <span className="status-pill is-success">
+                {formatMinutesAsHours(weekCapacitySummary.freeMinutes)} livres
+              </span>
+              <span className="status-pill is-info">{weekCapacitySummary.bookingsCount} booking(s) na semana</span>
+            </div>
+          )}
+        </article>
+
+        {agendaViewMode === "day" ? (
+          <section className="agenda-board">
+          <article className="panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Timeline</p>
+                <h3>Atendimentos do dia</h3>
+              </div>
+            </div>
+
+            {filteredDayAgendaBookings.length ? (
+              <div className="records-column">
+                {filteredDayAgendaBookings.map((booking) => {
+                  const service = services.find((item) => item.id === booking.serviceId);
+                  const professional = professionals.find((item) => item.id === booking.professionalId);
+                  const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+
+                  return (
+                    <button
+                      className={
+                        booking.id === selectedAgendaBooking?.id ?
+                          "entity-card timeline-card is-active"
+                        : "entity-card timeline-card"
+                      }
+                      key={booking.id}
+                      onClick={() => handleAgendaBookingSelection(booking)}
+                      type="button"
+                    >
+                      <div className="timeline-card-header">
+                        <strong className="timeline-card-time">
+                          {formatTimeRange(booking.startAt, booking.endAt)}
+                        </strong>
+                        <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                          {formatBookingStatus(booking.status)}
+                        </span>
+                      </div>
+                      <div className="record-stack">
+                        <strong>{service?.nome ?? "Servico"}</strong>
+                        <span>{resolveClientName(booking.clientId, clients)}</span>
+                      </div>
+                      <div className="record-meta">
+                        <span>{professional?.nome ?? "Profissional nao encontrado"}</span>
+                        {paymentIntent ? (
+                          <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
+                            Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
+                          </span>
+                        ) : null}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="empty-state">Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)} neste recorte.</p>
+            )}
+          </article>
+
+          <aside className="panel aside-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Booking selecionada</p>
+                <h3>Detalhe e reagendamento</h3>
+              </div>
+            </div>
+
+            {selectedAgendaBooking ? (
+              <div className="records-column">
+                <div className="list-card">
+                  <strong>{selectedService?.nome ?? "Servico nao encontrado"}</strong>
+                  <p>
+                    {selectedClient?.nome ?? "Cliente"} com {selectedProfessional?.nome ?? "profissional nao encontrado"}
+                  </p>
+                  <div className="record-meta">
+                    <span className={`status-pill is-${resolveBookingStatusTone(selectedAgendaBooking.status)}`}>
+                      {formatBookingStatus(selectedAgendaBooking.status)}
+                    </span>
+                    <span className="status-pill is-neutral">
+                      {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}
+                    </span>
+                  </div>
+                  {selectedAgendaPaymentIntent ? (
+                    <div className="record-meta">
+                      <span className={`status-pill is-${resolvePaymentIntentTone(selectedAgendaPaymentIntent.status)}`}>
+                        Pagamento {formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)}
+                      </span>
+                      {selectedAgendaPaymentIntent.paymentId ? (
+                        <span className="status-pill is-neutral">MP {selectedAgendaPaymentIntent.paymentId}</span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="list-card">
+                  <strong>Reagendar</strong>
+                  <p>Escolha uma nova data e selecione um slot real da agenda do profissional.</p>
+
+                  <div className="field">
+                    <label htmlFor="reschedule-date">Nova data</label>
+                    <input
+                      id="reschedule-date"
+                      onChange={(event) => setRescheduleDate(event.target.value)}
+                      type="date"
+                      value={rescheduleDate}
+                    />
+                  </div>
+
+                  {isLoadingAgendaSlots ? (
+                    <p className="helper">Carregando slots disponiveis...</p>
+                  ) : agendaSlots.length ? (
+                    <div className="slot-grid">
+                      {agendaSlots.map((slot) => (
+                        <button
+                          className={
+                            slot.startAt === selectedAgendaSlotStartAt ?
+                              "secondary-button is-active"
+                            : "secondary-button"
+                          }
+                          key={slot.startAt}
+                          onClick={() => setSelectedAgendaSlotStartAt(slot.startAt)}
+                          type="button"
+                        >
+                          {slot.startTime}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="helper">Nenhum slot disponivel para esta data.</p>
+                  )}
+
+                  <div className="button-row">
+                    <button
+                      className="primary-button"
+                      disabled={
+                        isBusy ||
+                        isLoadingAgendaSlots ||
+                        !selectedAgendaSlotStartAt ||
+                        selectedAgendaSlotStartAt === selectedAgendaBooking.startAt
+                      }
+                      onClick={() => void handleRescheduleBooking()}
+                      type="button"
+                    >
+                      Salvar novo horario
+                    </button>
+                  </div>
+                </div>
+
+                <div className="list-card">
+                  <strong>Lacunas desta tela</strong>
+                  <p>Calendario mensal/semanal denso, drag-and-drop e capacidade agregada continuam sem contrato dedicado.</p>
+                </div>
+              </div>
+            ) : (
+              <p className="empty-state">Selecione uma booking do dia para abrir o detalhe e reagendar.</p>
+            )}
+          </aside>
+          </section>
+        ) : (
+          renderAgendaWeekView()
+        )}
+      </section>
+    );
+  }
+
   function renderCatalogView(): JSX.Element {
     return (
       <section className="view-stack">
@@ -1812,7 +2524,7 @@ export function App() {
       case "operacional":
         return renderOperationalView();
       case "agenda":
-        return renderAgendaView();
+        return renderAgendaViewV2();
       case "catalogo":
         return renderCatalogView();
       case "profissionais":
@@ -2267,6 +2979,156 @@ function filterAgendaBookings(bookings: readonly Booking[], filter: BookingFilte
     .sort((left, right) => left.startAt.localeCompare(right.startAt));
 }
 
+function filterBookingsByDate(bookings: readonly Booking[], date: string): Booking[] {
+  return [...bookings]
+    .filter((booking) => extractDatePart(booking.startAt) === date)
+    .sort((left, right) => left.startAt.localeCompare(right.startAt));
+}
+
+function summarizeDayBookings(bookings: readonly Booking[]): DayBookingSummary {
+  return {
+    total: bookings.length,
+    open: bookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
+    confirmed: bookings.filter((booking) => booking.status === "confirmado").length
+  };
+}
+
+function filterBookingsByDates(bookings: readonly Booking[], dates: readonly string[]): Booking[] {
+  const dateSet = new Set(dates);
+  return [...bookings]
+    .filter((booking) => dateSet.has(extractDatePart(booking.startAt)))
+    .sort((left, right) => left.startAt.localeCompare(right.startAt));
+}
+
+function buildAgendaWeekDates(anchorDate: string): string[] {
+  const currentDate = new Date(`${anchorDate}T12:00:00`);
+  const weekStart = new Date(currentDate);
+  weekStart.setDate(currentDate.getDate() - currentDate.getDay());
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(weekStart);
+    date.setDate(weekStart.getDate() + index);
+    return formatDateInputValue(date);
+  });
+}
+
+function buildWeekGridCell(
+  date: string,
+  professionalId: string,
+  bookings: readonly Booking[],
+  availabilityByProfessional: Readonly<Record<string, AvailabilityRule[]>>
+): {
+  readonly rule?: AvailabilityRule;
+  readonly totalMinutes: number;
+  readonly bookedMinutes: number;
+  readonly bookings: Booking[];
+} {
+  const weekday = new Date(`${date}T12:00:00`).getDay();
+  const rule = availabilityByProfessional[professionalId]?.find((item) => item.weekday === weekday);
+  const cellBookings = bookings
+    .filter(
+      (booking) =>
+        booking.professionalId === professionalId &&
+        extractDatePart(booking.startAt) === date &&
+        booking.status !== "cancelado"
+    )
+    .sort((left, right) => left.startAt.localeCompare(right.startAt));
+
+  return {
+    rule,
+    totalMinutes: calculateRuleDurationMinutes(rule),
+    bookedMinutes: cellBookings.reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0),
+    bookings: cellBookings
+  };
+}
+
+function summarizeWeekCapacity(
+  bookings: readonly Booking[],
+  dates: readonly string[],
+  professionals: readonly Professional[],
+  availabilityByProfessional: Readonly<Record<string, AvailabilityRule[]>>
+): WeekCapacitySummary {
+  const totalMinutes = dates.reduce((total, date) => {
+    const weekday = new Date(`${date}T12:00:00`).getDay();
+    return (
+      total +
+      professionals.reduce(
+        (dayTotal, professional) =>
+          dayTotal +
+          calculateRuleDurationMinutes(
+            availabilityByProfessional[professional.id]?.find((rule) => rule.weekday === weekday)
+          ),
+        0
+      )
+    );
+  }, 0);
+  const bookedMinutes = bookings
+    .filter((booking) => booking.status !== "cancelado")
+    .reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0);
+
+  return {
+    totalMinutes,
+    bookedMinutes,
+    freeMinutes: Math.max(totalMinutes - bookedMinutes, 0),
+    bookingsCount: bookings.length,
+    openBookings: bookings.filter((booking) => isOpenBookingStatus(booking.status)).length
+  };
+}
+
+function buildWeekDaySummaries(
+  bookings: readonly Booking[],
+  dates: readonly string[],
+  professionals: readonly Professional[],
+  availabilityByProfessional: Readonly<Record<string, AvailabilityRule[]>>
+): WeekDayCapacitySummary[] {
+  return dates.map((date) => {
+    const weekday = new Date(`${date}T12:00:00`).getDay();
+    const dayBookings = bookings.filter(
+      (booking) => extractDatePart(booking.startAt) === date && booking.status !== "cancelado"
+    );
+    const totalMinutes = professionals.reduce((total, professional) => {
+      const rule = availabilityByProfessional[professional.id]?.find((item) => item.weekday === weekday);
+      return total + calculateRuleDurationMinutes(rule);
+    }, 0);
+
+    return {
+      date,
+      totalMinutes,
+      bookedMinutes: dayBookings.reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0),
+      bookingsCount: dayBookings.length,
+      openBookings: dayBookings.filter((booking) => isOpenBookingStatus(booking.status)).length
+    };
+  });
+}
+
+function buildWeekProfessionalSummaries(
+  bookings: readonly Booking[],
+  dates: readonly string[],
+  professionals: readonly Professional[],
+  availabilityByProfessional: Readonly<Record<string, AvailabilityRule[]>>
+): Array<{
+  readonly professionalId: string;
+  readonly totalMinutes: number;
+  readonly bookedMinutes: number;
+}> {
+  return professionals.map((professional) => {
+    const totalMinutes = dates.reduce((total, date) => {
+      const weekday = new Date(`${date}T12:00:00`).getDay();
+      const rule = availabilityByProfessional[professional.id]?.find((item) => item.weekday === weekday);
+      return total + calculateRuleDurationMinutes(rule);
+    }, 0);
+    const bookedMinutes = bookings
+      .filter((booking) => booking.professionalId === professional.id && booking.status !== "cancelado")
+      .reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0);
+
+    return {
+      professionalId: professional.id,
+      totalMinutes,
+      bookedMinutes
+    };
+  });
+}
+
 function buildClientInsights(clients: readonly Client[], bookings: readonly Booking[]): ClientInsight[] {
   return clients
     .map((client) => {
@@ -2307,6 +3169,10 @@ function resolveBookingActions(booking: Booking): BookingAction[] {
     default:
       return [];
   }
+}
+
+function canRescheduleBooking(booking: Booking): boolean {
+  return booking.status === "pendente" || booking.status === "aguardando pagamento" || booking.status === "confirmado";
 }
 
 function resolveBookingActionFeedback(status: Booking["status"]): string {
@@ -2402,6 +3268,103 @@ function isSameCalendarDay(value: string, baseDate: Date): boolean {
     date.getMonth() === baseDate.getMonth() &&
     date.getDate() === baseDate.getDate()
   );
+}
+
+function extractDatePart(value: string): string {
+  return value.slice(0, 10);
+}
+
+function formatDateInputValue(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDaysToDateValue(value: string, days: number): string {
+  const date = new Date(`${value}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return formatDateInputValue(date);
+}
+
+function formatAgendaDayLabel(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "short" }).format(
+    new Date(`${value}T12:00:00`)
+  );
+}
+
+function formatTimeRange(startAt: string, endAt: string): string {
+  const formatter = new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" });
+  return `${formatter.format(new Date(startAt))} - ${formatter.format(new Date(endAt))}`;
+}
+
+function formatAgendaWeekLabel(dates: readonly string[]): string {
+  if (dates.length === 0) {
+    return "Semana sem datas";
+  }
+
+  const formatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
+  const startLabel = formatter.format(new Date(`${dates[0]}T12:00:00`));
+  const endLabel = formatter.format(new Date(`${dates[dates.length - 1]}T12:00:00`));
+  return `${startLabel} - ${endLabel}`;
+}
+
+function calculateRuleDurationMinutes(rule?: AvailabilityRule): number {
+  if (!rule) {
+    return 0;
+  }
+  return calculateClockDurationMinutes(rule.faixa.startTime, rule.faixa.endTime);
+}
+
+function calculateClockDurationMinutes(startTime: string, endTime: string): number {
+  const [startHour, startMinute] = startTime.split(":").map(Number);
+  const [endHour, endMinute] = endTime.split(":").map(Number);
+  return Math.max(endHour * 60 + endMinute - (startHour * 60 + startMinute), 0);
+}
+
+function calculateBookingDurationMinutes(booking: Booking): number {
+  const startAt = new Date(booking.startAt).getTime();
+  const endAt = new Date(booking.endAt).getTime();
+  return Math.max(Math.round((endAt - startAt) / 60000), 0);
+}
+
+function formatMinutesAsHours(value: number): string {
+  if (value <= 0) {
+    return "0h";
+  }
+
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  if (hours > 0 && minutes > 0) {
+    return `${hours}h${String(minutes).padStart(2, "0")}`;
+  }
+  if (hours > 0) {
+    return `${hours}h`;
+  }
+  return `${minutes}min`;
+}
+
+function formatUtilization(bookedMinutes: number, totalMinutes: number): string {
+  if (totalMinutes <= 0) {
+    return "0%";
+  }
+
+  return `${Math.min(Math.round((bookedMinutes / totalMinutes) * 100), 999)}%`;
+}
+
+function resolveUtilizationTone(bookedMinutes: number, totalMinutes: number): string {
+  if (totalMinutes <= 0) {
+    return "neutral";
+  }
+
+  const ratio = bookedMinutes / totalMinutes;
+  if (ratio >= 0.8) {
+    return "success";
+  }
+  if (ratio >= 0.45) {
+    return "warning";
+  }
+  return "info";
 }
 
 function formatCurrency(value: number): string {

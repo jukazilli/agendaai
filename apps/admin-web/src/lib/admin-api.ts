@@ -53,6 +53,14 @@ export interface BookingPatchPayload {
   readonly endAt?: string;
 }
 
+export interface AvailabilitySlot {
+  readonly date: string;
+  readonly startTime: string;
+  readonly endTime: string;
+  readonly startAt: string;
+  readonly endAt: string;
+}
+
 export interface PaymentIntentSyncPayload {
   readonly paymentId?: string;
 }
@@ -290,6 +298,27 @@ export async function saveProfessionalAvailability(
       }
     }
   );
+
+  return response.items;
+}
+
+export async function fetchAvailabilitySlots(
+  apiBaseUrl: string,
+  token: string,
+  payload: {
+    serviceId: string;
+    professionalId: string;
+    date: string;
+  }
+): Promise<AvailabilitySlot[]> {
+  const url = new URL("/v1/admin/availability/slots", `${resolveAdminApiBaseUrl(apiBaseUrl)}/`);
+  url.searchParams.set("serviceId", payload.serviceId);
+  url.searchParams.set("professionalId", payload.professionalId);
+  url.searchParams.set("date", payload.date);
+
+  const response = await requestJson<{ items: AvailabilitySlot[] }>(apiBaseUrl, url.pathname + url.search, {
+    token
+  });
 
   return response.items;
 }

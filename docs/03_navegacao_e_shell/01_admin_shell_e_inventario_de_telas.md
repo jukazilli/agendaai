@@ -93,7 +93,8 @@ Em `19/03/2026`, o `admin-web` passou a refletir a primeira materializacao real 
 - shell com navegacao lateral persistente no desktop e drawer no mobile;
 - modulos separados de `dashboard`, `operacional`, `agenda`, `catalogo`, `profissionais`, `clientes` e `configuracoes`;
 - dashboard com leitura real do bootstrap e lacunas marcadas como `(nao funcional)` quando o mock sugeria blocos sem contrato;
-- configuracoes separadas da operacao, concentrando slug, Mercado Pago e ambiente administrativo.
+- configuracoes separadas da operacao, concentrando slug, Mercado Pago e ambiente administrativo;
+- agenda com timeline diaria por data, selecao de booking, reagendamento por slot real e grade semanal de capacidade por profissional dentro da mesma rota.
 
 Este documento continua sendo a referencia oficial para:
 
@@ -104,7 +105,7 @@ Este documento continua sendo a referencia oficial para:
 
 As lacunas remanescentes deste shell agora deixaram de ser estruturais e passaram a ser funcionais:
 
-- calendario rico e reagendamento;
-- analytics agregados de faturamento, ocupacao e retencao;
+- calendario mensal e drag-and-drop;
+- analytics agregados de faturamento, ocupacao historica e retencao;
 - branding minimo da implantacao;
 - financeiro operacional e relatorios.

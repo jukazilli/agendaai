@@ -4,8 +4,8 @@
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | RT-01 | Multi-tenant com slug propria | Ideia | `docs/01_conceito_e_briefing/05_briefing_arquitetural_estruturado_mae.md` | Identidade e tenancy | J-01 | B-01, B-02 | DOCUMENTADO |
 | RT-02 | Fluxo publico simples de agendamento | Ideia | `docs/05_jornadas/00_jornadas_core.md` | Booking publico | J-03 | B-05, B-06 | DOCUMENTADO |
-| RT-03 | Validacao opcional de pre-pagamento | Ideia | `docs/07_integracoes/00_mapa_de_integracoes.md` | Pagamentos | J-03 | B-08 | EM FUNDACAO |
-| RT-04 | Dashboard operacional de agenda | Briefing | `docs/06_modulos/00_mapa_de_modulos.md` | Operacao | J-04 | B-09 | DOCUMENTADO |
+| RT-03 | Validacao opcional de pre-pagamento | Ideia | `docs/07_integracoes/00_mapa_de_integracoes.md` | Pagamentos | J-03 | B-08 | IMPLEMENTADO |
+| RT-04 | Dashboard operacional de agenda | Briefing | `docs/06_modulos/00_mapa_de_modulos.md` | Operacao | J-04 | B-09 | IMPLEMENTADO |
 | RT-05 | Fluxo de caixa ligado a atendimento concluido | Ideia | `docs/06_modulos/00_mapa_de_modulos.md` | Financeiro | J-04 | B-09 | DOCUMENTADO |
 | RT-06 | Carteira de clientes e retencao | Briefing | `docs/06_modulos/00_mapa_de_modulos.md` | CRM e Retencao | J-05 | B-10, B-11 | DOCUMENTADO |
 | RT-07 | Pesquisa e identidade com wordmark | Pedido do usuario | `docs/04_padroes_ui/01_style_guide.md` | Marca e UX | J-00 | B-03 | DOCUMENTADO |
