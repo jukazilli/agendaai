@@ -6,6 +6,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import {
   bookingStatusValues,
   clientContactInputSchema,
+  configureTenantBrandingSchema,
   configureTenantSlugSchema,
   contractVersion,
   createBookingCommandSchema,
@@ -20,7 +21,11 @@ import {
   setAvailabilityRulesSchema,
   tenantPaymentSettingsSchema,
   type Booking,
+  type CashEntry,
+  type CashEntryKind,
+  type Client,
   type PaymentIntent,
+  type Professional,
   type ReportingRange,
   type ReportingReturnWindow,
   type Service,
@@ -318,6 +323,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     });
 
     const result = await store.createPublicBooking(command);
+    await syncCashEntriesForBooking(store, result.booking.tenantId, result.booking.id);
     reply.status(201);
     return result;
   });
@@ -520,6 +526,18 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         });
 
         return await store.updateTenantSlug(command);
+      });
+
+      adminRoutes.patch("/tenant/branding", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const body = requireRecord(request.body);
+        const command = configureTenantBrandingSchema.parse({
+          ...body,
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+
+        return await store.updateTenantBranding(command);
       });
 
       adminRoutes.post("/services", async (request, reply) => {
@@ -797,6 +815,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         });
 
         const booking = await store.createBooking(command);
+        await syncCashEntriesForBooking(store, claims.tenantId, booking.id);
         reply.status(201);
         return booking;
       });
@@ -812,6 +831,13 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         const claims = requireAdminSession(request).claims;
         return {
           items: await store.listPaymentIntents(claims.tenantId)
+        };
+      });
+
+      adminRoutes.get("/cash-entries", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listCashEntries(claims.tenantId)
         };
       });
 
@@ -846,7 +872,8 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           bookings: await store.listBookings(claims.tenantId),
           services: await store.listServices(claims.tenantId),
           professionals: await store.listProfessionals(claims.tenantId),
-          paymentIntents: await store.listPaymentIntents(claims.tenantId)
+          paymentIntents: await store.listPaymentIntents(claims.tenantId),
+          cashEntries: await store.listCashEntries(claims.tenantId)
         });
       });
 
@@ -878,6 +905,8 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           throw new ApiHttpError(404, "booking_not_found", "Booking was not found for this tenant.");
         }
 
+        await syncCashEntriesForBooking(store, claims.tenantId, booking.id);
+
         return booking;
       });
 
@@ -906,6 +935,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           (request.params as Record<string, unknown>).bookingId,
           "bookingId"
         );
+        await reverseCashEntriesForBooking(store, claims.tenantId, bookingId);
         const deleted = await store.deleteBooking(claims.tenantId, bookingId);
 
         if (!deleted) {
@@ -1329,6 +1359,136 @@ async function readPaymentIntentStateByTenantId(
   };
 }
 
+async function syncCashEntriesForBooking(
+  store: ApiRestStorePort,
+  tenantId: string,
+  bookingId: string
+): Promise<void> {
+  const booking = await store.getBooking(tenantId, bookingId);
+  if (!booking) {
+    return;
+  }
+
+  const [service, client, professional, paymentIntents] = await Promise.all([
+    store.getService(tenantId, booking.serviceId),
+    store.getClient(tenantId, booking.clientId),
+    store.getProfessional(tenantId, booking.professionalId),
+    store.listPaymentIntents(tenantId)
+  ]);
+
+  if (!service || !client || !professional) {
+    return;
+  }
+
+  const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+  const recognizedRevenueStatus: CashEntry["status"] =
+    booking.status === "concluido" ? "open" : "reversed";
+  await upsertBookingCashEntry(store, {
+    tenantId,
+    booking,
+    service,
+    client,
+    professional,
+    paymentIntent,
+    kind: "recognized_revenue",
+    source: "booking_completion",
+    status: recognizedRevenueStatus,
+    amount: service.precoBase,
+    occurredAt: booking.endAt,
+    description: `Receita reconhecida - ${service.nome}`
+  });
+
+  const isOnlinePaymentApproved =
+    paymentIntent?.status === "approved" || paymentIntent?.status === "authorized";
+  const existingOnlinePaymentEntry = await store.getCashEntryByBookingAndKind(
+    tenantId,
+    booking.id,
+    "online_payment"
+  );
+  await upsertBookingCashEntry(store, {
+    tenantId,
+    booking,
+    service,
+    client,
+    professional,
+    paymentIntent,
+    existingEntry: existingOnlinePaymentEntry,
+    kind: "online_payment",
+    source: "payment_reconciliation",
+    status: isOnlinePaymentApproved ? "open" : "reversed",
+    amount: paymentIntent?.amount ?? 0,
+    occurredAt: existingOnlinePaymentEntry?.occurredAt ?? new Date().toISOString(),
+    description: `Entrada online aprovada - ${service.nome}`
+  });
+}
+
+async function reverseCashEntriesForBooking(
+  store: ApiRestStorePort,
+  tenantId: string,
+  bookingId: string
+): Promise<void> {
+  const entries = await store.listCashEntries(tenantId);
+  const bookingEntries = entries.filter((entry) => entry.bookingId === bookingId);
+  for (const entry of bookingEntries) {
+    if (entry.status === "reversed") {
+      continue;
+    }
+    await store.saveCashEntry({
+      ...entry,
+      status: "reversed"
+    });
+  }
+}
+
+async function upsertBookingCashEntry(
+  store: ApiRestStorePort,
+  input: {
+    tenantId: string;
+    booking: Booking;
+    service: Service;
+    client: Client;
+    professional: Professional;
+    paymentIntent?: PaymentIntent;
+    existingEntry?: CashEntry;
+    kind: CashEntryKind;
+    source: CashEntry["source"];
+    status: CashEntry["status"];
+    amount: number;
+    occurredAt: string;
+    description: string;
+  }
+): Promise<void> {
+  const existingEntry =
+    input.existingEntry ??
+    (await store.getCashEntryByBookingAndKind(input.tenantId, input.booking.id, input.kind));
+
+  if (!existingEntry && input.status === "reversed") {
+    return;
+  }
+
+  await store.saveCashEntry({
+    version: contractVersion,
+    id: existingEntry?.id ?? randomUUID(),
+    tenantId: input.tenantId,
+    bookingId: input.booking.id,
+    clientId: input.client.id,
+    serviceId: input.service.id,
+    professionalId: input.professional.id,
+    paymentIntentId: input.paymentIntent?.id,
+    kind: input.kind,
+    source: input.source,
+    status: input.status,
+    currencyId: input.paymentIntent?.currencyId ?? input.service.paymentPolicy.currencyId,
+    amount: roundCurrency(input.amount),
+    occurredAt: input.occurredAt,
+    description: `${input.description} - ${input.client.nome}`,
+    note:
+      input.kind === "online_payment" && input.paymentIntent
+        ? `paymentIntent ${input.paymentIntent.id}`
+        : undefined
+  });
+}
+
 async function syncPaymentIntentByTenantId(
   store: ApiRestStorePort,
   mercadoPagoGateway: MercadoPagoGateway,
@@ -1412,6 +1572,8 @@ async function reconcilePaymentState(
   const nextBooking = await store.updateBooking(tenantId, paymentIntent.bookingId, {
     status: mapMercadoPagoStatusToBookingStatus(payment.status)
   });
+
+  await syncCashEntriesForBooking(store, tenantId, paymentIntent.bookingId);
 
   return {
     item: nextPaymentIntent,

@@ -238,6 +238,58 @@ test("onboarding emite sessao admin e lookup publico por slug", async () => {
   }
 });
 
+test("branding minimo do tenant atualiza no admin e reflete no payload publico", async () => {
+  const app = await createApp();
+
+  try {
+    const onboarding = await onboardTenant(app, "branding");
+
+    const brandingResponse = await app.inject({
+      method: "PATCH",
+      url: "/v1/admin/tenant/branding",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        branding: {
+          tagline: "Cortes e cuidados com hora marcada.",
+          accentColor: "#C7683E"
+        }
+      }
+    });
+
+    assert.equal(brandingResponse.statusCode, 200);
+    const brandingPayload = brandingResponse.json();
+    assert.equal(brandingPayload.branding.tagline, "Cortes e cuidados com hora marcada.");
+    assert.equal(brandingPayload.branding.accentColor, "#C7683E");
+
+    const sessionResponse = await app.inject({
+      method: "GET",
+      url: "/v1/admin/auth/session",
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(sessionResponse.statusCode, 200);
+    assert.equal(sessionResponse.json().tenant.branding.accentColor, "#C7683E");
+
+    const publicResponse = await app.inject({
+      method: "GET",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}`
+    });
+
+    assert.equal(publicResponse.statusCode, 200);
+    assert.equal(publicResponse.json().branding.tagline, "Cortes e cuidados com hora marcada.");
+
+    const catalogResponse = await app.inject({
+      method: "GET",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/catalog`
+    });
+
+    assert.equal(catalogResponse.statusCode, 200);
+    assert.equal(catalogResponse.json().tenant.branding.accentColor, "#C7683E");
+  } finally {
+    await app.close();
+  }
+});
+
 test("tenant context administrativo e resolvido pela sessao e isola servicos", async () => {
   const app = await createApp();
 
@@ -757,6 +809,187 @@ test("read model administrativo de relatorios agrega financeiro minimo e recorre
       payload.clientRecurrence.returnBuckets.find((item: { id: string }) => item.id === "never_completed")
         ?.clientsCount,
       1
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test("cash entries persistem entrada online e receita reconhecida por booking", async () => {
+  let externalReference = "";
+
+  const app = await createApp(
+    createFakeMercadoPagoGateway({
+      createPreference(payload) {
+        externalReference = String(payload.external_reference);
+        return {
+          id: "pref-cash-entry-001",
+          initPoint: "https://mercadopago.test/checkout/pref-cash-entry-001"
+        };
+      },
+      getPayment(paymentId) {
+        return {
+          id: paymentId,
+          status: "approved",
+          externalReference
+        };
+      }
+    })
+  );
+
+  try {
+    const onboarding = await onboardTenant(app, "cash-entry");
+
+    await app.inject({
+      method: "PUT",
+      url: "/v1/admin/payment-settings",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "active",
+        checkoutMode: "checkout_pro",
+        publicKey: "APP_USR-public-key",
+        accessToken: "APP_USR-access-token",
+        notificationUrl: "https://agendaai.test/api/webhooks/mercado-pago",
+        backUrls: {
+          success: "https://agendaai.test/tenant-cash-entry",
+          pending: "https://agendaai.test/tenant-cash-entry",
+          failure: "https://agendaai.test/tenant-cash-entry"
+        },
+        autoReturn: "approved",
+        binaryMode: true,
+        defaultInstallments: 1,
+        expirationMinutes: 45
+      }
+    });
+
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Escova Premium",
+      duracaoMin: 45,
+      precoBase: 120,
+      paymentPolicy: {
+        collectionMode: "deposit",
+        checkoutMode: "checkout_pro",
+        chargeType: "percentage",
+        percentage: 50,
+        currencyId: "BRL",
+        acceptedMethods: ["pix", "credit_card"],
+        capture: true
+      }
+    });
+
+    const professional = await createProfessional(app, onboarding.session.token, [service.id], {
+      nome: "Bianca"
+    });
+
+    await setAvailability(app, onboarding.session.token, professional.id, [
+      {
+        weekday: 5,
+        faixa: {
+          startTime: "09:00",
+          endTime: "12:00"
+        }
+      }
+    ]);
+
+    const paymentIntentResponse = await app.inject({
+      method: "POST",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/payment-intents`,
+      payload: {
+        serviceId: service.id,
+        professionalId: professional.id,
+        startAt: "2026-03-20T09:00:00-03:00",
+        endAt: "2026-03-20T09:45:00-03:00",
+        client: {
+          nome: "Julia Ramos",
+          telefone: "11977776666",
+          email: "julia@agendaai.test",
+          origem: "instagram"
+        }
+      }
+    });
+
+    assert.equal(paymentIntentResponse.statusCode, 201);
+    const created = paymentIntentResponse.json();
+
+    const syncResponse = await app.inject({
+      method: "POST",
+      url: `/v1/admin/payment-intents/${created.paymentIntent.id}/sync`,
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        paymentId: "pay-cash-entry-001"
+      }
+    });
+    assert.equal(syncResponse.statusCode, 200);
+
+    const cashEntriesAfterPayment = await app.inject({
+      method: "GET",
+      url: "/v1/admin/cash-entries",
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(cashEntriesAfterPayment.statusCode, 200);
+    assert.equal(cashEntriesAfterPayment.json().items.length, 1);
+    assert.equal(cashEntriesAfterPayment.json().items[0].kind, "online_payment");
+    assert.equal(cashEntriesAfterPayment.json().items[0].status, "open");
+    assert.equal(cashEntriesAfterPayment.json().items[0].amount, 60);
+
+    const bookingConclude = await app.inject({
+      method: "PATCH",
+      url: `/v1/admin/bookings/${created.booking.id}`,
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "concluido"
+      }
+    });
+    assert.equal(bookingConclude.statusCode, 200);
+
+    const cashEntriesAfterCompletion = await app.inject({
+      method: "GET",
+      url: "/v1/admin/cash-entries",
+      headers: authHeaders(onboarding.session.token)
+    });
+    assert.equal(cashEntriesAfterCompletion.statusCode, 200);
+    assert.equal(cashEntriesAfterCompletion.json().items.length, 2);
+    assert.equal(
+      cashEntriesAfterCompletion
+        .json()
+        .items.find((item: { kind: string }) => item.kind === "recognized_revenue")?.status,
+      "open"
+    );
+    assert.equal(
+      cashEntriesAfterCompletion
+        .json()
+        .items.find((item: { kind: string }) => item.kind === "recognized_revenue")?.amount,
+      120
+    );
+
+    const bookingCancel = await app.inject({
+      method: "PATCH",
+      url: `/v1/admin/bookings/${created.booking.id}`,
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "cancelado"
+      }
+    });
+    assert.equal(bookingCancel.statusCode, 200);
+
+    const cashEntriesAfterCancel = await app.inject({
+      method: "GET",
+      url: "/v1/admin/cash-entries",
+      headers: authHeaders(onboarding.session.token)
+    });
+    assert.equal(cashEntriesAfterCancel.statusCode, 200);
+    assert.equal(
+      cashEntriesAfterCancel
+        .json()
+        .items.find((item: { kind: string }) => item.kind === "recognized_revenue")?.status,
+      "reversed"
+    );
+    assert.equal(
+      cashEntriesAfterCancel
+        .json()
+        .items.find((item: { kind: string }) => item.kind === "online_payment")?.status,
+      "open"
     );
   } finally {
     await app.close();

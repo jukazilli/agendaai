@@ -93,10 +93,10 @@ Em `19/03/2026`, o `admin-web` passou a refletir a primeira materializacao real 
 - shell com navegacao lateral persistente no desktop e drawer no mobile;
 - modulos separados de `dashboard`, `operacional`, `agenda`, `catalogo`, `profissionais`, `clientes` e `configuracoes`;
 - dashboard com leitura real do bootstrap, filtro de periodo para agenda/receita, bloco de clientes sem retorno por janela e lacunas marcadas como `(nao funcional)` quando o mock sugeria blocos sem contrato;
-- configuracoes separadas da operacao, concentrando slug, Mercado Pago e ambiente administrativo;
-- agenda com timeline diaria por data, selecao de booking, reagendamento por slot real e grade semanal de capacidade por profissional dentro da mesma rota.
-- clientes com recorte de retorno por janela, ultimo atendimento concluido e receita derivada.
-- relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior e read model minimo de receita/recorrencia vindo do `api-rest`.
+- configuracoes separadas da operacao, concentrando slug, branding minimo, Mercado Pago e ambiente administrativo;
+- agenda com timeline diaria por data, selecao de booking, reagendamento por slot real, grade semanal de capacidade por profissional e calendario mensal navegavel dentro da mesma rota.
+- clientes com recorte de retorno por janela, ultimo atendimento concluido, receita persistida minima, selecao de cliente e detalhe operacional com historico e movimentos financeiros.
+- relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior e read model minimo de receita/recorrencia vindo do `api-rest`, agora apoiado por `cash entries` minimas.
 
 Este documento continua sendo a referencia oficial para:
 
@@ -107,8 +107,7 @@ Este documento continua sendo a referencia oficial para:
 
 As lacunas remanescentes deste shell agora deixaram de ser estruturais e passaram a ser funcionais:
 
-- calendario mensal e drag-and-drop;
+- drag-and-drop;
 - analytics agregados de faturamento, ocupacao historica e retencao;
 - clientes sem retorno por cohort e expectativa;
-- branding minimo da implantacao;
-- financeiro operacional persistido.
+- financeiro operacional completo com conciliacao, estorno e caixa presencial.

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 
 import type { Booking, Client, Professional, Service } from "@agendaai/contracts";
@@ -428,7 +428,7 @@ export function BookingFlow({
 
   if (receipt) {
     return (
-      <main className="booking-page">
+      <main className="booking-page" style={buildTenantThemeStyle(receipt.tenant)}>
         <section className="confirmation-shell">
           <p className="eyebrow">reserva confirmada</p>
           <h1>{receipt.tenant.nome}</h1>
@@ -480,7 +480,10 @@ export function BookingFlow({
       buildFallbackCheckoutContext(paymentStatus.booking, initialCatalog);
 
     return (
-      <main className="booking-page">
+      <main
+        className="booking-page"
+        style={buildTenantThemeStyle(currentContext?.tenant ?? initialCatalog.tenant)}
+      >
         <section className="confirmation-shell">
           <p className="eyebrow">
             {isApprovedPaymentStatus(paymentStatus.item.status) ?
@@ -545,14 +548,13 @@ export function BookingFlow({
   }
 
   return (
-    <main className="booking-page">
+    <main className="booking-page" style={buildTenantThemeStyle(initialCatalog.tenant)}>
       <section className="hero-card">
         <div>
           <p className="eyebrow">agenda aberta</p>
           <h1>{initialCatalog.tenant.nome}</h1>
           <p className="description">
-            Escolha servico, profissional e horario. Todo o fluxo foi pensado para
-            finalizar rapido no celular.
+            {resolveTenantTagline(initialCatalog.tenant)}
           </p>
         </div>
         <div className="hero-meta">
@@ -896,6 +898,39 @@ function buildSummaryScheduleLabel(
   }
 
   return `${professionalName ?? "Profissional"} - ${formatDateLabel(slot.startAt)} ${slot.startTime}`;
+}
+
+function resolveTenantTagline(tenant: PublicCatalogSnapshot["tenant"]): string {
+  return (
+    tenant.branding?.tagline ??
+    "Escolha servico, profissional e horario. Todo o fluxo foi pensado para finalizar rapido no celular."
+  );
+}
+
+function buildTenantThemeStyle(
+  tenant: PublicCatalogSnapshot["tenant"]
+): CSSProperties {
+  const accentColor = tenant.branding?.accentColor;
+  if (!accentColor) {
+    return {};
+  }
+
+  const rgb = hexToRgbTriplet(accentColor);
+  return {
+    ["--tenant-accent" as const]: accentColor,
+    ["--tenant-accent-strong" as const]: accentColor,
+    ["--tenant-accent-soft" as const]: `rgba(${rgb}, 0.12)`,
+    ["--tenant-accent-border" as const]: `rgba(${rgb}, 0.18)`,
+    ["--tenant-accent-shadow" as const]: `rgba(${rgb}, 0.22)`
+  } as CSSProperties;
+}
+
+function hexToRgbTriplet(value: string): string {
+  const normalized = value.replace("#", "");
+  const red = Number.parseInt(normalized.slice(0, 2), 16);
+  const green = Number.parseInt(normalized.slice(2, 4), 16);
+  const blue = Number.parseInt(normalized.slice(4, 6), 16);
+  return `${red}, ${green}, ${blue}`;
 }
 
 function requiresOnlinePayment(service?: Service): boolean {

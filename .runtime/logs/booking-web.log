@@ -48,3 +48,10 @@
  GET /demo-studio-20260317 404 in 4648ms
  GET /demo-studio-20260317 500 in 231ms
  GET /demo-studio-20260317 500 in 67ms
+ ✓ Compiled in 2.4s (517 modules)
+ ✓ Compiled in 1254ms (896 modules)
+ ✓ Compiled in 295ms (896 modules)
+ ✓ Compiled in 298ms (910 modules)
+ ✓ Compiled in 400ms (896 modules)
+ ✓ Compiled in 340ms (910 modules)
+ ✓ Compiled in 477ms (896 modules)

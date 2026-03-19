@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type FormEvent, type JSX } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type FormEvent, type JSX } from "react";
 
 import {
   defaultServicePaymentPolicy,
@@ -10,6 +10,7 @@ import {
   type AdminReportsReadModel,
   type AvailabilityRule,
   type Booking,
+  type CashEntry,
   type Client,
   type CreateTenantCommand,
   type PaymentIntent,
@@ -28,6 +29,7 @@ import {
   createProfessional,
   createService,
   createTenantOnboarding,
+  deleteService,
   fetchAdminReportsReadModel,
   fetchAvailabilitySlots,
   fetchAdminBootstrap,
@@ -40,6 +42,7 @@ import {
   updateBooking,
   updateProfessional,
   updateService,
+  updateTenantBranding,
   updateTenantSlug
 } from "./lib/admin-api";
 
@@ -54,7 +57,7 @@ type AdminRoute =
   | "clientes"
   | "configuracoes";
 type BookingFilter = "today" | "open" | "all";
-type AgendaViewMode = "day" | "week";
+type AgendaViewMode = "day" | "week" | "month";
 type DashboardRange = "7d" | "30d" | "all";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
@@ -83,6 +86,11 @@ interface PaymentFormState {
   readonly defaultInstallments: string;
   readonly expirationMinutes: string;
   readonly binaryMode: boolean;
+}
+
+interface BrandingFormState {
+  readonly tagline: string;
+  readonly accentColor: string;
 }
 
 interface ServiceFormState {
@@ -132,6 +140,8 @@ interface ClientInsight {
   readonly lastBooking?: Booking;
   readonly lastCompletedBooking?: Booking;
   readonly recognizedRevenue: number;
+  readonly cashEntriesCount: number;
+  readonly lastCashEntry?: CashEntry;
 }
 
 interface DayBookingSummary {
@@ -156,12 +166,25 @@ interface WeekDayCapacitySummary {
   readonly openBookings: number;
 }
 
+interface MonthCalendarCell {
+  readonly date: string;
+  readonly inCurrentMonth: boolean;
+  readonly bookings: Booking[];
+  readonly bookingsCount: number;
+  readonly openBookings: number;
+  readonly completedBookings: number;
+  readonly totalMinutes: number;
+  readonly bookedMinutes: number;
+}
+
 interface RevenueEntry {
   readonly booking: Booking;
   readonly service?: Service;
   readonly professional?: Professional;
   readonly client?: Client;
   readonly paymentIntent?: PaymentIntent;
+  readonly recognizedCashEntry?: CashEntry;
+  readonly onlinePaymentCashEntry?: CashEntry;
   readonly recognizedAmount: number;
   readonly approvedOnlineAmount: number;
 }
@@ -223,7 +246,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     eyebrow: "Gestao do negocio",
     title: "Relatorios essenciais do tenant",
     description:
-      "Comparativos por periodo de agenda, receita e retorno, derivados do runtime atual e com lacunas explicitadas quando o contrato ainda nao cobre cohort ou financeiro persistido.",
+      "Comparativos por periodo de agenda, receita e retorno, apoiados por read model do backend e por `cash entry` minimo, com lacunas explicitadas onde ainda faltam cohort e conciliacao completa.",
     stage: "parcial"
   },
   operacional: {
@@ -243,7 +266,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     eyebrow: "Planejamento",
     title: "Agenda e leitura de capacidade",
     description:
-      "Timeline diaria com reagendamento por slot real e leitura semanal de capacidade; grade mensal e drag-and-drop seguem fora do corte.",
+      "Timeline diaria com reagendamento por slot real, leitura semanal de capacidade e visao mensal navegavel; drag-and-drop continua fora do corte.",
     stage: "parcial"
   },
   catalogo: {
@@ -321,6 +344,11 @@ const defaultPaymentForm: PaymentFormState = {
   binaryMode: true
 };
 
+const defaultBrandingForm: BrandingFormState = {
+  tagline: "",
+  accentColor: ""
+};
+
 const defaultServiceForm: ServiceFormState = {
   nome: "",
   duracaoMin: "45",
@@ -369,6 +397,7 @@ export function App() {
   const [isLoadingReportsReadModel, setIsLoadingReportsReadModel] = useState(false);
   const [clientReturnWindow, setClientReturnWindow] = useState<ClientReturnWindow>("30d");
   const [clientSegmentFilter, setClientSegmentFilter] = useState<ClientSegmentFilter>("all");
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [loginForm, setLoginForm] = useState({
     email: "owner@agendaai.demo",
     password: "agendaai-demo"
@@ -383,6 +412,7 @@ export function App() {
     senha: ""
   });
   const [slug, setSlug] = useState("");
+  const [brandingForm, setBrandingForm] = useState<BrandingFormState>(defaultBrandingForm);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>(defaultPaymentForm);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceForm, setServiceForm] = useState<ServiceFormState>(defaultServiceForm);
@@ -523,12 +553,14 @@ export function App() {
   useEffect(() => {
     if (!bootstrap) {
       setSlug("");
+      setBrandingForm(defaultBrandingForm);
       setPaymentForm(defaultPaymentForm);
       setServiceForm(defaultServiceForm);
       return;
     }
 
     setSlug(bootstrap.session.tenant.slug);
+    setBrandingForm(toBrandingForm(bootstrap.session.tenant.branding));
     setPaymentForm(toPaymentForm(bootstrap.paymentSettings));
 
     const service =
@@ -538,6 +570,11 @@ export function App() {
         setSelectedServiceId(service.id);
       }
       setServiceForm(toServiceForm(service));
+    } else {
+      if (selectedServiceId) {
+        setSelectedServiceId("");
+      }
+      setServiceForm(defaultServiceForm);
     }
 
     const professional =
@@ -635,13 +672,15 @@ export function App() {
   const clients = bootstrap?.clients ?? [];
   const bookings = bootstrap?.bookings ?? [];
   const paymentIntents = bootstrap?.paymentIntents ?? [];
+  const cashEntries = bootstrap?.cashEntries ?? [];
   const dashboardBookings = filterBookingsByRange(bookings, dashboardRange);
   const revenueEntries = buildRevenueEntries(
     dashboardBookings,
     services,
     professionals,
     clients,
-    paymentIntents
+    paymentIntents,
+    cashEntries
   );
   const dashboardRevenueSummary = summarizeRevenueEntries(revenueEntries, dashboardBookings);
   const reportBookings = filterBookingsByReportSelection(
@@ -662,23 +701,26 @@ export function App() {
     services,
     professionals,
     clients,
-    paymentIntents
+    paymentIntents,
+    cashEntries
   );
   const reportRevenueSummary = summarizeRevenueEntries(reportRevenueEntries, reportBookings);
   const previousReportRevenueSummary = summarizeRevenueEntries(
-    buildRevenueEntries(previousReportBookings, services, professionals, clients, paymentIntents),
+    buildRevenueEntries(previousReportBookings, services, professionals, clients, paymentIntents, cashEntries),
     previousReportBookings
   );
   const reportServiceSummaries = buildServiceReportSummaries(
     reportBookings,
     services,
-    paymentIntents
+    paymentIntents,
+    cashEntries
   );
   const reportProfessionalSummaries = buildProfessionalReportSummaries(
     reportBookings,
     professionals,
     services,
-    paymentIntents
+    paymentIntents,
+    cashEntries
   );
   const bookingSummary = summarizeBookings(bookings);
   const agendaBookings = filterAgendaBookings(bookings, bookingFilter);
@@ -687,7 +729,7 @@ export function App() {
     agendaProfessionalFilter === "all"
       ? dayAgendaBookings
       : dayAgendaBookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
-  const clientInsights = buildClientInsights(clients, bookings, services);
+  const clientInsights = buildClientInsights(clients, bookings, services, cashEntries);
   const filteredClientInsights = filterClientInsights(
     clientInsights,
     clientSegmentFilter,
@@ -695,11 +737,11 @@ export function App() {
   );
   const clientPortfolioSummary = summarizeClientPortfolio(clientInsights, clientReturnWindow);
   const inactiveClientInsights = filterClientInsights(clientInsights, "inactive", clientReturnWindow);
-  const fallbackReportCurrent = buildReportMetricSummary(reportBookings, services, paymentIntents);
+  const fallbackReportCurrent = buildReportMetricSummary(reportBookings, services, paymentIntents, cashEntries);
   const fallbackReportPrevious =
     reportsRange === "all"
       ? undefined
-      : buildReportMetricSummary(previousReportBookings, services, paymentIntents);
+      : buildReportMetricSummary(previousReportBookings, services, paymentIntents, cashEntries);
   const activeReportCurrent = reportsReadModel?.current ?? fallbackReportCurrent;
   const activeReportPrevious = reportsReadModel?.previous ?? fallbackReportPrevious;
   const activeReportServiceSummaries = reportsReadModel?.services ?? reportServiceSummaries;
@@ -738,6 +780,21 @@ export function App() {
     bookings.find((booking) => booking.id === selectedAgendaBookingId);
   const selectedAgendaPaymentIntent =
     paymentIntents.find((intent) => intent.bookingId === selectedAgendaBooking?.id);
+  const selectedClientInsight =
+    filteredClientInsights.find((entry) => entry.client.id === selectedClientId) ??
+    clientInsights.find((entry) => entry.client.id === selectedClientId) ??
+    filteredClientInsights[0] ??
+    clientInsights[0];
+  const selectedClientBookings = selectedClientInsight ?
+      bookings
+        .filter((booking) => booking.clientId === selectedClientInsight.client.id)
+        .sort((left, right) => right.startAt.localeCompare(left.startAt))
+    : [];
+  const selectedClientCashEntries = selectedClientInsight ?
+      cashEntries
+        .filter((entry) => entry.clientId === selectedClientInsight.client.id)
+        .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
+    : [];
   const agendaDaySummary = summarizeDayBookings(filteredDayAgendaBookings);
   const agendaWeekDates = buildAgendaWeekDates(agendaDate);
   const weekAgendaBookings = filterBookingsByDates(bookings, agendaWeekDates);
@@ -767,6 +824,34 @@ export function App() {
     filteredWeekProfessionals,
     weeklyAvailabilityByProfessional
   );
+  const agendaMonthCells = buildAgendaMonthCells(
+    agendaDate,
+    bookings,
+    agendaProfessionalFilter === "all"
+      ? professionals
+      : professionals.filter((professional) => professional.id === agendaProfessionalFilter),
+    weeklyAvailabilityByProfessional,
+    agendaProfessionalFilter
+  );
+  const currentMonthCells = agendaMonthCells.filter((cell) => cell.inCurrentMonth);
+  const monthCapacitySummary = summarizeMonthCapacity(currentMonthCells);
+  const selectedMonthCell =
+    agendaMonthCells.find((cell) => cell.date === agendaDate) ?? currentMonthCells[0];
+
+  useEffect(() => {
+    const nextClientId = filteredClientInsights[0]?.client.id ?? clientInsights[0]?.client.id ?? "";
+    if (!selectedClientId && nextClientId) {
+      setSelectedClientId(nextClientId);
+      return;
+    }
+
+    if (
+      selectedClientId &&
+      !clientInsights.some((entry) => entry.client.id === selectedClientId)
+    ) {
+      setSelectedClientId(nextClientId);
+    }
+  }, [clientInsights, filteredClientInsights, selectedClientId]);
 
   useEffect(() => {
     if (agendaProfessionalFilter === "all") {
@@ -917,6 +1002,15 @@ export function App() {
     });
   }
 
+  async function handleSaveBranding(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await runAction(async () => {
+      await updateTenantBranding(apiBaseUrl, sessionToken, buildBrandingPayload(brandingForm));
+      await refreshAdminState();
+      setFeedback({ tone: "success", message: "Branding minimo atualizado." });
+    });
+  }
+
   async function handleSavePayments(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(async () => {
@@ -937,6 +1031,23 @@ export function App() {
       setSelectedServiceId(service.id);
       await refreshAdminState();
       setFeedback({ tone: "success", message: selectedServiceId ? "Servico atualizado." : "Servico criado." });
+    });
+  }
+
+  async function handleDeleteSelectedService(): Promise<void> {
+    if (!selectedServiceId) {
+      return;
+    }
+
+    await runAction(async () => {
+      await deleteService(apiBaseUrl, sessionToken, selectedServiceId);
+      setSelectedServiceId("");
+      setServiceForm(defaultServiceForm);
+      await refreshAdminState();
+      setFeedback({
+        tone: "success",
+        message: "Servico removido do catalogo."
+      });
     });
   }
 
@@ -1056,8 +1167,18 @@ export function App() {
     });
   }
 
-  function handleAgendaDateShift(days: number): void {
-    setAgendaDate((current) => addDaysToDateValue(current, days));
+  function handleAgendaDateShift(step: number): void {
+    setAgendaDate((current) => {
+      if (agendaViewMode === "week") {
+        return addDaysToDateValue(current, step * 7);
+      }
+
+      if (agendaViewMode === "month") {
+        return addMonthsToDateValue(current, step);
+      }
+
+      return addDaysToDateValue(current, step);
+    });
   }
 
   function handleAgendaBookingSelection(booking: Booking): void {
@@ -1076,6 +1197,18 @@ export function App() {
   function handleOpenAgendaWeekBooking(booking: Booking): void {
     handleAgendaBookingSelection(booking);
     setAgendaViewMode("day");
+  }
+
+  function handleOpenAgendaMonthDate(date: string, bookingsForDate: readonly Booking[]): void {
+    setAgendaDate(date);
+    setRescheduleDate(date);
+    if (bookingsForDate.length > 0) {
+      handleAgendaBookingSelection(bookingsForDate[0]);
+      return;
+    }
+
+    setSelectedAgendaBookingId("");
+    setSelectedAgendaSlotStartAt("");
   }
 
   function renderAgendaRecords(): JSX.Element {
@@ -1184,8 +1317,14 @@ export function App() {
       <>
         {entries.map((entry) => {
           const segment = resolveClientSegment(entry, clientReturnWindow);
+          const isSelected = entry.client.id === selectedClientInsight?.client.id;
           return (
-          <article className="record-card" key={entry.client.id}>
+          <button
+            className={`record-card client-record-button${isSelected ? " is-active" : ""}`}
+            key={entry.client.id}
+            onClick={() => setSelectedClientId(entry.client.id)}
+            type="button"
+          >
             <div className="record-card-header">
               <div className="record-stack">
                 <strong>{entry.client.nome}</strong>
@@ -1214,7 +1353,7 @@ export function App() {
                 Concluidos {entry.completedBookings}
               </span>
               <span className="status-pill is-neutral">
-                Receita derivada {formatCurrency(entry.recognizedRevenue)}
+                Receita persistida {formatCurrency(entry.recognizedRevenue)}
               </span>
             </div>
 
@@ -1230,8 +1369,9 @@ export function App() {
                   Sem retorno ha {formatDaysSince(entry.lastCompletedBooking.endAt)}
                 </span>
               ) : null}
+              <span>Movimentos {entry.cashEntriesCount}</span>
             </div>
-          </article>
+          </button>
         )})}
       </>
     );
@@ -1284,6 +1424,79 @@ export function App() {
             <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
               Abrir booking publico
             </a>
+          </div>
+        </form>
+      </article>
+    );
+  }
+
+  function renderBrandingPanel(): JSX.Element {
+    const accentColor = normalizeAccentColor(brandingForm.accentColor);
+    const previewStyle = buildBrandingPreviewStyle(accentColor);
+    const previewTagline =
+      brandingForm.tagline.trim() || "Agendamentos rapidos, claros e prontos para o celular.";
+
+    return (
+      <article className="panel">
+        <form className="stack-form" onSubmit={handleSaveBranding}>
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Branding minimo</p>
+              <h2>Identidade publica do tenant</h2>
+            </div>
+            <span className="helper-chip">Beta</span>
+          </div>
+
+          <div className="form-grid">
+            <label className="field field-wide">
+              <span>Mensagem curta da marca</span>
+              <input
+                maxLength={90}
+                onChange={(event) =>
+                  setBrandingForm({
+                    ...brandingForm,
+                    tagline: event.target.value
+                  })
+                }
+                placeholder="Ex.: Cortes e cuidados com horario marcado."
+                type="text"
+                value={brandingForm.tagline}
+              />
+            </label>
+            <label className="field">
+              <span>Cor de destaque</span>
+              <input
+                onChange={(event) =>
+                  setBrandingForm({
+                    ...brandingForm,
+                    accentColor: event.target.value.toUpperCase()
+                  })
+                }
+                placeholder="#0B7A75"
+                type="text"
+                value={brandingForm.accentColor}
+              />
+            </label>
+          </div>
+
+          <div className="branding-preview" style={previewStyle}>
+            <div
+              className="branding-preview-badge"
+              style={accentColor ? { background: accentColor } : undefined}
+            >
+              {(tenant?.nome ?? "AG").slice(0, 2).toUpperCase()}
+            </div>
+            <div className="branding-preview-copy">
+              <strong>{tenant?.nome ?? "Seu negocio"}</strong>
+              <p>{previewTagline}</p>
+              <span>{publicBookingUrl || "Publique uma slug para visualizar o link."}</span>
+            </div>
+          </div>
+
+          <div className="button-row">
+            <button className="primary-button" disabled={isBusy} type="submit">
+              Salvar branding
+            </button>
           </div>
         </form>
       </article>
@@ -1671,9 +1884,21 @@ export function App() {
               ))}
             </fieldset>
 
-            <button className="primary-button" disabled={isBusy} type="submit">
-              {selectedServiceId ? "Salvar servico" : "Criar servico"}
-            </button>
+            <div className="button-row">
+              <button className="primary-button" disabled={isBusy} type="submit">
+                {selectedServiceId ? "Salvar servico" : "Criar servico"}
+              </button>
+              {selectedServiceId ? (
+                <button
+                  className="secondary-button is-danger"
+                  disabled={isBusy}
+                  onClick={() => void handleDeleteSelectedService()}
+                  type="button"
+                >
+                  Excluir servico
+                </button>
+              ) : null}
+            </div>
           </form>
         </div>
       </article>
@@ -2088,13 +2313,13 @@ export function App() {
               <div className="list-card">
                 <strong>Receita reconhecida (funcional)</strong>
                 <p>
-                  Ja pode ser derivada do runtime usando `booking.status = concluido` e `service.precoBase`.
+                  Agora conta com `cash entry` minima ao concluir a booking, sem depender apenas de derivacao local.
                 </p>
               </div>
               <div className="list-card">
                 <strong>Entrada online aprovada (funcional)</strong>
                 <p>
-                  Ja pode ser lida via `payment intents` aprovadas conciliadas com a booking concluida.
+                  A aprovacao conciliada do Mercado Pago ja gera movimento persistido de entrada online por booking.
                 </p>
               </div>
               <div className="list-card">
@@ -2102,8 +2327,8 @@ export function App() {
                 <p>Nao existe read model de recorrencia, janela de retorno nem motor de recomendacao no contrato atual.</p>
               </div>
               <div className="list-card">
-                <strong>Caixa presencial e conciliacao financeira (nao funcional)</strong>
-                <p>O sistema ainda nao possui `cash entry`, fechamento de caixa, repasse ou contabilizacao persistida.</p>
+                <strong>Caixa presencial e conciliacao financeira (parcial)</strong>
+                <p>Ja existe `cash entry` minima para receita reconhecida e entrada online; caixa presencial, repasse e contabilizacao seguem fora do corte.</p>
               </div>
               <div className="list-card">
                 <strong>Proximos passos operacionais</strong>
@@ -2180,7 +2405,7 @@ export function App() {
               </div>
               <div className="list-card">
                 <strong>Relatorio financeiro completo (nao funcional)</strong>
-                <p>Receita reconhecida ja existe; conciliacao de caixa, estorno, forma presencial e saldo do periodo ainda nao.</p>
+                <p>`Cash entry` minima ja existe, mas conciliacao de caixa, estorno, forma presencial e saldo do periodo ainda nao.</p>
               </div>
             </div>
           </article>
@@ -2611,8 +2836,8 @@ export function App() {
                 <p>O modulo agora recebe buckets de retorno e media simples entre atendimentos concluidos a partir de um read model do `api-rest`.</p>
               </div>
               <div className="list-card">
-                <strong>Financeiro persistido (nao funcional)</strong>
-                <p>Receita reconhecida continua derivada do runtime; nao existe `cash entry` nem conciliacao contabil persistida.</p>
+                <strong>Financeiro persistido minimo (funcional)</strong>
+                <p>Receita reconhecida e entrada online agora podem ser lidas tambem por `cash entries`; conciliacao contabil completa continua fora do corte.</p>
               </div>
             </div>
           </article>
@@ -2849,9 +3074,166 @@ export function App() {
 
               <div className="list-card">
                 <strong>Lacunas desta tela</strong>
-                <p>Drag-and-drop, bloqueios por excecao, grade mensal e alertas preditivos continuam fora do contrato atual.</p>
+                <p>Drag-and-drop, bloqueios por excecao e alertas preditivos continuam fora do contrato atual.</p>
               </div>
             </div>
+          </aside>
+        </section>
+      </>
+    );
+  }
+
+  function renderAgendaMonthView(): JSX.Element {
+    return (
+      <>
+        <div className="records-grid capacity-grid">
+          <div className="stat-card">
+            <span>Capacidade do mes</span>
+            <strong>{formatMinutesAsHours(monthCapacitySummary.totalMinutes)}</strong>
+            <small>{currentMonthCells.length} dia(s) no recorte atual</small>
+          </div>
+          <div className="stat-card">
+            <span>Horas ocupadas</span>
+            <strong>{formatMinutesAsHours(monthCapacitySummary.bookedMinutes)}</strong>
+            <small>{monthCapacitySummary.bookingsCount} booking(s) no mes</small>
+          </div>
+          <div className="stat-card">
+            <span>Horas livres</span>
+            <strong>{formatMinutesAsHours(monthCapacitySummary.freeMinutes)}</strong>
+            <small>
+              {monthCapacitySummary.totalMinutes > 0
+                ? formatUtilization(monthCapacitySummary.bookedMinutes, monthCapacitySummary.totalMinutes)
+                : "Sem disponibilidade publicada"}
+            </small>
+          </div>
+          <div className="stat-card">
+            <span>Em aberto no mes</span>
+            <strong>{monthCapacitySummary.openBookings}</strong>
+            <small>Confirmadas, pendentes e aguardando pagamento</small>
+          </div>
+        </div>
+
+        <section className="agenda-month-layout">
+          <article className="panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Calendario mensal</p>
+                <h3>Visao navegavel do mes operacional</h3>
+              </div>
+              <span className="status-pill is-success">Funcional</span>
+            </div>
+
+            <div className="month-grid">
+              {weekdayLabels.map((label) => (
+                <div className="month-grid-header" key={label}>
+                  <strong>{label}</strong>
+                </div>
+              ))}
+
+              {agendaMonthCells.map((cell) => (
+                <button
+                  className={[
+                    "month-day-cell",
+                    cell.inCurrentMonth ? "" : "is-muted",
+                    cell.date === selectedMonthCell?.date ? "is-active" : ""
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  key={cell.date}
+                  onClick={() => handleOpenAgendaMonthDate(cell.date, cell.bookings)}
+                  type="button"
+                >
+                  <div className="month-day-header">
+                    <strong>{formatAgendaMonthDayNumber(cell.date)}</strong>
+                    <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
+                      {cell.bookingsCount} booking(s)
+                    </span>
+                  </div>
+                  <div className="record-meta">
+                    <span>{cell.openBookings} em aberto</span>
+                    <span>{cell.completedBookings} concluidas</span>
+                  </div>
+                  <small>
+                    {cell.totalMinutes > 0
+                      ? `${formatMinutesAsHours(cell.bookedMinutes)} / ${formatMinutesAsHours(cell.totalMinutes)}`
+                      : "Sem capacidade"}
+                  </small>
+                </button>
+              ))}
+            </div>
+          </article>
+
+          <aside className="panel aside-panel">
+            <div className="panel-header compact">
+              <div>
+                <p className="eyebrow">Dia selecionado</p>
+                <h3>{selectedMonthCell ? formatAgendaDayLabel(selectedMonthCell.date) : "Sem data"}</h3>
+              </div>
+            </div>
+
+            {selectedMonthCell ? (
+              <div className="records-column">
+                <div className="list-card">
+                  <strong>Resumo do dia</strong>
+                  <div className="record-meta">
+                    <span className="status-pill is-info">{selectedMonthCell.bookingsCount} booking(s)</span>
+                    <span className="status-pill is-success">{selectedMonthCell.completedBookings} concluidas</span>
+                    <span className="status-pill is-neutral">{selectedMonthCell.openBookings} em aberto</span>
+                  </div>
+                  <p>
+                    {selectedMonthCell.totalMinutes > 0
+                      ? `${formatMinutesAsHours(selectedMonthCell.bookedMinutes)} ocupadas de ${formatMinutesAsHours(selectedMonthCell.totalMinutes)}`
+                      : "Sem disponibilidade publicada para este dia."}
+                  </p>
+                </div>
+
+                <div className="list-card">
+                  <strong>Atendimentos do dia</strong>
+                  {selectedMonthCell.bookings.length ? (
+                    <div className="records-column detail-list">
+                      {selectedMonthCell.bookings.slice(0, 6).map((booking) => (
+                        <button
+                          className="detail-item detail-button"
+                          key={booking.id}
+                          onClick={() => handleOpenAgendaWeekBooking(booking)}
+                          type="button"
+                        >
+                          <div className="record-card-header">
+                            <strong>{resolveBookingTitle(booking, services, professionals)}</strong>
+                            <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                              {formatBookingStatus(booking.status)}
+                            </span>
+                          </div>
+                          <div className="record-meta">
+                            <span>{formatTimeRange(booking.startAt, booking.endAt)}</span>
+                            <span>{resolveClientName(booking.clientId, clients)}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p>Nenhuma booking encontrada para esta data.</p>
+                  )}
+                </div>
+
+                <div className="button-row">
+                  <button
+                    className="secondary-button"
+                    onClick={() => setAgendaViewMode("day")}
+                    type="button"
+                  >
+                    Abrir dia
+                  </button>
+                </div>
+
+                <div className="list-card">
+                  <strong>Lacunas desta tela</strong>
+                  <p>Drag-and-drop, bloqueios por excecao e alertas preditivos continuam fora do contrato atual.</p>
+                </div>
+              </div>
+            ) : (
+              <p className="empty-state">Selecione um dia do calendario para abrir o resumo operacional.</p>
+            )}
           </aside>
         </section>
       </>
@@ -2871,13 +3253,13 @@ export function App() {
           <div className="panel-header">
             <div>
               <p className="eyebrow">Agenda / calendario</p>
-              <h2>Agenda diaria e leitura semanal</h2>
+              <h2>Agenda diaria, semanal e mensal</h2>
             </div>
             <span className="status-pill is-warning">Parcial</span>
           </div>
 
           <p className="helper">
-            O shell agora opera a linha do dia com selecao de booking e reagendamento por slot real, alem de uma grade semanal de capacidade por profissional. Grade mensal e drag-and-drop continuam fora do corte.
+            O shell agora opera a linha do dia com selecao de booking e reagendamento por slot real, alem de uma grade semanal de capacidade por profissional e uma visao mensal navegavel. Drag-and-drop continua fora do corte.
           </p>
 
           <div className="timeline-toolbar">
@@ -2896,29 +3278,48 @@ export function App() {
               >
                 Semana
               </button>
+              <button
+                className={agendaViewMode === "month" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setAgendaViewMode("month")}
+                type="button"
+              >
+                Mes
+              </button>
             </div>
 
             <div className="button-row">
               <button
                 className="secondary-button"
-                onClick={() => handleAgendaDateShift(agendaViewMode === "week" ? -7 : -1)}
+                onClick={() => handleAgendaDateShift(-1)}
                 type="button"
               >
-                {agendaViewMode === "week" ? "Semana anterior" : "Dia anterior"}
+                {agendaViewMode === "week"
+                  ? "Semana anterior"
+                  : agendaViewMode === "month"
+                    ? "Mes anterior"
+                    : "Dia anterior"}
               </button>
               <button
                 className="secondary-button"
                 onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
                 type="button"
               >
-                {agendaViewMode === "week" ? "Esta semana" : "Hoje"}
+                {agendaViewMode === "week"
+                  ? "Esta semana"
+                  : agendaViewMode === "month"
+                    ? "Este mes"
+                    : "Hoje"}
               </button>
               <button
                 className="secondary-button"
-                onClick={() => handleAgendaDateShift(agendaViewMode === "week" ? 7 : 1)}
+                onClick={() => handleAgendaDateShift(1)}
                 type="button"
               >
-                {agendaViewMode === "week" ? "Proxima semana" : "Proximo dia"}
+                {agendaViewMode === "week"
+                  ? "Proxima semana"
+                  : agendaViewMode === "month"
+                    ? "Proximo mes"
+                    : "Proximo dia"}
               </button>
             </div>
 
@@ -2956,7 +3357,7 @@ export function App() {
               <span className="status-pill is-info">Em aberto {agendaDaySummary.open}</span>
               <span className="status-pill is-success">Confirmadas {agendaDaySummary.confirmed}</span>
             </div>
-          ) : (
+          ) : agendaViewMode === "week" ? (
             <div className="record-meta">
               <span className="status-pill is-neutral">{formatAgendaWeekLabel(agendaWeekDates)}</span>
               <span className="status-pill is-info">
@@ -2966,6 +3367,15 @@ export function App() {
                 {formatMinutesAsHours(weekCapacitySummary.freeMinutes)} livres
               </span>
               <span className="status-pill is-info">{weekCapacitySummary.bookingsCount} booking(s) na semana</span>
+            </div>
+          ) : (
+            <div className="record-meta">
+              <span className="status-pill is-neutral">{formatAgendaMonthLabel(agendaDate)}</span>
+              <span className="status-pill is-info">{monthCapacitySummary.bookingsCount} booking(s) no mes</span>
+              <span className="status-pill is-success">
+                {formatMinutesAsHours(monthCapacitySummary.freeMinutes)} livres
+              </span>
+              <span className="status-pill is-info">Em aberto {monthCapacitySummary.openBookings}</span>
             </div>
           )}
         </article>
@@ -3118,7 +3528,7 @@ export function App() {
 
                 <div className="list-card">
                   <strong>Lacunas desta tela</strong>
-                  <p>Calendario mensal/semanal denso, drag-and-drop e capacidade agregada continuam sem contrato dedicado.</p>
+                  <p>Drag-and-drop, bloqueios por excecao e alertas preditivos continuam sem contrato dedicado.</p>
                 </div>
               </div>
             ) : (
@@ -3126,8 +3536,10 @@ export function App() {
             )}
           </aside>
           </section>
-        ) : (
+        ) : agendaViewMode === "week" ? (
           renderAgendaWeekView()
+        ) : (
+          renderAgendaMonthView()
         )}
       </section>
     );
@@ -3275,12 +3687,21 @@ export function App() {
           <aside className="panel aside-panel">
             <div className="panel-header compact">
               <div>
-                <p className="eyebrow">Retorno</p>
-                <h3>Recorte operacional da carteira</h3>
+                <p className="eyebrow">CRM operacional</p>
+                <h3>Detalhe do cliente selecionado</h3>
               </div>
             </div>
 
             <div className="records-column">
+              <div className="list-card">
+                <strong>{selectedClientInsight?.client.nome ?? "Selecione um cliente"}</strong>
+                <p>
+                  {selectedClientInsight ?
+                    `${selectedClientInsight.client.email} • ${selectedClientInsight.client.telefone || "Sem telefone"}`
+                  : "Clique em um cliente da carteira para abrir o detalhe operacional."}
+                </p>
+              </div>
+              {selectedClientInsight ? renderSelectedClientDetail() : null}
               <div className="list-card">
                 <strong>Janela de retorno</strong>
                 <p>Use 30, 60 ou 90 dias para identificar clientes que nao voltaram depois do ultimo atendimento concluido.</p>
@@ -3293,14 +3714,111 @@ export function App() {
                 <strong>Score de risco e cohort (nao funcional)</strong>
                 <p>Os contratos atuais ainda nao consolidam ciclo medio de retorno, propensao de recompra ou cohort de retencao.</p>
               </div>
-              <div className="list-card">
-                <strong>Clientes sem retorno (funcional)</strong>
-                <p>Este recorte agora existe no shell e tambem aparece no dashboard, usando a ultima booking concluida como referencia.</p>
-              </div>
             </div>
           </aside>
         </section>
       </section>
+    );
+  }
+
+  function renderSelectedClientDetail(): JSX.Element {
+    if (!selectedClientInsight) {
+      return <></>;
+    }
+
+    const segment = resolveClientSegment(selectedClientInsight, clientReturnWindow);
+
+    return (
+      <>
+        <div className="stats-strip">
+          <article className="stat-card">
+            <span>Segmento</span>
+            <strong>{formatClientSegment(segment, clientReturnWindow)}</strong>
+          </article>
+          <article className="stat-card">
+            <span>Receita persistida</span>
+            <strong>{formatCurrency(selectedClientInsight.recognizedRevenue)}</strong>
+          </article>
+          <article className="stat-card">
+            <span>Bookings</span>
+            <strong>{selectedClientInsight.totalBookings}</strong>
+          </article>
+          <article className="stat-card">
+            <span>Movimentos</span>
+            <strong>{selectedClientInsight.cashEntriesCount}</strong>
+          </article>
+        </div>
+
+        <div className="list-card">
+          <strong>Contexto atual</strong>
+          <p>
+            Origem {selectedClientInsight.client.origem} • ultimo movimento{" "}
+            {selectedClientInsight.lastBooking
+              ? formatDateTime(selectedClientInsight.lastBooking.startAt)
+              : "sem booking"}
+          </p>
+          <div className="record-meta">
+            <span className={`status-pill is-${resolveClientSegmentTone(segment)}`}>
+              {formatClientSegment(segment, clientReturnWindow)}
+            </span>
+            <span className="status-pill is-neutral">
+              Ultimo concluido{" "}
+              {selectedClientInsight.lastCompletedBooking
+                ? formatDateTime(selectedClientInsight.lastCompletedBooking.endAt)
+                : "nunca"}
+            </span>
+          </div>
+        </div>
+
+        <div className="list-card">
+          <strong>Ultimas bookings</strong>
+          {selectedClientBookings.length ? (
+            <div className="records-column detail-list">
+              {selectedClientBookings.slice(0, 5).map((booking) => (
+                <div className="detail-item" key={booking.id}>
+                  <div className="record-card-header">
+                    <strong>{resolveBookingTitle(booking, services, professionals)}</strong>
+                    <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                      {formatBookingStatus(booking.status)}
+                    </span>
+                  </div>
+                  <div className="record-meta">
+                    <span>{formatDateTime(booking.startAt)}</span>
+                    <span>{formatTimeRange(booking.startAt, booking.endAt)}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>Nenhuma booking encontrada para este cliente.</p>
+          )}
+        </div>
+
+        <div className="list-card">
+          <strong>Movimentos financeiros persistidos</strong>
+          {selectedClientCashEntries.length ? (
+            <div className="records-column detail-list">
+              {selectedClientCashEntries.slice(0, 5).map((entry) => (
+                <div className="detail-item" key={entry.id}>
+                  <div className="record-card-header">
+                    <strong>{formatCashEntryKind(entry.kind)}</strong>
+                    <span className={`status-pill is-${entry.status === "open" ? "success" : "warning"}`}>
+                      {formatCashEntryStatus(entry.status)}
+                    </span>
+                  </div>
+                  <div className="record-meta">
+                    <span>{formatCurrency(entry.amount)}</span>
+                    <span>{formatDateTime(entry.occurredAt)}</span>
+                  </div>
+                  <p>{entry.description}</p>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p>Nenhum movimento persistido ainda para este cliente.</p>
+          )}
+        </div>
+      </>
     );
   }
 
@@ -3309,6 +3827,7 @@ export function App() {
       <section className="view-stack">
         <section className="workspace-grid settings-grid">
           {renderSlugPanel()}
+          {renderBrandingPanel()}
           {renderPaymentsPanel()}
         </section>
 
@@ -3701,6 +4220,18 @@ function toPaymentForm(settings?: TenantPaymentSettings): PaymentFormState {
   };
 }
 
+function toBrandingForm(
+  branding?: {
+    tagline?: string;
+    accentColor?: string;
+  }
+): BrandingFormState {
+  return {
+    tagline: branding?.tagline ?? "",
+    accentColor: branding?.accentColor ?? ""
+  };
+}
+
 function toServiceForm(service: Service): ServiceFormState {
   return {
     nome: service.nome,
@@ -3741,6 +4272,39 @@ function buildPaymentPayload(
     binaryMode: form.binaryMode,
     defaultInstallments: parseOptionalInteger(form.defaultInstallments),
     expirationMinutes: parseOptionalInteger(form.expirationMinutes)
+  };
+}
+
+function buildBrandingPayload(form: BrandingFormState): {
+  tagline?: string;
+  accentColor?: string;
+} {
+  return {
+    tagline: emptyToUndefined(form.tagline),
+    accentColor: normalizeAccentColor(form.accentColor)
+  };
+}
+
+function normalizeAccentColor(value: string): string | undefined {
+  const trimmed = value.trim().toUpperCase();
+  if (!trimmed) {
+    return undefined;
+  }
+  if (!/^#([0-9A-F]{6})$/.test(trimmed)) {
+    throw new Error("A cor de destaque deve seguir o formato #RRGGBB.");
+  }
+  return trimmed;
+}
+
+function buildBrandingPreviewStyle(accentColor?: string): CSSProperties {
+  if (!accentColor) {
+    return {};
+  }
+
+  return {
+    borderColor: `${accentColor}33`,
+    boxShadow: `inset 0 0 0 1px ${accentColor}22`,
+    background: `linear-gradient(135deg, ${accentColor}14 0%, rgba(255, 255, 255, 0.92) 72%)`
   };
 }
 
@@ -3916,6 +4480,54 @@ function buildAgendaWeekDates(anchorDate: string): string[] {
   });
 }
 
+function buildAgendaMonthCells(
+  anchorDate: string,
+  bookings: readonly Booking[],
+  professionals: readonly Professional[],
+  availabilityByProfessional: Readonly<Record<string, AvailabilityRule[]>>,
+  professionalFilter: string
+): MonthCalendarCell[] {
+  const anchor = new Date(`${anchorDate}T12:00:00`);
+  const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12, 0, 0);
+  const monthEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 12, 0, 0);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay());
+  const gridEnd = new Date(monthEnd);
+  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
+
+  const cells: MonthCalendarCell[] = [];
+  for (let cursor = new Date(gridStart); cursor <= gridEnd; cursor.setDate(cursor.getDate() + 1)) {
+    const date = formatDateInputValue(cursor);
+    const dayBookings = bookings
+      .filter((booking) => extractDatePart(booking.startAt) === date)
+      .filter((booking) =>
+        professionalFilter === "all" ? true : booking.professionalId === professionalFilter
+      )
+      .sort((left, right) => left.startAt.localeCompare(right.startAt));
+    const weekday = new Date(`${date}T12:00:00`).getDay();
+    const totalMinutes = professionals.reduce((total, professional) => {
+      const rule = availabilityByProfessional[professional.id]?.find((item) => item.weekday === weekday);
+      return total + calculateRuleDurationMinutes(rule);
+    }, 0);
+
+    cells.push({
+      date,
+      inCurrentMonth: cursor.getMonth() === anchor.getMonth(),
+      bookings: dayBookings,
+      bookingsCount: dayBookings.length,
+      openBookings: dayBookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
+      completedBookings: dayBookings.filter((booking) => booking.status === "concluido").length,
+      totalMinutes,
+      bookedMinutes: dayBookings.reduce(
+        (total, booking) => total + calculateBookingDurationMinutes(booking),
+        0
+      )
+    });
+  }
+
+  return cells;
+}
+
 function buildWeekGridCell(
   date: string,
   professionalId: string,
@@ -3979,6 +4591,25 @@ function summarizeWeekCapacity(
   };
 }
 
+function summarizeMonthCapacity(cells: readonly MonthCalendarCell[]): WeekCapacitySummary {
+  return cells.reduce<WeekCapacitySummary>(
+    (summary, cell) => ({
+      totalMinutes: summary.totalMinutes + cell.totalMinutes,
+      bookedMinutes: summary.bookedMinutes + cell.bookedMinutes,
+      freeMinutes: summary.freeMinutes + Math.max(cell.totalMinutes - cell.bookedMinutes, 0),
+      bookingsCount: summary.bookingsCount + cell.bookingsCount,
+      openBookings: summary.openBookings + cell.openBookings
+    }),
+    {
+      totalMinutes: 0,
+      bookedMinutes: 0,
+      freeMinutes: 0,
+      bookingsCount: 0,
+      openBookings: 0
+    }
+  );
+}
+
 function buildWeekDaySummaries(
   bookings: readonly Booking[],
   dates: readonly string[],
@@ -4036,7 +4667,8 @@ function buildWeekProfessionalSummaries(
 function buildClientInsights(
   clients: readonly Client[],
   bookings: readonly Booking[],
-  services: readonly Service[]
+  services: readonly Service[],
+  cashEntries: readonly CashEntry[]
 ): ClientInsight[] {
   return clients
     .map((client) => {
@@ -4044,10 +4676,13 @@ function buildClientInsights(
         .filter((booking) => booking.clientId === client.id)
         .sort((left, right) => right.startAt.localeCompare(left.startAt));
       const completedBookings = clientBookings.filter((booking) => booking.status === "concluido");
-      const recognizedRevenue = completedBookings.reduce((total, booking) => {
-        const service = services.find((item) => item.id === booking.serviceId);
-        return total + (service?.precoBase ?? 0);
-      }, 0);
+      const clientCashEntries = cashEntries
+        .filter((entry) => entry.clientId === client.id && entry.status === "open")
+        .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
+      const recognizedRevenue = completedBookings.reduce(
+        (total, booking) => total + resolveRecognizedRevenueAmount(booking, services, cashEntries),
+        0
+      );
 
       return {
         client,
@@ -4056,7 +4691,9 @@ function buildClientInsights(
         completedBookings: completedBookings.length,
         lastBooking: clientBookings[0],
         lastCompletedBooking: completedBookings[0],
-        recognizedRevenue
+        recognizedRevenue,
+        cashEntriesCount: clientCashEntries.length,
+        lastCashEntry: clientCashEntries[0]
       };
     })
     .sort((left, right) => {
@@ -4122,7 +4759,8 @@ function buildRevenueEntries(
   services: readonly Service[],
   professionals: readonly Professional[],
   clients: readonly Client[],
-  paymentIntents: readonly PaymentIntent[]
+  paymentIntents: readonly PaymentIntent[],
+  cashEntries: readonly CashEntry[]
 ): RevenueEntry[] {
   return bookings
     .filter((booking) => booking.status === "concluido")
@@ -4131,10 +4769,8 @@ function buildRevenueEntries(
       const professional = professionals.find((item) => item.id === booking.professionalId);
       const client = clients.find((item) => item.id === booking.clientId);
       const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-      const approvedOnlineAmount =
-        paymentIntent?.status === "approved" || paymentIntent?.status === "authorized"
-          ? paymentIntent.amount
-          : 0;
+      const recognizedCashEntry = findOpenCashEntry(cashEntries, booking.id, "recognized_revenue");
+      const onlinePaymentCashEntry = findOpenCashEntry(cashEntries, booking.id, "online_payment");
 
       return {
         booking,
@@ -4142,11 +4778,51 @@ function buildRevenueEntries(
         professional,
         client,
         paymentIntent,
-        recognizedAmount: service?.precoBase ?? 0,
-        approvedOnlineAmount
+        recognizedCashEntry,
+        onlinePaymentCashEntry,
+        recognizedAmount: resolveRecognizedRevenueAmount(booking, services, cashEntries),
+        approvedOnlineAmount: resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries)
       };
     })
     .sort((left, right) => right.booking.endAt.localeCompare(left.booking.endAt));
+}
+
+function findOpenCashEntry(
+  cashEntries: readonly CashEntry[],
+  bookingId: string,
+  kind: CashEntry["kind"]
+): CashEntry | undefined {
+  return cashEntries.find(
+    (entry) =>
+      entry.bookingId === bookingId &&
+      entry.kind === kind &&
+      entry.status === "open"
+  );
+}
+
+function resolveRecognizedRevenueAmount(
+  booking: Booking,
+  services: readonly Service[],
+  cashEntries: readonly CashEntry[]
+): number {
+  return (
+    findOpenCashEntry(cashEntries, booking.id, "recognized_revenue")?.amount ??
+    services.find((item) => item.id === booking.serviceId)?.precoBase ??
+    0
+  );
+}
+
+function resolveApprovedOnlineAmount(
+  booking: Booking,
+  paymentIntent: PaymentIntent | undefined,
+  cashEntries: readonly CashEntry[]
+): number {
+  const cashEntryAmount = findOpenCashEntry(cashEntries, booking.id, "online_payment")?.amount;
+  if (cashEntryAmount !== undefined) {
+    return cashEntryAmount;
+  }
+
+  return paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? paymentIntent.amount : 0;
 }
 
 function summarizeRevenueEntries(
@@ -4177,16 +4853,16 @@ function summarizeRevenueEntries(
 function buildReportMetricSummary(
   bookings: readonly Booking[],
   services: readonly Service[],
-  paymentIntents: readonly PaymentIntent[]
+  paymentIntents: readonly PaymentIntent[],
+  cashEntries: readonly CashEntry[]
 ): ReportMetricSummary {
   const completedBookings = bookings.filter((booking) => booking.status === "concluido");
   const recognizedRevenue = completedBookings.reduce((total, booking) => {
-    const service = services.find((item) => item.id === booking.serviceId);
-    return total + (service?.precoBase ?? 0);
+    return total + resolveRecognizedRevenueAmount(booking, services, cashEntries);
   }, 0);
   const approvedOnlineRevenue = completedBookings.reduce((total, booking) => {
     const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-    return total + (paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? paymentIntent.amount : 0);
+    return total + resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries);
   }, 0);
 
   return {
@@ -4204,7 +4880,8 @@ function buildReportMetricSummary(
 function buildServiceReportSummaries(
   bookings: readonly Booking[],
   services: readonly Service[],
-  paymentIntents: readonly PaymentIntent[]
+  paymentIntents: readonly PaymentIntent[],
+  cashEntries: readonly CashEntry[]
 ): ReportGroupSummary[] {
   const grouped = new Map<string, ReportGroupSummary & { readonly clientIds: Set<string> }>();
 
@@ -4227,11 +4904,14 @@ function buildServiceReportSummaries(
     const nextCompletedCount =
       existing.completedCount + (booking.status === "concluido" ? 1 : 0);
     const nextRecognizedRevenue =
-      existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0);
+      existing.recognizedRevenue +
+      (booking.status === "concluido"
+        ? resolveRecognizedRevenueAmount(booking, services, cashEntries)
+        : 0);
     const nextApprovedOnlineRevenue =
       existing.approvedOnlineRevenue +
-      (booking.status === "concluido" && paymentIntent && isApprovedPaymentIntent(paymentIntent.status)
-        ? paymentIntent.amount
+      (booking.status === "concluido"
+        ? resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries)
         : 0);
     existing.clientIds.add(booking.clientId);
 
@@ -4264,7 +4944,8 @@ function buildProfessionalReportSummaries(
   bookings: readonly Booking[],
   professionals: readonly Professional[],
   services: readonly Service[],
-  paymentIntents: readonly PaymentIntent[]
+  paymentIntents: readonly PaymentIntent[],
+  cashEntries: readonly CashEntry[]
 ): ReportGroupSummary[] {
   const grouped = new Map<string, ReportGroupSummary & { readonly clientIds: Set<string> }>();
 
@@ -4288,11 +4969,14 @@ function buildProfessionalReportSummaries(
     const nextCompletedCount =
       existing.completedCount + (booking.status === "concluido" ? 1 : 0);
     const nextRecognizedRevenue =
-      existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0);
+      existing.recognizedRevenue +
+      (booking.status === "concluido"
+        ? resolveRecognizedRevenueAmount(booking, services, cashEntries)
+        : 0);
     const nextApprovedOnlineRevenue =
       existing.approvedOnlineRevenue +
-      (booking.status === "concluido" && paymentIntent && isApprovedPaymentIntent(paymentIntent.status)
-        ? paymentIntent.amount
+      (booking.status === "concluido"
+        ? resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries)
         : 0);
     existing.clientIds.add(booking.clientId);
 
@@ -4430,6 +5114,17 @@ function formatPaymentIntentStatus(status: PaymentIntent["status"]): string {
   return `${label.slice(0, 1).toUpperCase()}${label.slice(1)}`;
 }
 
+function formatCashEntryKind(kind: CashEntry["kind"]): string {
+  if (kind === "recognized_revenue") {
+    return "Receita reconhecida";
+  }
+  return "Entrada online";
+}
+
+function formatCashEntryStatus(status: CashEntry["status"]): string {
+  return status === "open" ? "Ativo" : "Revertido";
+}
+
 function isOpenBookingStatus(status: Booking["status"]): boolean {
   return status === "pendente" || status === "aguardando pagamento" || status === "confirmado";
 }
@@ -4460,8 +5155,30 @@ function addDaysToDateValue(value: string, days: number): string {
   return formatDateInputValue(date);
 }
 
+function addMonthsToDateValue(value: string, months: number): string {
+  const date = new Date(`${value}T12:00:00`);
+  const dayOfMonth = date.getDate();
+  date.setDate(1);
+  date.setMonth(date.getMonth() + months);
+  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  date.setDate(Math.min(dayOfMonth, lastDay));
+  return formatDateInputValue(date);
+}
+
 function formatAgendaDayLabel(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "short" }).format(
+    new Date(`${value}T12:00:00`)
+  );
+}
+
+function formatAgendaMonthLabel(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(
+    new Date(`${value}T12:00:00`)
+  );
+}
+
+function formatAgendaMonthDayNumber(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit" }).format(
     new Date(`${value}T12:00:00`)
   );
 }

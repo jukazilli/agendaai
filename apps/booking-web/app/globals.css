@@ -1,8 +1,13 @@
 :root {
   color-scheme: light;
   font-family: Manrope, "Avenir Next", "Segoe UI", sans-serif;
+  --tenant-accent: #0b7a75;
+  --tenant-accent-strong: #1f8d87;
+  --tenant-accent-soft: rgba(11, 122, 117, 0.12);
+  --tenant-accent-border: rgba(11, 122, 117, 0.18);
+  --tenant-accent-shadow: rgba(11, 122, 117, 0.22);
   background:
-    radial-gradient(circle at top left, rgba(14, 122, 118, 0.12), transparent 22%),
+    radial-gradient(circle at top left, var(--tenant-accent-soft), transparent 22%),
     radial-gradient(circle at top right, rgba(216, 106, 67, 0.12), transparent 18%),
     linear-gradient(180deg, #f3f8f7 0%, #edf4f1 100%);
   color: #13252b;
@@ -36,6 +41,10 @@ button {
 .booking-page {
   min-height: 100vh;
   padding: 20px 16px calc(32px + env(safe-area-inset-bottom));
+  background:
+    radial-gradient(circle at top left, var(--tenant-accent-soft), transparent 22%),
+    radial-gradient(circle at top right, rgba(216, 106, 67, 0.12), transparent 18%),
+    linear-gradient(180deg, #f3f8f7 0%, #edf4f1 100%);
 }
 
 .landing-shell,
@@ -117,13 +126,13 @@ button {
 }
 
 .progress-pill.is-done {
-  border-color: rgba(11, 122, 117, 0.24);
-  background: rgba(11, 122, 117, 0.1);
-  color: #0b6964;
+  border-color: var(--tenant-accent-border);
+  background: var(--tenant-accent-soft);
+  color: var(--tenant-accent);
 }
 
 .progress-pill.is-done strong {
-  background: #0b7a75;
+  background: var(--tenant-accent);
   color: #f7fbfa;
 }
 
@@ -133,7 +142,7 @@ button {
 
 .eyebrow {
   margin: 0 0 12px;
-  color: #0b7a75;
+  color: var(--tenant-accent);
   font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.18em;
@@ -183,11 +192,11 @@ h3 {
   padding: 14px 18px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(135deg, #0b7a75 0%, #1f8d87 100%);
+  background: linear-gradient(135deg, var(--tenant-accent) 0%, var(--tenant-accent-strong) 100%);
   color: #f7fbfa;
   font-weight: 700;
   text-decoration: none;
-  box-shadow: 0 14px 28px rgba(11, 122, 117, 0.22);
+  box-shadow: 0 14px 28px var(--tenant-accent-shadow);
 }
 
 .secondary-button {
@@ -197,10 +206,10 @@ h3 {
   width: 100%;
   min-height: 52px;
   padding: 14px 18px;
-  border: 1px solid rgba(11, 122, 117, 0.18);
+  border: 1px solid var(--tenant-accent-border);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.92);
-  color: #0b6964;
+  color: var(--tenant-accent);
   font-weight: 700;
   text-decoration: none;
 }
@@ -227,8 +236,8 @@ h3 {
 .hero-meta span {
   padding: 10px 12px;
   border-radius: 999px;
-  background: rgba(11, 122, 117, 0.08);
-  color: #0b6964;
+  background: var(--tenant-accent-soft);
+  color: var(--tenant-accent);
   font-size: 0.85rem;
   font-weight: 600;
 }
@@ -293,7 +302,7 @@ h3 {
 
 .service-card small {
   margin-top: 8px;
-  color: #0b6964;
+  color: var(--tenant-accent);
   font-size: 0.82rem;
   font-weight: 700;
 }
@@ -301,9 +310,9 @@ h3 {
 .service-card.is-active,
 .professional-card.is-active,
 .slot-button.is-active {
-  border-color: #0b7a75;
-  background: linear-gradient(180deg, rgba(11, 122, 117, 0.12), rgba(11, 122, 117, 0.06));
-  box-shadow: 0 14px 30px rgba(11, 122, 117, 0.12);
+  border-color: var(--tenant-accent);
+  background: linear-gradient(180deg, var(--tenant-accent-soft), rgba(255, 255, 255, 0.8));
+  box-shadow: 0 14px 30px var(--tenant-accent-soft);
 }
 
 .field-grid {
@@ -339,8 +348,8 @@ h3 {
 
 .field input:focus,
 .field select:focus {
-  outline: 2px solid rgba(11, 122, 117, 0.18);
-  border-color: #0b7a75;
+  outline: 2px solid var(--tenant-accent-border);
+  border-color: var(--tenant-accent);
 }
 
 .helper,
@@ -407,8 +416,8 @@ h3 {
 .summary-note {
   padding: 12px 14px;
   border-radius: 16px;
-  background: rgba(11, 122, 117, 0.08);
-  color: #0b6964;
+  background: var(--tenant-accent-soft);
+  color: var(--tenant-accent);
   line-height: 1.5;
 }
 
@@ -430,7 +439,7 @@ h3 {
 .summary-card {
   padding: 16px;
   border-radius: 20px;
-  background: rgba(11, 122, 117, 0.08);
+  background: var(--tenant-accent-soft);
 }
 
 .summary-card span {

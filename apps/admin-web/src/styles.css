@@ -197,6 +197,73 @@ a {
   gap: 4px;
 }
 
+.branding-preview,
+.branding-preview-copy {
+  display: flex;
+  gap: 14px;
+}
+
+.branding-preview {
+  align-items: center;
+  padding: 18px;
+  border: 1px solid rgba(11, 122, 117, 0.12);
+  border-radius: 22px;
+  background: rgba(248, 251, 250, 0.9);
+}
+
+.branding-preview-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: var(--ag-color-brand-primary);
+  color: white;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.branding-preview-copy {
+  flex: 1;
+  flex-direction: column;
+}
+
+.branding-preview-copy p,
+.branding-preview-copy span {
+  margin: 0;
+  color: var(--ag-color-text-muted);
+}
+
+.branding-preview-copy span {
+  font-size: 0.88rem;
+}
+
+.client-record-button {
+  width: 100%;
+  border: 1px solid rgba(11, 122, 117, 0.12);
+  text-align: left;
+  cursor: pointer;
+}
+
+.client-record-button.is-active {
+  border-color: rgba(11, 122, 117, 0.4);
+  box-shadow: 0 0 0 1px rgba(11, 122, 117, 0.14);
+}
+
+.detail-list {
+  gap: 10px;
+}
+
+.detail-item {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(11, 122, 117, 0.04);
+}
+
 .stat-card strong {
   display: block;
   font-size: 1.9rem;
@@ -472,9 +539,12 @@ a {
 .agenda-board,
 .slot-grid,
 .agenda-week-layout,
+.agenda-month-layout,
 .capacity-grid,
 .week-day-cell-meta,
-.week-bookings-list {
+.week-bookings-list,
+.month-grid,
+.month-day-cell {
   display: grid;
   gap: 16px;
 }
@@ -519,6 +589,56 @@ a {
 
 .agenda-week-layout {
   grid-template-columns: minmax(0, 1.45fr) minmax(320px, 380px);
+}
+
+.agenda-month-layout {
+  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 380px);
+}
+
+.month-grid {
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.month-grid-header,
+.month-day-cell {
+  border: 1px solid rgba(11, 122, 117, 0.12);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 14px;
+}
+
+.month-grid-header {
+  background: rgba(11, 122, 117, 0.08);
+}
+
+.month-day-cell {
+  min-height: 152px;
+  align-content: start;
+  text-align: left;
+  cursor: pointer;
+}
+
+.month-day-cell.is-muted {
+  opacity: 0.56;
+}
+
+.month-day-cell.is-active {
+  border-color: rgba(11, 122, 117, 0.42);
+  box-shadow: 0 0 0 1px rgba(11, 122, 117, 0.14);
+}
+
+.month-day-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detail-button {
+  width: 100%;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
 }
 
 .week-grid-shell {
@@ -605,9 +725,14 @@ a {
   }
 
   .agenda-week-layout,
+  .agenda-month-layout,
   .agenda-board,
   .timeline-toolbar {
     grid-template-columns: 1fr;
+  }
+
+  .month-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -687,6 +812,11 @@ a {
   }
 
   .sidebar-nav-item {
+    align-items: flex-start;
+  }
+
+  .branding-preview {
+    flex-direction: column;
     align-items: flex-start;
   }
 }

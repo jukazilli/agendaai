@@ -27,10 +27,11 @@ Este termo permanece como retrato da saida da fase documental, nao como espelho 
 Estado atual resumido:
 
 - backend real existe em `services/api-rest`;
-- `booking-web` ja fecha `B-07` e `admin-web` agora opera a primeira fatia real de `B-09`, o primeiro reflexo financeiro server-side de `B-10`, o recorte de retorno/recorrencia de `B-11` e a rota dedicada de `B-12` apoiada por read model minimo;
+- `booking-web` ja fecha `B-07` e `admin-web` agora fecha `B-09`, com dia, semana e calendario mensal navegavel, alem de `B-10/B-11/B-12` endurecidos por `cash entry` minima persistida, detalhe operacional de cliente e relatorios essenciais fechados;
 - `B-01` a `B-07` estao fechados no backlog oficial;
 - `B-08` ja homologou `checkout_pro` no ambiente publicado;
-- o proximo gargalo combinado passa a ser decidir `checkout_transparente` como extensao de `B-08` ou trilha propria, e endurecer `B-10/B-12` com `cash entry` persistido, cohort mais honesto e comparativos historicos mais fortes por periodo.
+- o backlog beta/MVP agora esta fechado, com `BA-03` encerrado por branding minimo editavel e refletido na slug publica;
+- o proximo gargalo combinado passa a ser decidir `checkout_transparente` como extensao de `B-08` ou trilha propria, e congelar escopo antes de uma rodada pesada de UI/UX.
 
 ## Decisao
 

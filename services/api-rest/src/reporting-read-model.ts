@@ -2,6 +2,7 @@ import {
   contractVersion,
   type AdminReportsReadModel,
   type Booking,
+  type CashEntry,
   type Client,
   type PaymentIntent,
   type Professional,
@@ -18,6 +19,7 @@ interface BuildAdminReportsReadModelInput extends ReportingFilters {
   readonly services: readonly Service[];
   readonly professionals: readonly Professional[];
   readonly paymentIntents: readonly PaymentIntent[];
+  readonly cashEntries: readonly CashEntry[];
 }
 
 interface ClientRecurrenceRecord {
@@ -39,12 +41,13 @@ export function buildAdminReportsReadModel(
   const current = buildMetricSummary(
     currentBookings,
     input.services,
-    input.paymentIntents
+    input.paymentIntents,
+    input.cashEntries
   );
   const previous =
     input.range === "all"
       ? undefined
-      : buildMetricSummary(previousBookings, input.services, input.paymentIntents);
+      : buildMetricSummary(previousBookings, input.services, input.paymentIntents, input.cashEntries);
 
   const filteredForRecurrence = filterBookingsBySelection(
     input.bookings,
@@ -54,7 +57,8 @@ export function buildAdminReportsReadModel(
   const recurrenceRecords = buildClientRecurrenceRecords(
     input.clients,
     filteredForRecurrence,
-    input.services
+    input.services,
+    input.cashEntries
   );
   const windowDays = resolveReturnWindowDays(input.returnWindow);
   const inactiveClients = recurrenceRecords
@@ -108,12 +112,14 @@ export function buildAdminReportsReadModel(
       currentBookings,
       input.services,
       input.paymentIntents,
+      input.cashEntries,
       "service"
     ),
     professionals: buildGroupedSummaries(
       currentBookings,
       input.services,
       input.paymentIntents,
+      input.cashEntries,
       "professional",
       input.professionals
     ),
@@ -203,16 +209,16 @@ function filterBookingsBySelection(
 function buildMetricSummary(
   bookings: readonly Booking[],
   services: readonly Service[],
-  paymentIntents: readonly PaymentIntent[]
+  paymentIntents: readonly PaymentIntent[],
+  cashEntries: readonly CashEntry[]
 ): ReportingMetricSummary {
   const completedBookings = bookings.filter((booking) => booking.status === "concluido");
   const recognizedRevenue = completedBookings.reduce((total, booking) => {
-    const service = services.find((item) => item.id === booking.serviceId);
-    return total + (service?.precoBase ?? 0);
+    return total + resolveRecognizedRevenueForBooking(booking, services, cashEntries);
   }, 0);
   const approvedOnlineRevenue = completedBookings.reduce((total, booking) => {
     const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-    return total + (isApprovedPaymentIntent(paymentIntent) ? paymentIntent?.amount ?? 0 : 0);
+    return total + resolveApprovedOnlineRevenueForBooking(booking, paymentIntent, cashEntries);
   }, 0);
 
   return {
@@ -231,6 +237,7 @@ function buildGroupedSummaries(
   bookings: readonly Booking[],
   services: readonly Service[],
   paymentIntents: readonly PaymentIntent[],
+  cashEntries: readonly CashEntry[],
   groupBy: "service" | "professional",
   professionals: readonly Professional[] = []
 ): ReportingGroupSummary[] {
@@ -266,11 +273,13 @@ function buildGroupedSummaries(
       existing.completedCount + (booking.status === "concluido" ? 1 : 0);
     const nextRecognizedRevenue =
       existing.recognizedRevenue +
-      (booking.status === "concluido" ? service?.precoBase ?? 0 : 0);
+      (booking.status === "concluido"
+        ? resolveRecognizedRevenueForBooking(booking, services, cashEntries)
+        : 0);
     const nextApprovedOnlineRevenue =
       existing.approvedOnlineRevenue +
-      (booking.status === "concluido" && isApprovedPaymentIntent(paymentIntent)
-        ? paymentIntent?.amount ?? 0
+      (booking.status === "concluido"
+        ? resolveApprovedOnlineRevenueForBooking(booking, paymentIntent, cashEntries)
         : 0);
 
     grouped.set(groupId, {
@@ -302,7 +311,8 @@ function buildGroupedSummaries(
 function buildClientRecurrenceRecords(
   clients: readonly Client[],
   bookings: readonly Booking[],
-  services: readonly Service[]
+  services: readonly Service[],
+  cashEntries: readonly CashEntry[]
 ): ClientRecurrenceRecord[] {
   return clients
     .map((client) => {
@@ -313,8 +323,7 @@ function buildClientRecurrenceRecords(
         .sort((left, right) => left.endAt.localeCompare(right.endAt));
       const lastCompleted = completedBookings.at(-1);
       const recognizedRevenue = completedBookings.reduce((total, booking) => {
-        const service = services.find((item) => item.id === booking.serviceId);
-        return total + (service?.precoBase ?? 0);
+        return total + resolveRecognizedRevenueForBooking(booking, services, cashEntries);
       }, 0);
 
       return {
@@ -367,6 +376,48 @@ function buildReturnBuckets(
   }
 
   return buckets;
+}
+
+function resolveRecognizedRevenueForBooking(
+  booking: Booking,
+  services: readonly Service[],
+  cashEntries: readonly CashEntry[]
+): number {
+  const persistedAmount = resolveOpenCashEntryAmount(cashEntries, booking.id, "recognized_revenue");
+  if (persistedAmount > 0) {
+    return persistedAmount;
+  }
+
+  const service = services.find((item) => item.id === booking.serviceId);
+  return service?.precoBase ?? 0;
+}
+
+function resolveApprovedOnlineRevenueForBooking(
+  booking: Booking,
+  paymentIntent: PaymentIntent | undefined,
+  cashEntries: readonly CashEntry[]
+): number {
+  const persistedAmount = resolveOpenCashEntryAmount(cashEntries, booking.id, "online_payment");
+  if (persistedAmount > 0) {
+    return persistedAmount;
+  }
+
+  return isApprovedPaymentIntent(paymentIntent) ? paymentIntent?.amount ?? 0 : 0;
+}
+
+function resolveOpenCashEntryAmount(
+  cashEntries: readonly CashEntry[],
+  bookingId: string,
+  kind: CashEntry["kind"]
+): number {
+  return (
+    cashEntries.find(
+      (cashEntry) =>
+        cashEntry.bookingId === bookingId &&
+        cashEntry.kind === kind &&
+        cashEntry.status === "open"
+    )?.amount ?? 0
+  );
 }
 
 function calculateAverageRecurrenceDays(bookings: readonly Booking[]): number | null {

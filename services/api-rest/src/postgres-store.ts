@@ -3,6 +3,7 @@ import { Pool } from "pg";
 import type {
   AvailabilityRuleInput,
   ClientContactInput,
+  ConfigureTenantBrandingCommand,
   ConfigureTenantSlugCommand,
   CreateBookingCommand,
   TenantPaymentSettings,
@@ -106,6 +107,13 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return tenant;
   }
 
+  async updateTenantBranding(command: ConfigureTenantBrandingCommand) {
+    await this.ensureReady();
+    const tenant = this.store.updateTenantBranding(command);
+    await this.persistSnapshot();
+    return tenant;
+  }
+
   async listServices(tenantId: string) {
     await this.ensureReady();
     return this.store.listServices(tenantId);
@@ -169,6 +177,32 @@ export class PostgresApiRestStore implements ApiRestStorePort {
   async listPaymentIntents(tenantId: string) {
     await this.ensureReady();
     return this.store.listPaymentIntents(tenantId);
+  }
+
+  async listCashEntries(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listCashEntries(tenantId);
+  }
+
+  async getCashEntry(tenantId: string, cashEntryId: string) {
+    await this.ensureReady();
+    return this.store.getCashEntry(tenantId, cashEntryId);
+  }
+
+  async getCashEntryByBookingAndKind(
+    tenantId: string,
+    bookingId: string,
+    kind: import("@agendaai/contracts").CashEntryKind
+  ) {
+    await this.ensureReady();
+    return this.store.getCashEntryByBookingAndKind(tenantId, bookingId, kind);
+  }
+
+  async saveCashEntry(entry: import("@agendaai/contracts").CashEntry) {
+    await this.ensureReady();
+    const cashEntry = this.store.saveCashEntry(entry);
+    await this.persistSnapshot();
+    return cashEntry;
   }
 
   async updatePaymentIntent(
@@ -379,6 +413,7 @@ function emptySnapshot(): ApiRestStoreSnapshot {
     services: [],
     paymentSettings: [],
     paymentIntents: [],
+    cashEntries: [],
     clients: [],
     professionals: [],
     availabilityRules: [],

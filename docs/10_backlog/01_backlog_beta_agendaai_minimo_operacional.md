@@ -12,13 +12,13 @@ Ele nao substitui `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`.
 | --- | --- | --- | --- | --- | --- |
 | 1 | BA-01 | Autenticar admin no `admin-web` com tenant context real | B-05 | FECHADO | login, sessao e logout funcionando |
 | 2 | BA-02 | Materializar shell admin inicial com rota de implantacao | BA-01 | FECHADO | shell admin com onboarding real, navegacao modular minima e rota de implantacao separada |
-| 3 | BA-03 | Expor configuracao de slug, branding minimo e Mercado Pago na implantacao | BA-02, B-08 | PARCIAL | slug e payment settings editaveis no ambiente publicado; branding minimo ainda pendente |
+| 3 | BA-03 | Expor configuracao de slug, branding minimo e Mercado Pago na implantacao | BA-02, B-08 | FECHADO | slug, Mercado Pago e branding minimo com tagline e cor de destaque editaveis no shell admin e refletidos na slug publica |
 
 ## Trilha Beta B - Catalogo comercial e cobranca
 
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto |
 | --- | --- | --- | --- | --- | --- |
-| 4 | BA-04 | Conectar cadastro de servicos no `admin-web` | BA-01, B-06 | EM FUNDACAO | create/update de servicos operando; delete e refinamento ainda pendentes |
+| 4 | BA-04 | Conectar cadastro de servicos no `admin-web` | BA-01, B-06 | FECHADO | create/update/delete de servicos operando no shell administrativo |
 | 5 | BA-05 | Materializar politica de cobranca por servico | BA-04, B-08 | FECHADO | `paymentPolicy` editavel e refletindo em runtime |
 | 6 | BA-06 | Criar payment intent real com Mercado Pago | BA-03, BA-05 | FECHADO | checkout pro disparado por servico com sinal no ambiente publicado; `checkout_transparente` segue fora deste corte |
 
@@ -33,9 +33,9 @@ Ele nao substitui `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`.
 
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto |
 | --- | --- | --- | --- | --- | --- |
-| 9 | BA-09 | Agenda do dia no `admin-web` com acoes basicas | BA-01, BA-07 | PARCIAL | leitura de bookings pronta com filtros, acoes de confirmar/concluir/cancelar, reagendamento por slot e grade semanal com capacidade; calendario mensal/rico e drag-and-drop ainda pendentes |
-| 10 | BA-10 | Clientes derivados dos bookings reais | BA-09 | PARCIAL | ultima visita, ultimo atendimento concluido, receita derivada, retorno por janela e recorrencia media simples ja aparecem; historico detalhado e CRM transacional ainda pendentes |
-| 11 | BA-11 | Relatorios essenciais de beta | BA-09, BA-10 | PARCIAL | `admin-web` agora possui tela dedicada de relatorios ligada a read model do `api-rest`, com periodo, servico, profissional, comparativo, buckets de retorno e clientes sem retorno; exportacao e financeiro persistido continuam fora do beta |
+| 9 | BA-09 | Agenda do dia no `admin-web` com acoes basicas | BA-01, BA-07 | FECHADO | leitura de bookings com filtros, acoes de confirmar/concluir/cancelar, reagendamento por slot, grade semanal de capacidade e calendario mensal navegavel materializados no shell admin |
+| 10 | BA-10 | Clientes derivados dos bookings reais | BA-09 | FECHADO | ultima visita, historico recente, retorno por janela, receita persistida minima e movimentos por cliente operando no `admin-web` |
+| 11 | BA-11 | Relatorios essenciais de beta | BA-09, BA-10 | FECHADO | `admin-web` possui relatorios por periodo, servico e profissional com comparativo, buckets de retorno, clientes sem retorno e leitura financeira minima apoiada por `cash entries`; exportacao continua fora do beta |
 
 ## Fora do beta AgendaAI
 

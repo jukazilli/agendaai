@@ -14,7 +14,7 @@ Este repositorio foi estruturado a partir do ciclo:
 - backlog fundacional organizado por dependencia;
 - build, lint e testes do `api-rest` foram revalidados localmente em `18/03/2026`;
 - `booking-web` ja fecha `B-07` no menor corte real;
-- `admin-web` agora opera onboarding, slug, Mercado Pago, servicos, profissionais, disponibilidade, agenda operacional com acoes de booking, leitura basica de clientes e visibilidade de `payment intent` dentro de um shell modular com navegacao lateral, dashboard, agenda, catalogo, profissionais, clientes e configuracoes;
+- `admin-web` agora opera onboarding, slug, branding minimo, Mercado Pago, servicos, profissionais, disponibilidade, agenda operacional com acoes de booking, leitura basica de clientes e visibilidade de `payment intent` dentro de um shell modular com navegacao lateral, dashboard, agenda, catalogo, profissionais, clientes e configuracoes;
 - `B-01` concluido;
 - ADR de auth, tenancy e slug publicada;
 - `B-03` concluido com tokens e foundations em `packages/ui`;
@@ -23,10 +23,12 @@ Este repositorio foi estruturado a partir do ciclo:
 - `B-06` concluido com profissionais, disponibilidade e slots em `services/api-rest`;
 - `B-07` concluido com booking publico por `slug`;
 - `B-08` ja homologou o caminho real de `checkout_pro`, com `payment intent`, `sync`, callback/retorno publicados e booking confirmada em homologacao;
-- `B-09` agora possui timeline diaria, reagendamento por slot real e grade semanal de capacidade no `admin-web`;
-- `B-10` agora abriu o primeiro reflexo financeiro real no `dashboard` do `admin-web`, com receita reconhecida por booking concluida e entrada online aprovada por periodo;
-- `B-11` agora entrou em fundacao real no `admin-web`, com janela de retorno, clientes sem retorno e receita derivada por cliente;
-- `B-12` agora possui rota dedicada de relatorios no `admin-web`, com filtros por periodo, servico e profissional, comparativo com periodo anterior, buckets de retorno e consumo de read model minimo do `api-rest`;
+- `B-09` agora esta fechado com timeline diaria, reagendamento por slot real, grade semanal de capacidade e calendario mensal navegavel no `admin-web`;
+- `B-10` agora esta fechado com `cash entry` minima persistida por atendimento concluido e por entrada online aprovada;
+- `B-11` agora esta fechado com detalhe operacional de cliente, historico recente, retorno por janela e movimentos financeiros persistidos;
+- `B-12` agora esta fechado com relatorios essenciais apoiados por read model do `api-rest` e por `cash entries` minimas;
+- o backlog beta/MVP agora esta fechado no menor corte operacional combinado;
+- `BA-04` agora tambem fechou com create/update/delete de servicos no `admin-web`;
 - `api-rest`, `booking-web` e `admin-web` ja estao publicados em `Render` + `Vercel`;
 - existe agora uma trilha derivada de beta em `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`.
 
@@ -68,11 +70,14 @@ Este repositorio foi estruturado a partir do ciclo:
 21. `docs/08_analises/28_execucao_b11_retorno_clientes_2026-03-19.md`
 22. `docs/08_analises/29_execucao_b12_relatorios_dedicados_2026-03-19.md`
 23. `docs/08_analises/30_execucao_b12_read_model_financeiro_recorrencia_2026-03-19.md`
-24. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
-25. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
-26. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
-27. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
+24. `docs/08_analises/31_execucao_b10_b11_b12_cash_entry_crm_catalogo_2026-03-19.md`
+25. `docs/08_analises/32_execucao_b09_calendario_mensal_2026-03-19.md`
+26. `docs/08_analises/33_execucao_ba03_branding_minimo_2026-03-19.md`
+27. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
+28. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
+29. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
+30. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
 
 ## Proximo passo recomendado
 
-Fechar a transicao de leitura para persistencia: `cash entry` minimo por atendimento concluido, detalhe mais forte de cliente/CRM e, em paralelo, decidir se `checkout_transparente` continua dentro de `B-08` estrutural ou vira trilha propria.
+O backlog beta/MVP esta fechado. Este passa a ser o momento certo para uma rodada pesada de UI/UX, desde que o escopo beta fique congelado. No roadmap estrutural, a decisao pendente e se `checkout_transparente` continua dentro de `B-08` ou vira trilha propria pos-beta.

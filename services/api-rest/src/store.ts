@@ -7,8 +7,11 @@ import type {
   AvailabilityRule,
   AvailabilityRuleInput,
   Booking,
+  CashEntry,
+  CashEntryKind,
   Client,
   ClientContactInput,
+  ConfigureTenantBrandingCommand,
   ConfigureTenantSlugCommand,
   CreateBookingCommand,
   PublicCreateBookingInput,
@@ -20,7 +23,8 @@ import type {
   CreateTenantCommand,
   Professional,
   Service,
-  Tenant
+  Tenant,
+  TenantBranding
 } from "@agendaai/contracts";
 
 export interface AdminSessionRecord {
@@ -32,6 +36,7 @@ export interface PublicTenantProfile {
   readonly slug: string;
   readonly nome: string;
   readonly timezone: string;
+  readonly branding: TenantBranding;
 }
 
 export interface PublicAvailabilitySlot {
@@ -124,6 +129,7 @@ export interface ApiRestStoreSnapshot {
   readonly services: Service[];
   readonly paymentSettings?: TenantPaymentSettings[];
   readonly paymentIntents?: PaymentIntent[];
+  readonly cashEntries?: CashEntry[];
   readonly clients: Client[];
   readonly professionals: Professional[];
   readonly availabilityRules: AvailabilityRule[];
@@ -140,6 +146,7 @@ export interface ApiRestStorePort {
   getPublicTenantProfile(slug: string): MaybePromise<PublicTenantProfile | undefined>;
   getPublicCatalog(slug: string): MaybePromise<PublicCatalogSnapshot | undefined>;
   updateTenantSlug(command: ConfigureTenantSlugCommand): MaybePromise<Tenant>;
+  updateTenantBranding(command: ConfigureTenantBrandingCommand): MaybePromise<Tenant>;
   listServices(tenantId: string): MaybePromise<Service[]>;
   getService(tenantId: string, serviceId: string): MaybePromise<Service | undefined>;
   createService(command: CreateServiceCommand): MaybePromise<Service>;
@@ -158,6 +165,14 @@ export interface ApiRestStorePort {
     externalReference: string
   ): MaybePromise<PaymentIntent | undefined>;
   listPaymentIntents(tenantId: string): MaybePromise<PaymentIntent[]>;
+  listCashEntries(tenantId: string): MaybePromise<CashEntry[]>;
+  getCashEntry(tenantId: string, cashEntryId: string): MaybePromise<CashEntry | undefined>;
+  getCashEntryByBookingAndKind(
+    tenantId: string,
+    bookingId: string,
+    kind: CashEntryKind
+  ): MaybePromise<CashEntry | undefined>;
+  saveCashEntry(entry: CashEntry): MaybePromise<CashEntry>;
   updatePaymentIntent(
     tenantId: string,
     paymentIntentId: string,
@@ -225,6 +240,7 @@ export class ApiRestStore implements ApiRestStorePort {
   private readonly services = new Map<string, Service>();
   private readonly paymentSettings = new Map<string, TenantPaymentSettings>();
   private readonly paymentIntents = new Map<string, PaymentIntent>();
+  private readonly cashEntries = new Map<string, CashEntry>();
   private readonly clients = new Map<string, Client>();
   private readonly professionals = new Map<string, Professional>();
   private readonly availabilityRules = new Map<string, AvailabilityRule>();
@@ -251,7 +267,8 @@ export class ApiRestStore implements ApiRestStorePort {
       slug: command.slug,
       nome: command.nome,
       status: "active",
-      timezone: command.timezone
+      timezone: command.timezone,
+      branding: createDefaultTenantBranding()
     };
 
     const adminUser: StoredAdminUser = {
@@ -312,11 +329,7 @@ export class ApiRestStore implements ApiRestStorePort {
       return undefined;
     }
 
-    return {
-      slug: tenant.slug,
-      nome: tenant.nome,
-      timezone: tenant.timezone
-    };
+    return this.toPublicTenantProfile(tenant);
   }
 
   getPublicCatalog(slug: string): PublicCatalogSnapshot | undefined {
@@ -360,6 +373,21 @@ export class ApiRestStore implements ApiRestStorePort {
     this.tenants.set(updatedTenant.id, updatedTenant);
     this.tenantIdsBySlug.set(updatedTenant.slug, updatedTenant.id);
 
+    return updatedTenant;
+  }
+
+  updateTenantBranding(command: ConfigureTenantBrandingCommand): Tenant {
+    const tenant = this.tenants.get(command.tenantId);
+    if (!tenant) {
+      throw new Error("tenant_not_found");
+    }
+
+    const updatedTenant: Tenant = {
+      ...tenant,
+      branding: normalizeTenantBranding(command.branding)
+    };
+
+    this.tenants.set(updatedTenant.id, updatedTenant);
     return updatedTenant;
   }
 
@@ -480,6 +508,41 @@ export class ApiRestStore implements ApiRestStorePort {
     return [...this.paymentIntents.values()].filter(
       (paymentIntent) => paymentIntent.tenantId === tenantId
     );
+  }
+
+  listCashEntries(tenantId: string): CashEntry[] {
+    return [...this.cashEntries.values()]
+      .filter((cashEntry) => cashEntry.tenantId === tenantId)
+      .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
+  }
+
+  getCashEntry(tenantId: string, cashEntryId: string): CashEntry | undefined {
+    const cashEntry = this.cashEntries.get(cashEntryId);
+    return cashEntry && cashEntry.tenantId === tenantId ? cashEntry : undefined;
+  }
+
+  getCashEntryByBookingAndKind(
+    tenantId: string,
+    bookingId: string,
+    kind: CashEntryKind
+  ): CashEntry | undefined {
+    return this.listCashEntries(tenantId).find(
+      (cashEntry) => cashEntry.bookingId === bookingId && cashEntry.kind === kind
+    );
+  }
+
+  saveCashEntry(entry: CashEntry): CashEntry {
+    this.assertClientBelongsToTenant(entry.tenantId, entry.clientId);
+    this.assertServiceBelongsToTenant(entry.tenantId, entry.serviceId);
+    this.assertProfessionalBelongsToTenant(entry.tenantId, entry.professionalId);
+
+    const booking = this.getBooking(entry.tenantId, entry.bookingId);
+    if (!booking) {
+      throw new Error("booking_not_found");
+    }
+
+    this.cashEntries.set(entry.id, entry);
+    return entry;
   }
 
   updatePaymentIntent(
@@ -973,6 +1036,12 @@ export class ApiRestStore implements ApiRestStorePort {
     }
   }
 
+  private assertProfessionalBelongsToTenant(tenantId: string, professionalId: string): void {
+    if (!this.getProfessional(tenantId, professionalId)) {
+      throw new Error("professional_not_found");
+    }
+  }
+
   private assertProfessionalSupportsService(
     tenantId: string,
     professionalId: string,
@@ -1066,7 +1135,8 @@ export class ApiRestStore implements ApiRestStorePort {
     return {
       slug: tenant.slug,
       nome: tenant.nome,
-      timezone: tenant.timezone
+      timezone: tenant.timezone,
+      branding: normalizeTenantBranding(tenant.branding)
     };
   }
 
@@ -1077,6 +1147,7 @@ export class ApiRestStore implements ApiRestStorePort {
       services: [...this.services.values()],
       paymentSettings: [...this.paymentSettings.values()],
       paymentIntents: [...this.paymentIntents.values()],
+      cashEntries: [...this.cashEntries.values()],
       clients: [...this.clients.values()],
       professionals: [...this.professionals.values()],
       availabilityRules: [...this.availabilityRules.values()],
@@ -1093,6 +1164,7 @@ export class ApiRestStore implements ApiRestStorePort {
     this.services.clear();
     this.paymentSettings.clear();
     this.paymentIntents.clear();
+    this.cashEntries.clear();
     this.clients.clear();
     this.professionals.clear();
     this.availabilityRules.clear();
@@ -1100,8 +1172,9 @@ export class ApiRestStore implements ApiRestStorePort {
     this.sessions.clear();
 
     for (const tenant of snapshot.tenants) {
-      this.tenants.set(tenant.id, tenant);
-      this.tenantIdsBySlug.set(tenant.slug, tenant.id);
+      const hydratedTenant = normalizeTenant(tenant);
+      this.tenants.set(hydratedTenant.id, hydratedTenant);
+      this.tenantIdsBySlug.set(hydratedTenant.slug, hydratedTenant.id);
     }
 
     for (const adminUser of snapshot.adminUsers) {
@@ -1119,6 +1192,10 @@ export class ApiRestStore implements ApiRestStorePort {
 
     for (const paymentIntent of snapshot.paymentIntents ?? []) {
       this.paymentIntents.set(paymentIntent.id, paymentIntent);
+    }
+
+    for (const cashEntry of snapshot.cashEntries ?? []) {
+      this.cashEntries.set(cashEntry.id, cashEntry);
     }
 
     for (const client of snapshot.clients) {
@@ -1172,6 +1249,27 @@ function hydrateService(service: Service): Service {
       service.paymentPolicy,
       service.exigeSinal
     )
+  };
+}
+
+function createDefaultTenantBranding(): TenantBranding {
+  return {
+    tagline: undefined,
+    accentColor: undefined
+  };
+}
+
+function normalizeTenantBranding(branding?: Partial<TenantBranding> | undefined): TenantBranding {
+  return {
+    tagline: branding?.tagline?.trim() || undefined,
+    accentColor: branding?.accentColor?.trim() || undefined
+  };
+}
+
+function normalizeTenant(tenant: Tenant): Tenant {
+  return {
+    ...tenant,
+    branding: normalizeTenantBranding(tenant.branding)
   };
 }
 

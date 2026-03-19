@@ -1,4 +1,11 @@
-import type { Booking, Client, PaymentIntent, Professional, Service } from "@agendaai/contracts";
+import type {
+  Booking,
+  Client,
+  PaymentIntent,
+  Professional,
+  Service,
+  TenantBranding
+} from "@agendaai/contracts";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:3333";
 
@@ -6,6 +13,7 @@ export interface PublicTenantProfile {
   readonly slug: string;
   readonly nome: string;
   readonly timezone: string;
+  readonly branding: TenantBranding;
 }
 
 export interface PublicCatalogSnapshot {

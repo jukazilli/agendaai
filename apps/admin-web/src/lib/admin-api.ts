@@ -3,7 +3,9 @@ import type {
   AdminSessionClaimsContract,
   AvailabilityRule,
   Booking,
+  CashEntry,
   Client,
+  TenantBranding,
   CreateTenantCommand,
   PaymentIntent,
   Professional,
@@ -33,6 +35,7 @@ export interface AdminBootstrapPayload {
   readonly session: AdminSessionEnvelope;
   readonly paymentSettings?: TenantPaymentSettings;
   readonly paymentIntents: PaymentIntent[];
+  readonly cashEntries: CashEntry[];
   readonly services: Service[];
   readonly professionals: Professional[];
   readonly clients: Client[];
@@ -40,7 +43,7 @@ export interface AdminBootstrapPayload {
 }
 
 interface JsonRequestOptions {
-  readonly method?: "GET" | "POST" | "PATCH" | "PUT";
+  readonly method?: "GET" | "POST" | "PATCH" | "PUT" | "DELETE";
   readonly token?: string;
   readonly body?: unknown;
 }
@@ -131,7 +134,7 @@ export async function fetchAdminBootstrap(
   apiBaseUrl: string,
   token: string
 ): Promise<AdminBootstrapPayload> {
-  const [session, paymentSettings, paymentIntents, services, professionals, clients, bookings] =
+  const [session, paymentSettings, paymentIntents, cashEntries, services, professionals, clients, bookings] =
     await Promise.all([
     requestJson<AdminSessionEnvelope>(apiBaseUrl, "/v1/admin/auth/session", {
       token
@@ -141,6 +144,14 @@ export async function fetchAdminBootstrap(
     }),
     requestJson<{ items: PaymentIntent[] }>(apiBaseUrl, "/v1/admin/payment-intents", {
       token
+    }),
+    requestJson<{ items: CashEntry[] }>(apiBaseUrl, "/v1/admin/cash-entries", {
+      token
+    }).catch((error) => {
+      if (error instanceof AdminApiError && error.status === 404) {
+        return { items: [] };
+      }
+      throw error;
     }),
     requestJson<{ items: Service[] }>(apiBaseUrl, "/v1/admin/services", {
       token
@@ -160,6 +171,7 @@ export async function fetchAdminBootstrap(
     session,
     paymentSettings: paymentSettings.item,
     paymentIntents: paymentIntents.items,
+    cashEntries: cashEntries.items,
     services: services.items,
     professionals: professionals.items,
     clients: clients.items,
@@ -197,6 +209,20 @@ export async function updateTenantSlug(
     token,
     body: {
       slug
+    }
+  });
+}
+
+export async function updateTenantBranding(
+  apiBaseUrl: string,
+  token: string,
+  branding: TenantBranding
+): Promise<Tenant> {
+  return await requestJson<Tenant>(apiBaseUrl, "/v1/admin/tenant/branding", {
+    method: "PATCH",
+    token,
+    body: {
+      branding
     }
   });
 }
@@ -248,6 +274,17 @@ export async function updateService(
     method: "PATCH",
     token,
     body: payload
+  });
+}
+
+export async function deleteService(
+  apiBaseUrl: string,
+  token: string,
+  serviceId: string
+): Promise<void> {
+  await requestJson<void>(apiBaseUrl, `/v1/admin/services/${serviceId}`, {
+    method: "DELETE",
+    token
   });
 }
 

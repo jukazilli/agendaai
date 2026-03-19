@@ -40,18 +40,23 @@ export {
 
 export {
   adminUserSchema,
+  configureTenantBrandingSchema,
   configureTenantSlugSchema,
   createTenantSchema,
   publicTenantRouteSchema,
+  tenantBrandAccentColorSchema,
+  tenantBrandingSchema,
   tenantSchema
 } from "./v1/tenant";
 
 export type {
   AdminUser,
+  ConfigureTenantBrandingCommand,
   ConfigureTenantSlugCommand,
   CreateTenantCommand,
   PublicTenantRoute,
-  Tenant
+  Tenant,
+  TenantBranding
 } from "./v1/tenant";
 
 export { clientContactInputSchema, clientSchema } from "./v1/client";
@@ -124,6 +129,22 @@ export type {
   CreateBookingCommand,
   PublicCreateBookingInput
 } from "./v1/booking";
+
+export {
+  cashEntryKindSchema,
+  cashEntryKindValues,
+  cashEntrySchema,
+  cashEntrySourceSchema,
+  cashEntrySourceValues,
+  cashEntryStatusSchema,
+  cashEntryStatusValues
+} from "./v1/cash-entry";
+export type {
+  CashEntry,
+  CashEntryKind,
+  CashEntrySource,
+  CashEntryStatus
+} from "./v1/cash-entry";
 
 export {
   adminReportsReadModelSchema,
