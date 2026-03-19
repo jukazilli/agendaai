@@ -1,5 +1,11 @@
 # Backlog Estruturado por Dependencia
 
+Este backlog continua sendo a linha estrutural de `development`.
+
+O corte derivado de `beta teste` para o `AgendaAI` esta em:
+
+- `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
+
 ## Trilha A - Fundacao de plataforma
 
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto | Evidencia esperada |
@@ -16,13 +22,13 @@
 | 5 | B-05 | Implementar `api-rest` com tenancy | B-02, B-04 | FECHADO | auth, tenant context e CRUD base funcionando | runtime em `services/api-rest` com endpoints e testes |
 | 6 | B-06 | Implementar catalogo, equipe e disponibilidade | B-05 | FECHADO | servicos, profissionais e horarios operando | fluxos API, slots e persistencia em memoria com testes |
 | 7 | B-07 | Implementar booking publico | B-03, B-05, B-06 | FECHADO | jornada publica fecha sem sinal obrigatorio | UI funcional, smoke mobile e testes |
-| 8 | B-08 | Integrar opcao de sinal/pagamento | B-07 | NAO IMPLEMENTADO | reserva com sinal confirmada por provider | webhook e reconciliacao basica |
+| 8 | B-08 | Integrar opcao de sinal/pagamento e configuracao admin | B-07 | PARCIAL | checkout pro com sinal retornando ao booking, reconciliacao basica e configuracao administrativa de cobranca ativa | config admin, payment intent, sync, webhook e `booking-web` integrado; homologacao real e `checkout_transparente` ainda pendentes |
 
 ## Trilha C - Operacao e receita
 
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto | Evidencia esperada |
 | --- | --- | --- | --- | --- | --- | --- |
-| 9 | B-09 | Implementar agenda e dashboard operacional | B-06, B-07 | NAO IMPLEMENTADO | agenda do dia e calendario consultam bookings reais | telas e testes |
+| 9 | B-09 | Implementar agenda e dashboard operacional | B-06, B-07 | PARCIAL | agenda do dia consulta bookings reais e permite confirmar, concluir e cancelar no shell admin com navegacao clara entre dashboard e operacao | filtros operacionais, acoes de booking e leitura derivada de clientes no `admin-web`; shell ainda single-page e calendario mais rico ainda pendentes |
 | 10 | B-10 | Confirmar execucao e reconhecer receita | B-09 | NAO IMPLEMENTADO | atendimento concluido gera reflexo financeiro | transacao e UI operando |
 | 11 | B-11 | Implementar carteira basica de clientes | B-07, B-10 | NAO IMPLEMENTADO | cliente exibe historico e ultima visita | tela e API funcionais |
 | 12 | B-12 | Implementar relatorios essenciais | B-10, B-11 | NAO IMPLEMENTADO | agenda, receita e retorno com filtros basicos | consultas e telas |

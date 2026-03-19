@@ -52,7 +52,7 @@ Frontend:
 - selecao de servico, profissional, data e horario;
 - captura de dados minimos do cliente;
 - confirmacao visual da reserva;
-- resumo fixo mobile-first, com progresso compacto e tratamento explicito para servicos que exigem sinal.
+- wizard mobile-first de 4 etapas, com progresso compacto, resumo inline na etapa final e tratamento explicito para servicos que exigem sinal.
 
 ## 5. Evidencia concreta de conclusao
 

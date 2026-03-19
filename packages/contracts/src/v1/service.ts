@@ -8,6 +8,7 @@ import {
   nonEmptyStringSchema,
   tenantIdSchema
 } from "./shared";
+import { servicePaymentPolicySchema } from "./payment";
 
 export const serviceStatusSchema = nonEmptyStringSchema;
 
@@ -18,6 +19,7 @@ export const serviceSchema = contractEnvelopeSchema.extend({
   duracaoMin: durationMinutesSchema,
   precoBase: moneyAmountSchema,
   exigeSinal: z.boolean(),
+  paymentPolicy: servicePaymentPolicySchema,
   status: serviceStatusSchema
 });
 
@@ -26,7 +28,8 @@ export const createServiceSchema = contractEnvelopeSchema.extend({
   nome: nonEmptyStringSchema,
   duracaoMin: durationMinutesSchema,
   precoBase: moneyAmountSchema,
-  exigeSinal: z.boolean()
+  exigeSinal: z.boolean(),
+  paymentPolicy: servicePaymentPolicySchema.optional()
 });
 
 export type Service = z.infer<typeof serviceSchema>;

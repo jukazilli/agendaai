@@ -61,6 +61,39 @@ export { createServiceSchema, serviceSchema, serviceStatusSchema } from "./v1/se
 export type { CreateServiceCommand, Service } from "./v1/service";
 
 export {
+  createPaymentIntentCommandSchema,
+  currencyIdSchema,
+  currencyIdValues,
+  defaultServicePaymentPolicy,
+  mercadoPagoBackUrlsSchema,
+  paymentChargeTypeSchema,
+  paymentChargeTypeValues,
+  paymentCheckoutModeSchema,
+  paymentCheckoutModeValues,
+  paymentCollectionModeSchema,
+  paymentCollectionModeValues,
+  paymentIntentSchema,
+  paymentIntentStatusSchema,
+  paymentIntentStatusValues,
+  paymentMethodSchema,
+  paymentMethodValues,
+  paymentProviderSchema,
+  paymentProviderStatusSchema,
+  paymentProviderStatusValues,
+  paymentProviderValues,
+  paymentWebhookNotificationSchema,
+  servicePaymentPolicySchema,
+  tenantPaymentSettingsSchema
+} from "./v1/payment";
+export type {
+  CreatePaymentIntentCommand,
+  PaymentIntent,
+  PaymentWebhookNotification,
+  ServicePaymentPolicy,
+  TenantPaymentSettings
+} from "./v1/payment";
+
+export {
   createProfessionalSchema,
   professionalSchema,
   professionalStatusSchema,

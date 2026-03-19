@@ -4,6 +4,7 @@ import test from "node:test";
 import type { FastifyInstance } from "fastify";
 
 import { buildApiRestApp } from "./index";
+import type { MercadoPagoGateway } from "./mercado-pago";
 
 interface OnboardingResult {
   readonly tenant: {
@@ -21,8 +22,10 @@ function authHeaders(token: string) {
   };
 }
 
-async function createApp(): Promise<FastifyInstance> {
-  const app = buildApiRestApp();
+async function createApp(mercadoPagoGateway?: MercadoPagoGateway): Promise<FastifyInstance> {
+  const app = buildApiRestApp({
+    mercadoPagoGateway
+  });
   await app.ready();
   return app;
 }
@@ -105,6 +108,38 @@ async function setAvailability(
 
   assert.equal(response.statusCode, 200);
   return response.json();
+}
+
+function createFakeMercadoPagoGateway(overrides: {
+  createPreference?: (payload: Record<string, unknown>) => {
+    id: string;
+    initPoint?: string;
+    sandboxInitPoint?: string;
+  };
+  getPayment?: (paymentId: string) => {
+    id: string;
+    status: string;
+    statusDetail?: string;
+    externalReference?: string;
+  };
+} = {}): MercadoPagoGateway {
+  return {
+    async createPreference(request) {
+      const payload = request.payload;
+      return overrides.createPreference?.(payload) ?? {
+        id: "pref-test-123",
+        initPoint: "https://mercadopago.test/checkout/pref-test-123",
+        sandboxInitPoint: "https://sandbox.mercadopago.test/checkout/pref-test-123"
+      };
+    },
+    async getPayment(_accessToken, paymentId) {
+      return overrides.getPayment?.(paymentId) ?? {
+        id: paymentId,
+        status: "approved",
+        externalReference: "external-ref"
+      };
+    }
+  };
 }
 
 test("onboarding emite sessao admin e lookup publico por slug", async () => {
@@ -360,6 +395,29 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
     });
     assert.equal(bookingList.statusCode, 200);
     assert.equal(bookingList.json().items.length, 1);
+
+    const bookingCancel = await app.inject({
+      method: "PATCH",
+      url: `/v1/admin/bookings/${booking.id}`,
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "cancelado"
+      }
+    });
+    assert.equal(bookingCancel.statusCode, 200);
+    assert.equal(bookingCancel.json().status, "cancelado");
+
+    const publicAvailabilityAfterCancel = await app.inject({
+      method: "GET",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/availability?serviceId=${service.id}&professionalId=${professional.id}&date=2026-03-20`
+    });
+    assert.equal(publicAvailabilityAfterCancel.statusCode, 200);
+    assert.equal(
+      publicAvailabilityAfterCancel
+        .json()
+        .items.some((slot: { startTime: string }) => slot.startTime === "13:00"),
+      true
+    );
   } finally {
     await app.close();
   }
@@ -449,6 +507,309 @@ test("booking publico confirma servico sem sinal e bloqueia servico com pagament
 
     assert.equal(blockedResponse.statusCode, 409);
     assert.equal(blockedResponse.json().error, "payment_required");
+  } finally {
+    await app.close();
+  }
+});
+
+test("admin configura Mercado Pago e politica de cobranca por servico", async () => {
+  const app = await createApp();
+
+  try {
+    const onboarding = await onboardTenant(app, "pagamentos");
+
+    const paymentSettingsResponse = await app.inject({
+      method: "PUT",
+      url: "/v1/admin/payment-settings",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "active",
+        checkoutMode: "checkout_pro",
+        publicKey: "APP_USR-public-key",
+        accessToken: "APP_USR-access-token",
+        notificationUrl: "https://agendaai.test/api/webhooks/mercado-pago",
+        backUrls: {
+          success: "https://agendaai.test/app/pagamentos/sucesso",
+          pending: "https://agendaai.test/app/pagamentos/pendente",
+          failure: "https://agendaai.test/app/pagamentos/falha"
+        },
+        autoReturn: "approved",
+        binaryMode: true,
+        defaultInstallments: 1,
+        expirationMinutes: 60
+      }
+    });
+
+    assert.equal(paymentSettingsResponse.statusCode, 200);
+    assert.equal(paymentSettingsResponse.json().provider, "mercado_pago");
+    assert.equal(paymentSettingsResponse.json().checkoutMode, "checkout_pro");
+
+    const paymentSettingsRead = await app.inject({
+      method: "GET",
+      url: "/v1/admin/payment-settings",
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(paymentSettingsRead.statusCode, 200);
+    assert.equal(paymentSettingsRead.json().item.status, "active");
+    assert.equal(paymentSettingsRead.json().item.notificationUrl.includes("mercado-pago"), true);
+
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Combo Glow",
+      paymentPolicy: {
+        collectionMode: "deposit",
+        checkoutMode: "checkout_pro",
+        chargeType: "percentage",
+        percentage: 30,
+        currencyId: "BRL",
+        acceptedMethods: ["pix", "credit_card"],
+        maxInstallments: 1,
+        capture: true,
+        expirationMinutes: 45
+      }
+    });
+
+    assert.equal(service.exigeSinal, true);
+    assert.equal(service.paymentPolicy.collectionMode, "deposit");
+    assert.equal(service.paymentPolicy.percentage, 30);
+
+    const serviceRead = await app.inject({
+      method: "GET",
+      url: `/v1/admin/services/${service.id}`,
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(serviceRead.statusCode, 200);
+    assert.equal(serviceRead.json().paymentPolicy.collectionMode, "deposit");
+    assert.equal(serviceRead.json().paymentPolicy.checkoutMode, "checkout_pro");
+  } finally {
+    await app.close();
+  }
+});
+
+test("payment intent publica cria booking aguardando pagamento e retorna checkout pro", async () => {
+  const app = await createApp(
+    createFakeMercadoPagoGateway({
+      createPreference(payload) {
+        const metadata = payload.metadata as Record<string, string>;
+        assert.equal(metadata.slug, "tenant-checkout");
+        return {
+          id: "pref-checkout-001",
+          initPoint: "https://mercadopago.test/checkout/pref-checkout-001",
+          sandboxInitPoint: "https://sandbox.mercadopago.test/checkout/pref-checkout-001"
+        };
+      }
+    })
+  );
+
+  try {
+    const onboarding = await onboardTenant(app, "checkout");
+
+    const paymentSettingsResponse = await app.inject({
+      method: "PUT",
+      url: "/v1/admin/payment-settings",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "active",
+        checkoutMode: "checkout_pro",
+        publicKey: "APP_USR-public-key",
+        accessToken: "APP_USR-access-token",
+        notificationUrl: "https://agendaai.test/api/webhooks/mercado-pago",
+        backUrls: {
+          success: "https://agendaai.test/tenant-checkout",
+          pending: "https://agendaai.test/tenant-checkout",
+          failure: "https://agendaai.test/tenant-checkout"
+        },
+        autoReturn: "approved",
+        binaryMode: true,
+        defaultInstallments: 1,
+        expirationMinutes: 45
+      }
+    });
+    assert.equal(paymentSettingsResponse.statusCode, 200);
+
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Coloracao Premium",
+      duracaoMin: 60,
+      precoBase: 180,
+      paymentPolicy: {
+        collectionMode: "deposit",
+        checkoutMode: "checkout_pro",
+        chargeType: "percentage",
+        percentage: 30,
+        currencyId: "BRL",
+        acceptedMethods: ["pix", "credit_card"],
+        capture: true
+      }
+    });
+
+    const professional = await createProfessional(app, onboarding.session.token, [service.id], {
+      nome: "Ana Lima"
+    });
+
+    await setAvailability(app, onboarding.session.token, professional.id, [
+      {
+        weekday: 5,
+        faixa: {
+          startTime: "09:00",
+          endTime: "12:00"
+        }
+      }
+    ]);
+
+    const response = await app.inject({
+      method: "POST",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/payment-intents`,
+      payload: {
+        serviceId: service.id,
+        professionalId: professional.id,
+        startAt: "2026-03-20T09:00:00-03:00",
+        endAt: "2026-03-20T10:00:00-03:00",
+        client: {
+          nome: "Julia Ramos",
+          telefone: "11977776666",
+          email: "julia@agendaai.test",
+          origem: "instagram"
+        }
+      }
+    });
+
+    assert.equal(response.statusCode, 201);
+    const payload = response.json();
+    assert.equal(payload.booking.status, "aguardando pagamento");
+    assert.equal(payload.paymentIntent.preferenceId, "pref-checkout-001");
+    assert.equal(
+      payload.paymentIntent.initPoint,
+      "https://mercadopago.test/checkout/pref-checkout-001"
+    );
+  } finally {
+    await app.close();
+  }
+});
+
+test("sync e webhook reconciliam pagamento aprovado e confirmam booking", async () => {
+  let externalReference = "";
+
+  const app = await createApp(
+    createFakeMercadoPagoGateway({
+      createPreference(payload) {
+        externalReference = String(payload.external_reference);
+        return {
+          id: "pref-checkout-002",
+          initPoint: "https://mercadopago.test/checkout/pref-checkout-002"
+        };
+      },
+      getPayment(paymentId) {
+        return {
+          id: paymentId,
+          status: "approved",
+          externalReference
+        };
+      }
+    })
+  );
+
+  try {
+    const onboarding = await onboardTenant(app, "checkout-sync");
+
+    await app.inject({
+      method: "PUT",
+      url: "/v1/admin/payment-settings",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        status: "active",
+        checkoutMode: "checkout_pro",
+        publicKey: "APP_USR-public-key",
+        accessToken: "APP_USR-access-token",
+        notificationUrl: "https://agendaai.test/api/webhooks/mercado-pago",
+        backUrls: {
+          success: "https://agendaai.test/tenant-checkout-sync",
+          pending: "https://agendaai.test/tenant-checkout-sync",
+          failure: "https://agendaai.test/tenant-checkout-sync"
+        },
+        autoReturn: "approved",
+        binaryMode: true,
+        defaultInstallments: 1,
+        expirationMinutes: 45
+      }
+    });
+
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Escova Glow",
+      duracaoMin: 45,
+      precoBase: 120,
+      paymentPolicy: {
+        collectionMode: "deposit",
+        checkoutMode: "checkout_pro",
+        chargeType: "percentage",
+        percentage: 50,
+        currencyId: "BRL",
+        acceptedMethods: ["pix"],
+        capture: true
+      }
+    });
+
+    const professional = await createProfessional(app, onboarding.session.token, [service.id], {
+      nome: "Bianca"
+    });
+
+    await setAvailability(app, onboarding.session.token, professional.id, [
+      {
+        weekday: 5,
+        faixa: {
+          startTime: "10:00",
+          endTime: "13:00"
+        }
+      }
+    ]);
+
+    const paymentIntentResponse = await app.inject({
+      method: "POST",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/payment-intents`,
+      payload: {
+        serviceId: service.id,
+        professionalId: professional.id,
+        startAt: "2026-03-20T10:00:00-03:00",
+        endAt: "2026-03-20T10:45:00-03:00",
+        client: {
+          nome: "Paula Gomes",
+          telefone: "11966665555",
+          email: "paula@agendaai.test",
+          origem: "google"
+        }
+      }
+    });
+
+    assert.equal(paymentIntentResponse.statusCode, 201);
+    const created = paymentIntentResponse.json();
+
+    const syncResponse = await app.inject({
+      method: "POST",
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/payment-intents/${created.paymentIntent.id}/sync`,
+      payload: {
+        paymentId: "payment-123"
+      }
+    });
+
+    assert.equal(syncResponse.statusCode, 200);
+    assert.equal(syncResponse.json().item.status, "approved");
+    assert.equal(syncResponse.json().booking.status, "confirmado");
+
+    const webhookResponse = await app.inject({
+      method: "POST",
+      url: `/v1/webhooks/mercado-pago?tenantId=${onboarding.tenant.id}&paymentIntentId=${created.paymentIntent.id}`,
+      payload: {
+        action: "payment.updated",
+        data: {
+          id: "payment-123"
+        },
+        id: "webhook-1",
+        type: "payment"
+      }
+    });
+
+    assert.equal(webhookResponse.statusCode, 200);
+    assert.equal(webhookResponse.json().item.status, "approved");
   } finally {
     await app.close();
   }

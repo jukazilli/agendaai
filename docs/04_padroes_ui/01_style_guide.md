@@ -177,7 +177,7 @@ Usar `Bodoni Moda` para presenca editorial calma em capas e aberturas. Usar `Man
 
 ## 15. Diretrizes para produto
 
-- booking deve ser leve, com progresso visivel e resumo fixo;
+- booking deve ser leve, com progresso visivel e resumo sempre acessivel; no mobile, preferir wizard guiado com resumo inline na etapa final;
 - admin deve priorizar filtros, agenda e drawer de contexto;
 - financeiro deve usar cor de acento com moderacao;
 - CRM deve destacar frequencia, retorno e risco.

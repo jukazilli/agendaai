@@ -27,9 +27,9 @@ Este termo permanece como retrato da saida da fase documental, nao como espelho 
 Estado atual resumido:
 
 - backend real existe em `services/api-rest`;
-- `booking-web` e `admin-web` existem como superficies buildaveis, mas ainda parciais;
-- `B-01` a `B-06` estao fechados no backlog oficial;
-- o proximo gargalo real do produto e `B-07`.
+- `booking-web` ja fecha `B-07` e `admin-web` agora opera a primeira fatia real de `B-09`;
+- `B-01` a `B-07` estao fechados no backlog oficial;
+- `B-08` segue parcial e o proximo gargalo combinado passa a ser sua homologacao real, seguida do reflexo financeiro de `B-10`.
 
 ## Decisao
 

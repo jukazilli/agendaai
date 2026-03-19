@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+
+import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 
 import {
@@ -9,8 +12,15 @@ import {
   createProfessionalSchema,
   createServiceSchema,
   createTenantSchema,
+  paymentWebhookNotificationSchema,
   publicCreateBookingInputSchema,
-  setAvailabilityRulesSchema
+  servicePaymentPolicySchema,
+  setAvailabilityRulesSchema,
+  tenantPaymentSettingsSchema,
+  type Booking,
+  type PaymentIntent,
+  type Service,
+  type TenantPaymentSettings
 } from "@agendaai/contracts";
 
 import {
@@ -21,6 +31,11 @@ import {
   type ProfessionalPatchInput,
   type ServicePatchInput
 } from "./store";
+import {
+  createMercadoPagoGateway,
+  MercadoPagoApiError,
+  type MercadoPagoGateway
+} from "./mercado-pago";
 import { createConfiguredStore } from "./postgres-store";
 
 declare module "fastify" {
@@ -32,6 +47,7 @@ declare module "fastify" {
 export interface BuildApiRestAppOptions {
   readonly logger?: boolean;
   readonly store?: ApiRestStorePort;
+  readonly mercadoPagoGateway?: MercadoPagoGateway;
 }
 
 class ApiHttpError extends Error {
@@ -50,7 +66,14 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     logger: options.logger ?? false
   });
 
+  void app.register(cors, {
+    origin: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["content-type", "authorization"]
+  });
+
   const store = options.store ?? createConfiguredStore();
+  const mercadoPagoGateway = options.mercadoPagoGateway ?? createMercadoPagoGateway();
 
   app.setErrorHandler((error, _request, reply) => {
     const runtimeError = asErrorLike(error);
@@ -67,6 +90,14 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     if (runtimeError instanceof ApiHttpError) {
       reply.status(runtimeError.statusCode).send({
         error: runtimeError.code,
+        message: runtimeError.message
+      });
+      return;
+    }
+
+    if (runtimeError instanceof MercadoPagoApiError) {
+      reply.status(502).send({
+        error: "mercado_pago_error",
         message: runtimeError.message
       });
       return;
@@ -115,6 +146,38 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       reply.status(409).send({
         error: "payment_required",
         message: "This service requires deposit payment before online confirmation."
+      });
+      return;
+    }
+
+    if (runtimeError.message === "payment_not_required") {
+      reply.status(409).send({
+        error: "payment_not_required",
+        message: "This service does not require online payment before confirmation."
+      });
+      return;
+    }
+
+    if (runtimeError.message === "payment_settings_inactive") {
+      reply.status(409).send({
+        error: "payment_settings_inactive",
+        message: "Payment settings are not active for this tenant."
+      });
+      return;
+    }
+
+    if (runtimeError.message === "payment_checkout_mode_not_supported") {
+      reply.status(409).send({
+        error: "payment_checkout_mode_not_supported",
+        message: "This checkout mode is not available in the current public booking flow."
+      });
+      return;
+    }
+
+    if (runtimeError.message === "payment_intent_not_found") {
+      reply.status(404).send({
+        error: "payment_intent_not_found",
+        message: "Payment intent was not found for this tenant."
       });
       return;
     }
@@ -254,6 +317,149 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     return result;
   });
 
+  app.post("/v1/public/tenants/:slug/payment-intents", async (request, reply) => {
+    const slug = readRequiredString((request.params as Record<string, unknown>).slug, "slug");
+    const body = requireRecord(request.body);
+    const command = publicCreateBookingInputSchema.parse({
+      ...body,
+      version: contractVersion,
+      slug
+    });
+
+    const bookingContext = await store.createPublicPaymentBooking(command);
+    const paymentSettings = await store.getPaymentSettings(bookingContext.booking.tenantId);
+    assertActivePaymentSettings(paymentSettings);
+
+    const checkoutMode =
+      bookingContext.service.paymentPolicy.checkoutMode ?? paymentSettings.checkoutMode;
+    if (checkoutMode !== "checkout_pro") {
+      await store.updateBooking(bookingContext.booking.tenantId, bookingContext.booking.id, {
+        status: "cancelado"
+      });
+      throw new Error("payment_checkout_mode_not_supported");
+    }
+
+    const paymentIntentId = randomUUID();
+    const externalReference = buildExternalReference(
+      bookingContext.booking.tenantId,
+      bookingContext.booking.id,
+      paymentIntentId
+    );
+    const amount = resolvePaymentAmount(bookingContext.service);
+    const notificationUrl = appendQueryParams(paymentSettings.notificationUrl as string, {
+      tenantId: bookingContext.booking.tenantId,
+      slug,
+      paymentIntentId
+    });
+    const backUrls = buildCheckoutBackUrls(paymentSettings, {
+      slug,
+      bookingId: bookingContext.booking.id,
+      paymentIntentId
+    });
+
+    try {
+      const preference = await mercadoPagoGateway.createPreference({
+        accessToken: paymentSettings.accessToken as string,
+        payload: buildCheckoutPreferencePayload({
+          slug,
+          paymentIntentId,
+          bookingContext,
+          paymentSettings,
+          notificationUrl,
+          backUrls,
+          externalReference,
+          amount
+        })
+      });
+
+      const paymentIntent = await store.recordPaymentIntent({
+        version: contractVersion,
+        id: paymentIntentId,
+        tenantId: bookingContext.booking.tenantId,
+        bookingId: bookingContext.booking.id,
+        provider: "mercado_pago",
+        checkoutMode,
+        amount,
+        currencyId: bookingContext.service.paymentPolicy.currencyId,
+        externalReference,
+        description: `${bookingContext.service.nome} - ${bookingContext.tenant.nome}`,
+        capture: bookingContext.service.paymentPolicy.capture,
+        notificationUrl,
+        installments:
+          bookingContext.service.paymentPolicy.maxInstallments ??
+          paymentSettings.defaultInstallments,
+        payer: buildPayer(bookingContext.client.nome, bookingContext.client.email),
+        metadata: {
+          tenantId: bookingContext.booking.tenantId,
+          slug,
+          bookingId: bookingContext.booking.id,
+          serviceId: bookingContext.service.id,
+          professionalId: bookingContext.professional.id,
+          clientId: bookingContext.client.id
+        },
+        status: "pending",
+        preferenceId: preference.id,
+        initPoint: preference.initPoint,
+        sandboxInitPoint: preference.sandboxInitPoint
+      });
+
+      reply.status(201);
+      return {
+        ...bookingContext,
+        paymentIntent
+      };
+    } catch (error) {
+      await store.updateBooking(bookingContext.booking.tenantId, bookingContext.booking.id, {
+        status: "cancelado"
+      });
+      throw error;
+    }
+  });
+
+  app.get("/v1/public/tenants/:slug/payment-intents/:paymentIntentId", async (request) => {
+    const params = request.params as Record<string, unknown>;
+    const slug = readRequiredString(params.slug, "slug");
+    const paymentIntentId = readRequiredString(params.paymentIntentId, "paymentIntentId");
+    return await readPublicPaymentIntentState(store, slug, paymentIntentId);
+  });
+
+  app.post(
+    "/v1/public/tenants/:slug/payment-intents/:paymentIntentId/sync",
+    async (request) => {
+      const params = request.params as Record<string, unknown>;
+      const slug = readRequiredString(params.slug, "slug");
+      const paymentIntentId = readRequiredString(params.paymentIntentId, "paymentIntentId");
+      const body = request.body ? requireRecord(request.body) : {};
+      const paymentId =
+        "paymentId" in body ? readRequiredString(body.paymentId, "paymentId") : undefined;
+
+      return await syncPublicPaymentIntent(store, mercadoPagoGateway, slug, paymentIntentId, paymentId);
+    }
+  );
+
+  app.post("/v1/webhooks/mercado-pago", async (request) => {
+    const body = request.body ? requireRecord(request.body) : {};
+    const notification = paymentWebhookNotificationSchema.parse(body);
+    if (notification.type !== "payment") {
+      return {
+        acknowledged: true
+      };
+    }
+
+    const query = (request.query ?? {}) as Record<string, unknown>;
+    const tenantId = readRequiredString(query.tenantId, "tenantId");
+    const paymentIntentId = readRequiredString(query.paymentIntentId, "paymentIntentId");
+    const paymentSettings = await store.getPaymentSettings(tenantId);
+    assertActivePaymentSettings(paymentSettings);
+
+    const payment = await mercadoPagoGateway.getPayment(
+      paymentSettings.accessToken as string,
+      notification.data.id
+    );
+
+    return await reconcilePaymentState(store, tenantId, paymentIntentId, payment);
+  });
+
   app.register(
     async (adminRoutes) => {
       adminRoutes.addHook("preHandler", async (request, reply) => {
@@ -283,6 +489,20 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         }
 
         return tenant;
+      });
+
+      adminRoutes.get("/payment-settings", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          item: await store.getPaymentSettings(claims.tenantId)
+        };
+      });
+
+      adminRoutes.put("/payment-settings", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const body = requireRecord(request.body);
+        const command = createTenantPaymentSettings(body, claims.tenantId);
+        return await store.upsertPaymentSettings(command);
       });
 
       adminRoutes.patch("/tenant/slug", async (request) => {
@@ -692,6 +912,9 @@ function parseServicePatch(payload: Record<string, unknown>): ServicePatchInput 
   if ("exigeSinal" in payload) {
     patch.exigeSinal = readBoolean(payload.exigeSinal, "exigeSinal");
   }
+  if ("paymentPolicy" in payload) {
+    patch.paymentPolicy = servicePaymentPolicySchema.parse(payload.paymentPolicy);
+  }
   if ("status" in payload) {
     patch.status = readRequiredString(payload.status, "status");
   }
@@ -826,6 +1049,300 @@ function readBookingStatus(
   }
 
   return candidate as BookingPatchInput["status"];
+}
+
+function createTenantPaymentSettings(
+  payload: Record<string, unknown>,
+  tenantId: string
+) {
+  return tenantPaymentSettingsSchema.parse({
+    ...payload,
+    version: contractVersion,
+    tenantId,
+    provider: "mercado_pago"
+  });
+}
+
+function assertActivePaymentSettings(
+  paymentSettings?: TenantPaymentSettings
+): asserts paymentSettings is TenantPaymentSettings {
+  if (
+    !paymentSettings ||
+    paymentSettings.status !== "active" ||
+    !paymentSettings.accessToken ||
+    !paymentSettings.notificationUrl ||
+    !paymentSettings.backUrls
+  ) {
+    throw new Error("payment_settings_inactive");
+  }
+}
+
+function buildExternalReference(tenantId: string, bookingId: string, paymentIntentId: string): string {
+  return `agendaai:${tenantId}:${bookingId}:${paymentIntentId}`;
+}
+
+function resolvePaymentAmount(service: Service): number {
+  const policy = service.paymentPolicy;
+  if (policy.collectionMode === "none") {
+    throw new Error("payment_not_required");
+  }
+
+  if (policy.chargeType === "fixed" && policy.fixedAmount !== undefined) {
+    return roundCurrency(policy.fixedAmount);
+  }
+
+  const percentage = policy.percentage ?? (policy.collectionMode === "full" ? 100 : 30);
+  return roundCurrency((service.precoBase * percentage) / 100);
+}
+
+function buildCheckoutBackUrls(
+  paymentSettings: TenantPaymentSettings,
+  params: Record<string, string>
+) {
+  if (!paymentSettings.backUrls) {
+    throw new Error("payment_settings_inactive");
+  }
+
+  const backUrls = paymentSettings.backUrls;
+  return {
+    success: appendQueryParams(backUrls.success, params),
+    pending: appendQueryParams(backUrls.pending, params),
+    failure: appendQueryParams(backUrls.failure, params)
+  };
+}
+
+function appendQueryParams(baseUrl: string, params: Record<string, string>): string {
+  const url = new URL(baseUrl);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
+}
+
+function buildCheckoutPreferencePayload(input: {
+  slug: string;
+  paymentIntentId: string;
+  bookingContext: {
+    tenant: { slug: string; nome: string; timezone: string };
+    client: { id: string; nome: string; email: string };
+    service: Service;
+    professional: { id: string; nome: string };
+    booking: Booking;
+  };
+  paymentSettings: TenantPaymentSettings;
+  notificationUrl: string;
+  backUrls: {
+    success: string;
+    pending: string;
+    failure: string;
+  };
+  externalReference: string;
+  amount: number;
+}): Record<string, unknown> {
+  const { firstName, lastName } = splitName(input.bookingContext.client.nome);
+  const policy = input.bookingContext.service.paymentPolicy;
+  const expirationMinutes =
+    policy.expirationMinutes ?? input.paymentSettings.expirationMinutes ?? 60;
+  const expirationDate = new Date(Date.now() + expirationMinutes * 60_000).toISOString();
+
+  return {
+    items: [
+      {
+        id: input.bookingContext.service.id,
+        title: input.bookingContext.service.nome,
+        description: `${input.bookingContext.tenant.nome} / ${input.bookingContext.professional.nome}`,
+        quantity: 1,
+        currency_id: policy.currencyId,
+        unit_price: input.amount
+      }
+    ],
+    payer: {
+      email: input.bookingContext.client.email,
+      name: firstName,
+      surname: lastName
+    },
+    external_reference: input.externalReference,
+    notification_url: input.notificationUrl,
+    back_urls: input.backUrls,
+    auto_return: input.paymentSettings.autoReturn ?? "approved",
+    binary_mode: input.paymentSettings.binaryMode,
+    statement_descriptor: input.paymentSettings.statementDescriptor,
+    sponsor_id: input.paymentSettings.sponsorId,
+    expires: true,
+    expiration_date_to: expirationDate,
+    metadata: {
+      slug: input.slug,
+      paymentIntentId: input.paymentIntentId,
+      bookingId: input.bookingContext.booking.id,
+      tenantId: input.bookingContext.booking.tenantId,
+      clientId: input.bookingContext.client.id,
+      serviceId: input.bookingContext.service.id,
+      professionalId: input.bookingContext.professional.id
+    }
+  };
+}
+
+function buildPayer(name: string, email: string): PaymentIntent["payer"] {
+  const { firstName, lastName } = splitName(name);
+  return {
+    email,
+    firstName,
+    lastName
+  };
+}
+
+async function readPublicPaymentIntentState(
+  store: ApiRestStorePort,
+  slug: string,
+  paymentIntentId: string
+) {
+  const tenant = await store.getTenantBySlug(slug);
+  if (!tenant) {
+    throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
+  }
+
+  const paymentIntent = await store.getPaymentIntent(tenant.id, paymentIntentId);
+  if (!paymentIntent) {
+    throw new Error("payment_intent_not_found");
+  }
+
+  const booking = await store.getBooking(tenant.id, paymentIntent.bookingId);
+  if (!booking) {
+    throw new ApiHttpError(404, "booking_not_found", "Booking was not found for this payment.");
+  }
+
+  return {
+    item: paymentIntent,
+    booking
+  };
+}
+
+async function syncPublicPaymentIntent(
+  store: ApiRestStorePort,
+  mercadoPagoGateway: MercadoPagoGateway,
+  slug: string,
+  paymentIntentId: string,
+  paymentId?: string
+) {
+  const tenant = await store.getTenantBySlug(slug);
+  if (!tenant) {
+    throw new ApiHttpError(404, "tenant_not_found", "Tenant slug was not found.");
+  }
+
+  const paymentIntent = await store.getPaymentIntent(tenant.id, paymentIntentId);
+  if (!paymentIntent) {
+    throw new Error("payment_intent_not_found");
+  }
+
+  if (!paymentId && !paymentIntent.paymentId) {
+    return await readPublicPaymentIntentState(store, slug, paymentIntentId);
+  }
+
+  const paymentSettings = await store.getPaymentSettings(tenant.id);
+  assertActivePaymentSettings(paymentSettings);
+
+  const payment = await mercadoPagoGateway.getPayment(
+    paymentSettings.accessToken as string,
+    paymentId ?? (paymentIntent.paymentId as string)
+  );
+
+  return await reconcilePaymentState(store, tenant.id, paymentIntentId, payment);
+}
+
+async function reconcilePaymentState(
+  store: ApiRestStorePort,
+  tenantId: string,
+  paymentIntentId: string,
+  payment: {
+    id: string;
+    status: string;
+    statusDetail?: string;
+    externalReference?: string;
+  }
+) {
+  const paymentIntent = await store.getPaymentIntent(tenantId, paymentIntentId);
+  if (!paymentIntent) {
+    throw new Error("payment_intent_not_found");
+  }
+
+  if (
+    payment.externalReference &&
+    payment.externalReference !== paymentIntent.externalReference
+  ) {
+    throw new ApiHttpError(409, "payment_reference_mismatch", "Payment reference does not match.");
+  }
+
+  const nextPaymentIntent = await store.updatePaymentIntent(tenantId, paymentIntentId, {
+    paymentId: payment.id,
+    status: mapMercadoPagoStatusToIntentStatus(payment.status),
+    statusDetail: payment.statusDetail
+  });
+
+  const nextBooking = await store.updateBooking(tenantId, paymentIntent.bookingId, {
+    status: mapMercadoPagoStatusToBookingStatus(payment.status)
+  });
+
+  return {
+    item: nextPaymentIntent,
+    booking: nextBooking
+  };
+}
+
+function mapMercadoPagoStatusToIntentStatus(status: string): PaymentIntent["status"] {
+  const normalizedStatus = status.trim().toLowerCase();
+  switch (normalizedStatus) {
+    case "approved":
+      return "approved";
+    case "authorized":
+      return "authorized";
+    case "in_process":
+      return "in_process";
+    case "in_mediation":
+      return "in_mediation";
+    case "rejected":
+      return "rejected";
+    case "cancelled":
+      return "cancelled";
+    case "refunded":
+      return "refunded";
+    case "charged_back":
+      return "charged_back";
+    case "expired":
+      return "expired";
+    default:
+      return "pending";
+  }
+}
+
+function mapMercadoPagoStatusToBookingStatus(status: string): Booking["status"] {
+  const normalizedStatus = status.trim().toLowerCase();
+  switch (normalizedStatus) {
+    case "approved":
+    case "authorized":
+      return "confirmado";
+    case "rejected":
+    case "cancelled":
+    case "expired":
+      return "cancelado";
+    default:
+      return "aguardando pagamento";
+  }
+}
+
+function splitName(value: string): { firstName?: string; lastName?: string } {
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return {};
+  }
+
+  return {
+    firstName: parts[0],
+    lastName: parts.length > 1 ? parts.slice(1).join(" ") : undefined
+  };
+}
+
+function roundCurrency(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function requireNonEmptyPatch<T extends object>(patch: T, entityName: string): T {

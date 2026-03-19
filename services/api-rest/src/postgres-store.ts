@@ -5,6 +5,7 @@ import type {
   ClientContactInput,
   ConfigureTenantSlugCommand,
   CreateBookingCommand,
+  TenantPaymentSettings,
   CreateProfessionalCommand,
   CreateServiceCommand,
   CreateTenantCommand,
@@ -18,6 +19,7 @@ import {
   type ApiRestStoreSnapshot,
   type BookingPatchInput,
   type ClientPatchInput,
+  type PaymentIntentPatchInput,
   type ProfessionalPatchInput,
   type PublicAvailabilitySlot,
   type PublicBookingResult,
@@ -133,6 +135,46 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     const deleted = this.store.deleteService(tenantId, serviceId);
     await this.persistSnapshot();
     return deleted;
+  }
+
+  async getPaymentSettings(tenantId: string) {
+    await this.ensureReady();
+    return this.store.getPaymentSettings(tenantId);
+  }
+
+  async upsertPaymentSettings(command: TenantPaymentSettings) {
+    await this.ensureReady();
+    const settings = this.store.upsertPaymentSettings(command);
+    await this.persistSnapshot();
+    return settings;
+  }
+
+  async recordPaymentIntent(intent: import("@agendaai/contracts").PaymentIntent) {
+    await this.ensureReady();
+    const paymentIntent = this.store.recordPaymentIntent(intent);
+    await this.persistSnapshot();
+    return paymentIntent;
+  }
+
+  async getPaymentIntent(tenantId: string, paymentIntentId: string) {
+    await this.ensureReady();
+    return this.store.getPaymentIntent(tenantId, paymentIntentId);
+  }
+
+  async getPaymentIntentByExternalReference(tenantId: string, externalReference: string) {
+    await this.ensureReady();
+    return this.store.getPaymentIntentByExternalReference(tenantId, externalReference);
+  }
+
+  async updatePaymentIntent(
+    tenantId: string,
+    paymentIntentId: string,
+    patch: PaymentIntentPatchInput
+  ) {
+    await this.ensureReady();
+    const paymentIntent = this.store.updatePaymentIntent(tenantId, paymentIntentId, patch);
+    await this.persistSnapshot();
+    return paymentIntent;
   }
 
   async listClients(tenantId: string) {
@@ -271,6 +313,13 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return result;
   }
 
+  async createPublicPaymentBooking(input: PublicCreateBookingInput): Promise<PublicBookingResult> {
+    await this.ensureReady();
+    const result = this.store.createPublicPaymentBooking(input);
+    await this.persistSnapshot();
+    return result;
+  }
+
   private async ensureReady(): Promise<void> {
     await this.readyPromise;
   }
@@ -323,6 +372,8 @@ function emptySnapshot(): ApiRestStoreSnapshot {
     tenants: [],
     adminUsers: [],
     services: [],
+    paymentSettings: [],
+    paymentIntents: [],
     clients: [],
     professionals: [],
     availabilityRules: [],

@@ -4,7 +4,7 @@
 
 | Integracao | Objetivo | Direcao | Fase | Observacao |
 | --- | --- | --- | --- | --- |
-| Provedor de pagamento | sinal e confirmacao de reserva | bidirecional | MVP | provider ainda pendente |
+| Mercado Pago | sinal e pagamento antecipado via Checkout Pro ou Checkout Transparente | bidirecional | MVP | provider inicial adotado para a fundacao de `B-08`; falta chamada real e webhook |
 | WhatsApp/SMS | confirmacoes e lembretes | saida | MVP | provider ainda pendente |
 | E-mail transacional | onboarding e comprovantes | saida | MVP | simples e desacoplado |
 | Google Calendar | sincronizar compromissos | bidirecional controlada | Pos-MVP inicial | comecar com sync unidirecional se necessario |
@@ -17,6 +17,8 @@
 - `service.created`
 - `availability.updated`
 - `booking.created`
+- `payment.intent_created`
+- `payment.notification_received`
 - `booking.payment_confirmed`
 - `booking.confirmed`
 - `booking.completed`
@@ -29,4 +31,5 @@
 - providers externos entram por adaptadores;
 - payloads precisam carregar `tenantId`;
 - eventos criticos precisam ser idempotentes;
+- configuracao do provider entra pela visao administrativa e pela trilha de implantacao;
 - falha em notificacao nao pode corromper booking transacional.

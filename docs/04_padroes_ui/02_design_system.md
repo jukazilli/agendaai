@@ -76,7 +76,7 @@ Regra:
 
 ## 8. Grid e layout
 
-- layout publico: coluna unica com resumo fixo
+- layout publico: coluna unica com stepper guiado e resumo fixo ou inline conforme a densidade do viewport
 - layout admin: sidebar + top actions + area de trabalho
 - calendario: vista responsiva com foco em dia, semana e profissional
 - listagens: filtros persistentes, tabela com colunas principais e drawer lateral

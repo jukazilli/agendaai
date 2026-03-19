@@ -1,4 +1,4 @@
-import type { Booking, Client, Professional, Service } from "@agendaai/contracts";
+import type { Booking, Client, PaymentIntent, Professional, Service } from "@agendaai/contracts";
 
 const DEFAULT_API_BASE_URL = "http://127.0.0.1:3333";
 
@@ -27,6 +27,15 @@ export interface PublicBookingResponse {
   readonly client: Client;
   readonly service: Service;
   readonly professional: Professional;
+  readonly booking: Booking;
+}
+
+export interface PublicPaymentIntentResponse extends PublicBookingResponse {
+  readonly paymentIntent: PaymentIntent;
+}
+
+export interface PublicPaymentIntentStateResponse {
+  readonly item: PaymentIntent;
   readonly booking: Booking;
 }
 

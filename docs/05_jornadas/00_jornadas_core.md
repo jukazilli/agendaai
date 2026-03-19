@@ -6,13 +6,13 @@
 - Passos: criar conta -> validar email -> criar tenant -> definir nome e slug
 - Validacoes: slug unica, senha forte, termos aceitos
 - Reflexos: tenant criada, admin vinculado, contexto inicial habilitado
-- Criterio de conclusao: negocio entra no dashboard pela primeira vez
+- Criterio de conclusao: negocio entra na visao administrativa pela primeira vez, com trilha de implantacao aberta
 
 ## J-02 Configuracao operacional
 
 - Entrada: dashboard inicial
-- Passos: cadastrar servicos -> cadastrar profissionais -> definir horarios -> publicar slug
-- Validacoes: servico com duracao, profissional com disponibilidade, agenda sem conflito
+- Passos: configurar slug e branding -> conectar pagamento quando houver sinal -> cadastrar servicos, produtos, kits e combos -> cadastrar profissionais -> definir horarios -> publicar slug
+- Validacoes: item comercial com duracao e preco quando aplicavel, politica de cobranca coerente, profissional com disponibilidade, agenda sem conflito
 - Reflexos: tenant apto para receber booking
 - Criterio de conclusao: pagina publica operacional
 

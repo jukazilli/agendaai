@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 
+import { defaultServicePaymentPolicy } from "@agendaai/contracts";
 import type {
   AdminSessionClaimsContract,
   AdminUser,
@@ -12,6 +13,9 @@ import type {
   CreateBookingCommand,
   PublicCreateBookingInput,
   CreateProfessionalCommand,
+  PaymentIntent,
+  ServicePaymentPolicy,
+  TenantPaymentSettings,
   CreateServiceCommand,
   CreateTenantCommand,
   Professional,
@@ -52,6 +56,10 @@ export interface PublicBookingResult {
   readonly booking: Booking;
 }
 
+export interface PublicPaymentIntentResult extends PublicBookingResult {
+  readonly paymentIntent: PaymentIntent;
+}
+
 export type MaybePromise<T> = T | Promise<T>;
 
 export interface ServicePatchInput {
@@ -59,6 +67,7 @@ export interface ServicePatchInput {
   duracaoMin?: number;
   precoBase?: number;
   exigeSinal?: boolean;
+  paymentPolicy?: ServicePaymentPolicy;
   status?: string;
 }
 
@@ -84,6 +93,15 @@ export interface BookingPatchInput {
   endAt?: string;
 }
 
+export interface PaymentIntentPatchInput {
+  status?: PaymentIntent["status"];
+  statusDetail?: string;
+  paymentId?: string;
+  preferenceId?: string;
+  initPoint?: string;
+  sandboxInitPoint?: string;
+}
+
 export interface StoredAdminUser extends AdminUser {
   readonly password: string;
 }
@@ -104,6 +122,8 @@ export interface ApiRestStoreSnapshot {
   readonly tenants: Tenant[];
   readonly adminUsers: StoredAdminUser[];
   readonly services: Service[];
+  readonly paymentSettings?: TenantPaymentSettings[];
+  readonly paymentIntents?: PaymentIntent[];
   readonly clients: Client[];
   readonly professionals: Professional[];
   readonly availabilityRules: AvailabilityRule[];
@@ -129,6 +149,19 @@ export interface ApiRestStorePort {
     patch: ServicePatchInput
   ): MaybePromise<Service | undefined>;
   deleteService(tenantId: string, serviceId: string): MaybePromise<boolean>;
+  getPaymentSettings(tenantId: string): MaybePromise<TenantPaymentSettings | undefined>;
+  upsertPaymentSettings(command: TenantPaymentSettings): MaybePromise<TenantPaymentSettings>;
+  recordPaymentIntent(intent: PaymentIntent): MaybePromise<PaymentIntent>;
+  getPaymentIntent(tenantId: string, paymentIntentId: string): MaybePromise<PaymentIntent | undefined>;
+  getPaymentIntentByExternalReference(
+    tenantId: string,
+    externalReference: string
+  ): MaybePromise<PaymentIntent | undefined>;
+  updatePaymentIntent(
+    tenantId: string,
+    paymentIntentId: string,
+    patch: PaymentIntentPatchInput
+  ): MaybePromise<PaymentIntent | undefined>;
   listClients(tenantId: string): MaybePromise<Client[]>;
   getClient(tenantId: string, clientId: string): MaybePromise<Client | undefined>;
   createClient(tenantId: string, input: ClientContactInput): MaybePromise<Client>;
@@ -180,6 +213,7 @@ export interface ApiRestStorePort {
   ): MaybePromise<Booking | undefined>;
   deleteBooking(tenantId: string, bookingId: string): MaybePromise<boolean>;
   createPublicBooking(input: PublicCreateBookingInput): MaybePromise<PublicBookingResult>;
+  createPublicPaymentBooking(input: PublicCreateBookingInput): MaybePromise<PublicBookingResult>;
 }
 
 export class ApiRestStore implements ApiRestStorePort {
@@ -188,6 +222,8 @@ export class ApiRestStore implements ApiRestStorePort {
   private readonly adminUsers = new Map<string, StoredAdminUser>();
   private readonly adminUserIdsByEmail = new Map<string, string>();
   private readonly services = new Map<string, Service>();
+  private readonly paymentSettings = new Map<string, TenantPaymentSettings>();
+  private readonly paymentIntents = new Map<string, PaymentIntent>();
   private readonly clients = new Map<string, Client>();
   private readonly professionals = new Map<string, Professional>();
   private readonly availabilityRules = new Map<string, AvailabilityRule>();
@@ -336,6 +372,7 @@ export class ApiRestStore implements ApiRestStorePort {
   }
 
   createService(command: CreateServiceCommand): Service {
+    const paymentPolicy = normalizeServicePaymentPolicy(command.paymentPolicy, command.exigeSinal);
     const service: Service = {
       version: "v1",
       id: randomUUID(),
@@ -343,7 +380,8 @@ export class ApiRestStore implements ApiRestStorePort {
       nome: command.nome,
       duracaoMin: command.duracaoMin,
       precoBase: command.precoBase,
-      exigeSinal: command.exigeSinal,
+      exigeSinal: paymentPolicy.collectionMode !== "none" ? true : command.exigeSinal,
+      paymentPolicy,
       status: "active"
     };
 
@@ -357,9 +395,22 @@ export class ApiRestStore implements ApiRestStorePort {
       return undefined;
     }
 
+    const paymentPolicy =
+      patch.paymentPolicy ?
+        normalizeServicePaymentPolicy(
+          patch.paymentPolicy,
+          patch.exigeSinal ?? service.exigeSinal
+        )
+      : service.paymentPolicy;
+
     const nextService: Service = {
       ...service,
-      ...patch
+      ...patch,
+      exigeSinal:
+        patch.paymentPolicy ?
+          paymentPolicy.collectionMode !== "none"
+        : patch.exigeSinal ?? service.exigeSinal,
+      paymentPolicy
     };
 
     this.services.set(nextService.id, nextService);
@@ -388,6 +439,59 @@ export class ApiRestStore implements ApiRestStorePort {
     }
 
     return true;
+  }
+
+  getPaymentSettings(tenantId: string): TenantPaymentSettings | undefined {
+    return this.paymentSettings.get(tenantId);
+  }
+
+  upsertPaymentSettings(command: TenantPaymentSettings): TenantPaymentSettings {
+    const nextSettings: TenantPaymentSettings = {
+      ...command
+    };
+
+    this.paymentSettings.set(command.tenantId, nextSettings);
+    return nextSettings;
+  }
+
+  recordPaymentIntent(intent: PaymentIntent): PaymentIntent {
+    this.paymentIntents.set(intent.id, intent);
+    return intent;
+  }
+
+  getPaymentIntent(tenantId: string, paymentIntentId: string): PaymentIntent | undefined {
+    const paymentIntent = this.paymentIntents.get(paymentIntentId);
+    return paymentIntent && paymentIntent.tenantId === tenantId ? paymentIntent : undefined;
+  }
+
+  getPaymentIntentByExternalReference(
+    tenantId: string,
+    externalReference: string
+  ): PaymentIntent | undefined {
+    return [...this.paymentIntents.values()].find(
+      (paymentIntent) =>
+        paymentIntent.tenantId === tenantId &&
+        paymentIntent.externalReference === externalReference
+    );
+  }
+
+  updatePaymentIntent(
+    tenantId: string,
+    paymentIntentId: string,
+    patch: PaymentIntentPatchInput
+  ): PaymentIntent | undefined {
+    const paymentIntent = this.getPaymentIntent(tenantId, paymentIntentId);
+    if (!paymentIntent) {
+      return undefined;
+    }
+
+    const nextPaymentIntent: PaymentIntent = {
+      ...paymentIntent,
+      ...patch
+    };
+
+    this.paymentIntents.set(nextPaymentIntent.id, nextPaymentIntent);
+    return nextPaymentIntent;
   }
 
   listClients(tenantId: string): Client[] {
@@ -730,39 +834,12 @@ export class ApiRestStore implements ApiRestStorePort {
   }
 
   createPublicBooking(input: PublicCreateBookingInput): PublicBookingResult {
-    const tenant = this.getTenantBySlug(input.slug);
-    if (!tenant) {
-      throw new Error("tenant_not_found");
-    }
+    const context = this.resolvePublicBookingContext(input);
+    const { tenant, service, professional, client } = context;
 
-    const service = this.getService(tenant.id, input.serviceId);
-    if (!service) {
-      throw new Error("service_not_found");
-    }
-
-    if (service.exigeSinal) {
+    if (service.exigeSinal || service.paymentPolicy.collectionMode !== "none") {
       throw new Error("payment_required");
     }
-
-    const professional = this.getProfessional(tenant.id, input.professionalId);
-    if (!professional) {
-      throw new Error("professional_not_found");
-    }
-
-    const normalizedEmail = input.client.email.trim().toLowerCase();
-    const normalizedPhone = input.client.telefone.trim();
-
-    const existingClient = this.listClients(tenant.id).find(
-      (client) => client.email === normalizedEmail || client.telefone === normalizedPhone
-    );
-
-    const client =
-      existingClient ??
-      this.createClient(tenant.id, {
-        ...input.client,
-        email: normalizedEmail,
-        telefone: normalizedPhone
-      });
 
     const booking = this.createBooking({
       version: "v1",
@@ -773,6 +850,34 @@ export class ApiRestStore implements ApiRestStorePort {
       startAt: input.startAt,
       endAt: input.endAt,
       status: "confirmado"
+    });
+
+    return {
+      tenant: this.toPublicTenantProfile(tenant),
+      client,
+      service,
+      professional,
+      booking
+    };
+  }
+
+  createPublicPaymentBooking(input: PublicCreateBookingInput): PublicBookingResult {
+    const context = this.resolvePublicBookingContext(input);
+    const { tenant, service, professional, client } = context;
+
+    if (service.paymentPolicy.collectionMode === "none" && !service.exigeSinal) {
+      throw new Error("payment_not_required");
+    }
+
+    const booking = this.createBooking({
+      version: "v1",
+      tenantId: tenant.id,
+      clientId: client.id,
+      serviceId: service.id,
+      professionalId: professional.id,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      status: "aguardando pagamento"
     });
 
     return {
@@ -809,6 +914,50 @@ export class ApiRestStore implements ApiRestStorePort {
     if (!this.getClient(tenantId, clientId)) {
       throw new Error("client_not_found");
     }
+  }
+
+  private resolvePublicBookingContext(input: PublicCreateBookingInput): {
+    tenant: Tenant;
+    service: Service;
+    professional: Professional;
+    client: Client;
+  } {
+    const tenant = this.getTenantBySlug(input.slug);
+    if (!tenant) {
+      throw new Error("tenant_not_found");
+    }
+
+    const service = this.getService(tenant.id, input.serviceId);
+    if (!service) {
+      throw new Error("service_not_found");
+    }
+
+    const professional = this.getProfessional(tenant.id, input.professionalId);
+    if (!professional) {
+      throw new Error("professional_not_found");
+    }
+
+    const normalizedEmail = input.client.email.trim().toLowerCase();
+    const normalizedPhone = input.client.telefone.trim();
+
+    const existingClient = this.listClients(tenant.id).find(
+      (client) => client.email === normalizedEmail || client.telefone === normalizedPhone
+    );
+
+    const client =
+      existingClient ??
+      this.createClient(tenant.id, {
+        ...input.client,
+        email: normalizedEmail,
+        telefone: normalizedPhone
+      });
+
+    return {
+      tenant,
+      service,
+      professional,
+      client
+    };
   }
 
   private assertServiceBelongsToTenant(tenantId: string, serviceId: string): void {
@@ -919,6 +1068,8 @@ export class ApiRestStore implements ApiRestStorePort {
       tenants: [...this.tenants.values()],
       adminUsers: [...this.adminUsers.values()],
       services: [...this.services.values()],
+      paymentSettings: [...this.paymentSettings.values()],
+      paymentIntents: [...this.paymentIntents.values()],
       clients: [...this.clients.values()],
       professionals: [...this.professionals.values()],
       availabilityRules: [...this.availabilityRules.values()],
@@ -933,6 +1084,8 @@ export class ApiRestStore implements ApiRestStorePort {
     this.adminUsers.clear();
     this.adminUserIdsByEmail.clear();
     this.services.clear();
+    this.paymentSettings.clear();
+    this.paymentIntents.clear();
     this.clients.clear();
     this.professionals.clear();
     this.availabilityRules.clear();
@@ -950,7 +1103,15 @@ export class ApiRestStore implements ApiRestStorePort {
     }
 
     for (const service of snapshot.services) {
-      this.services.set(service.id, service);
+      this.services.set(service.id, hydrateService(service));
+    }
+
+    for (const paymentSettings of snapshot.paymentSettings ?? []) {
+      this.paymentSettings.set(paymentSettings.tenantId, paymentSettings);
+    }
+
+    for (const paymentIntent of snapshot.paymentIntents ?? []) {
+      this.paymentIntents.set(paymentIntent.id, paymentIntent);
     }
 
     for (const client of snapshot.clients) {
@@ -973,6 +1134,38 @@ export class ApiRestStore implements ApiRestStorePort {
       this.sessions.set(session.token, session);
     }
   }
+}
+
+function normalizeServicePaymentPolicy(
+  policy?: ServicePaymentPolicy,
+  exigeSinal = false
+): ServicePaymentPolicy {
+  if (!policy) {
+    return exigeSinal ?
+        {
+          ...defaultServicePaymentPolicy,
+          collectionMode: "deposit"
+        }
+      : {
+          ...defaultServicePaymentPolicy
+        };
+  }
+
+  return {
+    ...defaultServicePaymentPolicy,
+    ...policy,
+    acceptedMethods: policy.acceptedMethods ?? defaultServicePaymentPolicy.acceptedMethods
+  };
+}
+
+function hydrateService(service: Service): Service {
+  return {
+    ...service,
+    paymentPolicy: normalizeServicePaymentPolicy(
+      service.paymentPolicy,
+      service.exigeSinal
+    )
+  };
 }
 
 function parseTimeWindow(startAt: string, endAt: string): TimeWindow {

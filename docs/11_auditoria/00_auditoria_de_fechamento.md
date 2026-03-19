@@ -7,13 +7,13 @@
 | Governanca | precedencia, riscos e rastreabilidade | FECHADO | docs de governanca criados + ADR de auth, tenancy e slug publicada | faltam ADRs de providers e eventos | SIM |
 | Estrutura | arvore MFEE | FECHADO | pastas `docs/` criadas | precisa manutencao continua | SIM |
 | Estrutura | esqueleto de monorepo | FECHADO | `pnpm-workspace.yaml`, manifests, builds e lints funcionando localmente | nenhuma nesta etapa | SIM |
-| Backend | API REST | PARCIAL | runtime Fastify em `services/api-rest` com onboarding, sessao admin, tenant context, CRUD de `service`, `client`, `professional`, regras de disponibilidade, slots publicos, booking publico transacional sem sinal obrigatorio, seed demo e testes passando | faltam pagamentos, notificacoes, timezone canonico e definicao final de framework do service | NAO |
-| Frontend | booking publico | FECHADO | `apps/booking-web` consome a API real por `slug`, mostra catalogo, profissionais e slots, confirma booking sem sinal obrigatorio e fecha a jornada mobile-first | `B-08` continua fora do corte para servicos com sinal obrigatorio | SIM |
-| Frontend | admin web | PARCIAL | app scaffold buildavel em `apps/admin-web` | sem auth, operacao e dashboards reais | NAO |
+| Backend | API REST | PARCIAL | runtime Fastify em `services/api-rest` com onboarding, sessao admin, tenant context, CRUD de `service`, `client`, `professional`, regras de disponibilidade, slots publicos, booking publico, `payment intent`, `sync`, webhook Mercado Pago, seed demo e testes passando | faltam homologacao externa do provider, `checkout_transparente`, notificacoes, timezone canonico e definicao final de framework do service | NAO |
+| Frontend | booking publico | PARCIAL | `apps/booking-web` consome a API real por `slug`, mostra catalogo, profissionais e slots, confirma booking sem sinal e agora tambem cria `payment intent`, redireciona ao Checkout Pro e sincroniza o retorno no proprio slug | faltam homologacao real com Mercado Pago e suporte publico a `checkout_transparente` | NAO |
+| Frontend | admin web | PARCIAL | `apps/admin-web` agora autentica, cria tenant, edita slug, configura Mercado Pago, cadastra servicos, profissionais, disponibilidade, agenda operacional com filtros e acoes de confirmar/concluir/cancelar booking, alem de leitura basica de clientes derivada do runtime real | faltam calendario mais rico, reagendamento, branding minimo, inventario de telas refletido em runtime e shell com navegacao modular em vez de pagina unica | NAO |
 | UI | tokens e foundations do design system | PARCIAL | `packages/ui` com tokens, foundations TS e `foundations.css` consumivel | faltam componentes base e componentes de dominio | NAO |
-| Contracts | schemas versionados compartilhados | FECHADO | `packages/contracts/src/identity.ts` e `packages/contracts/src/v1/*` buildando localmente, incluindo `professional` e `availability` | faltam contracts de `payment`, `cash-entry`, `campaign`, `notification` e eventos | SIM |
-| Jornadas | jornadas ponta a ponta em codigo | PARCIAL | `J-03` materializada em `apps/booking-web` e `services/api-rest` com confirmacao visual e booking persistida no staging | `J-01`, `J-02`, `J-04`, `J-05` e `J-06` continuam abertas | NAO |
-| Integracoes | mensagens, pagamentos e calendar | NAO IMPLEMENTADO | inexistente | providers e codigo | NAO |
+| Contracts | schemas versionados compartilhados | FECHADO | `packages/contracts/src/identity.ts` e `packages/contracts/src/v1/*` buildando localmente, incluindo `professional`, `availability` e `payment` | faltam contracts de `cash-entry`, `campaign`, `notification` e eventos | SIM |
+| Jornadas | jornadas ponta a ponta em codigo | PARCIAL | `J-03` materializada em `apps/booking-web` e `services/api-rest` com booking sem sinal, fluxo com Checkout Pro, reconciliacao e estados publicos de retorno; `J-04` ganhou o primeiro corte no `admin-web` com agenda operacional e acoes basicas de booking | `J-01`, `J-02`, `J-04`, `J-05` e `J-06` continuam abertas em profundidade, e o pagamento ainda nao foi homologado ponta a ponta no provider | NAO |
+| Integracoes | mensagens, pagamentos e calendar | PARCIAL | runtime de pagamento com `payment intent`, `sync`, webhook Mercado Pago e frontend publico integrados; modelos versionados e configuracao admin tenant-level ativos | faltam homologacao real, `checkout_transparente`, mensagens e calendar | NAO |
 
 ## Conclusao
 
@@ -25,4 +25,4 @@ O fechamento desta rodada e valido para:
 - ordem de execucao;
 - fundacao tecnica inicial do monorepo.
 
-O produto em si ainda nao pode ser considerado entregue. A proxima trava estrutural agora e `B-08` para sinal/pagamento, seguida de `B-09` para operacao administrativa real.
+O produto em si ainda nao pode ser considerado entregue. A proxima trava estrutural passa a ser a materializacao do shell admin com navegacao modular real, em paralelo ao endurecimento de `B-08` com homologacao do Mercado Pago e de `B-09` com calendario/reagendamento, antes da abertura de `B-10` para refletir atendimento concluido em receita.

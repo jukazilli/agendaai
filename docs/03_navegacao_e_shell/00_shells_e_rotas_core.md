@@ -7,7 +7,7 @@ Padrao:
 - topo simples com marca do tenant;
 - stepper de booking;
 - barra de progresso da jornada;
-- resumo do agendamento fixo no mobile e desktop.
+- resumo do agendamento sempre visivel, podendo ser inline na etapa final no mobile para evitar sobreposicao.
 
 Rotas sugeridas:
 
@@ -24,6 +24,8 @@ Rotas sugeridas:
 
 ## 2. Shell administrativo
 
+Detalhamento oficial por tela em `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`.
+
 Padrao:
 
 - menu lateral persistente;
@@ -36,11 +38,13 @@ Rotas sugeridas:
 
 | Rota | Objetivo |
 | --- | --- |
-| `/app` | dashboard inicial |
+| `/app` | dashboard inicial e handoff da implantacao |
+| `/app/implantacao` | onboarding administrativo, slug, branding e integracoes como Mercado Pago |
+| `/app/catalogo` | produtos, servicos, kits, combos e politica de cobranca |
 | `/app/agenda` | agenda do dia e semana |
 | `/app/calendario` | calendario denso |
 | `/app/clientes` | carteira de clientes |
-| `/app/servicos` | catalogo e servicos |
+| `/app/servicos` | detalhe operacional dos servicos agendaveis |
 | `/app/profissionais` | equipe e agenda |
 | `/app/financeiro` | caixa e movimentacoes |
 | `/app/relatorios` | visoes gerenciais |
@@ -52,4 +56,5 @@ Rotas sugeridas:
 - cliente final nunca acessa rotas `/app`;
 - admin precisa de contexto de tenant para qualquer modulo;
 - funcoes de equipe podem ter permissao parcial;
+- a implantacao administrativa governa catalogo, pagamento e publicacao da slug;
 - slug publica nao deve expor estado administrativo.

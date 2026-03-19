@@ -35,13 +35,12 @@ button {
 .landing-page,
 .booking-page {
   min-height: 100vh;
-  padding: 20px 16px calc(252px + env(safe-area-inset-bottom));
+  padding: 20px 16px calc(32px + env(safe-area-inset-bottom));
 }
 
 .landing-shell,
 .hero-card,
 .section-card,
-.sticky-summary,
 .confirmation-shell {
   width: min(100%, 720px);
   margin: 0 auto;
@@ -70,19 +69,23 @@ button {
   width: min(100%, 720px);
   margin: 0 auto 16px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .progress-pill {
   display: flex;
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  border-radius: 18px;
+  gap: 8px;
+  min-height: 72px;
+  padding: 10px 8px;
+  border-radius: 20px;
   background: rgba(255, 255, 255, 0.64);
   border: 1px solid rgba(19, 37, 43, 0.08);
   color: rgba(19, 37, 43, 0.68);
+  text-align: center;
 }
 
 .progress-pill strong {
@@ -97,8 +100,20 @@ button {
 }
 
 .progress-pill span {
-  font-size: 0.88rem;
+  display: none;
+  font-size: 0.82rem;
   font-weight: 700;
+}
+
+.progress-pill.is-active {
+  border-color: rgba(19, 37, 43, 0.22);
+  background: rgba(19, 37, 43, 0.08);
+  color: #13252b;
+}
+
+.progress-pill.is-active strong {
+  background: #13252b;
+  color: #f7fbfa;
 }
 
 .progress-pill.is-done {
@@ -110,6 +125,10 @@ button {
 .progress-pill.is-done strong {
   background: #0b7a75;
   color: #f7fbfa;
+}
+
+.progress-pill:disabled {
+  cursor: not-allowed;
 }
 
 .eyebrow {
@@ -169,6 +188,21 @@ h3 {
   font-weight: 700;
   text-decoration: none;
   box-shadow: 0 14px 28px rgba(11, 122, 117, 0.22);
+}
+
+.secondary-button {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 52px;
+  padding: 14px 18px;
+  border: 1px solid rgba(11, 122, 117, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0b6964;
+  font-weight: 700;
+  text-decoration: none;
 }
 
 .primary-button:disabled {
@@ -277,6 +311,11 @@ h3 {
   gap: 14px;
 }
 
+.step-card {
+  display: grid;
+  gap: 16px;
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -332,24 +371,33 @@ h3 {
   font-weight: 700;
 }
 
-.sticky-summary {
-  position: fixed;
-  left: 16px;
-  right: 16px;
-  bottom: 16px;
-  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+.inline-summary {
+  padding: 18px;
+  border: 1px solid rgba(19, 37, 43, 0.08);
+  border-radius: 22px;
+  background: linear-gradient(180deg, rgba(243, 248, 247, 0.92), rgba(255, 255, 255, 0.98));
   display: grid;
   gap: 14px;
-  max-height: calc(100vh - 32px - env(safe-area-inset-bottom));
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  z-index: 20;
+  align-items: start;
 }
 
-.sticky-summary p:not(.eyebrow) {
+.inline-summary p:not(.eyebrow) {
   margin-top: 4px;
   color: rgba(19, 37, 43, 0.72);
   line-height: 1.5;
+}
+
+.inline-summary > * {
+  min-width: 0;
+}
+
+.step-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.step-actions-spacer {
+  display: none;
 }
 
 .summary-meta {
@@ -367,6 +415,11 @@ h3 {
 .confirmation-shell {
   display: grid;
   gap: 18px;
+}
+
+.confirmation-actions {
+  display: grid;
+  gap: 12px;
 }
 
 .confirmation-grid {
@@ -396,7 +449,7 @@ h3 {
 @media (min-width: 768px) {
   .landing-page,
   .booking-page {
-    padding: 36px 24px calc(176px + env(safe-area-inset-bottom));
+    padding: 36px 24px calc(48px + env(safe-area-inset-bottom));
   }
 
   .hero-card {
@@ -404,8 +457,16 @@ h3 {
     align-items: end;
   }
 
-  .progress-strip {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+  .progress-pill {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 12px 14px;
+    min-height: 64px;
+    text-align: left;
+  }
+
+  .progress-pill span {
+    display: inline;
   }
 
   .service-list,
@@ -421,17 +482,23 @@ h3 {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .sticky-summary {
-    left: 50%;
-    right: auto;
-    width: min(720px, calc(100vw - 48px));
-    transform: translateX(-50%);
-    grid-template-columns: 1fr auto;
-    align-items: center;
+  .confirmation-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .primary-button {
-    width: auto;
-    min-width: 240px;
+  .step-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .step-actions-spacer {
+    display: block;
+  }
+
+  .step-actions .primary-button,
+  .step-actions .secondary-button,
+  .confirmation-actions .primary-button,
+  .confirmation-actions .secondary-button {
+    width: 100%;
+    min-width: 0;
   }
 }

@@ -1,0 +1,31 @@
+
+> @agendaai/booking-web@0.1.0 dev C:\projetos\agendaai\apps\booking-web
+> next dev
+
+   ▲ Next.js 15.5.13
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.5:3000
+
+ ✓ Starting...
+ ✓ Ready in 2.7s
+ ○ Compiling /[slug] ...
+ ✓ Compiled /[slug] in 4.8s (555 modules)
+ GET /demo-studio-20260317 200 in 6379ms
+ GET /demo-studio-20260317 200 in 209ms
+ GET /favicon.ico 404 in 278ms
+ ○ Compiling /api/public/tenants/[slug]/availability ...
+ ✓ Compiled /api/public/tenants/[slug]/availability in 645ms (561 modules)
+ GET /api/public/tenants/demo-studio-20260317/availability?serviceId=5412da73-d621-46e9-a7c1-8d6c786ea7e3&professionalId=cfcd3711-6362-40d1-9145-af86aac8772c&date=2026-03-18 200 in 2059ms
+ GET /api/public/tenants/demo-studio-20260317/availability?serviceId=5412da73-d621-46e9-a7c1-8d6c786ea7e3&professionalId=cfcd3711-6362-40d1-9145-af86aac8772c&date=2026-03-19 200 in 101ms
+ ○ Compiling /api/public/tenants/[slug]/bookings ...
+ ✓ Compiled /api/public/tenants/[slug]/bookings in 702ms (563 modules)
+ POST /api/public/tenants/demo-studio-20260317/bookings 201 in 4456ms
+ GET /api/public/tenants/demo-studio-20260317/availability?serviceId=eb094cec-08a7-488b-b633-18ec836357f3&professionalId=cfcd3711-6362-40d1-9145-af86aac8772c&date=2026-03-19 200 in 75ms
+ POST /api/public/tenants/demo-studio-20260317/bookings 201 in 1085ms
+ POST /api/public/tenants/demo-studio-20260317/bookings 201 in 1082ms
+ GET /demo-studio-20260317 200 in 830ms
+ GET /api/public/tenants/demo-studio-20260317/availability?serviceId=5412da73-d621-46e9-a7c1-8d6c786ea7e3&professionalId=cfcd3711-6362-40d1-9145-af86aac8772c&date=2026-03-18 200 in 180ms
+ GET /api/public/tenants/demo-studio-20260317/availability?serviceId=eb094cec-08a7-488b-b633-18ec836357f3&professionalId=cfcd3711-6362-40d1-9145-af86aac8772c&date=2026-03-18 200 in 89ms
+ ✓ Compiled in 1305ms (556 modules)
+ GET /demo-studio-20260317 200 in 706ms
+ GET /demo-studio-20260317 200 in 699ms
