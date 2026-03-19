@@ -24,6 +24,7 @@ Este repositorio foi estruturado a partir do ciclo:
 - `B-07` concluido com booking publico por `slug`;
 - `B-08` ja homologou o caminho real de `checkout_pro`, com `payment intent`, `sync`, callback/retorno publicados e booking confirmada em homologacao;
 - `B-09` agora possui timeline diaria, reagendamento por slot real e grade semanal de capacidade no `admin-web`;
+- `B-10` agora abriu o primeiro reflexo financeiro real no `dashboard` do `admin-web`, com receita reconhecida por booking concluida e entrada online aprovada por periodo;
 - `api-rest`, `booking-web` e `admin-web` ja estao publicados em `Render` + `Vercel`;
 - existe agora uma trilha derivada de beta em `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`.
 
@@ -61,11 +62,12 @@ Este repositorio foi estruturado a partir do ciclo:
 17. `docs/08_analises/24_execucao_b08_homologacao_aprovada_live_2026-03-19.md`
 18. `docs/08_analises/25_execucao_b09_agenda_reagendamento_2026-03-19.md`
 19. `docs/08_analises/26_execucao_b09_calendario_semanal_capacidade_2026-03-19.md`
-20. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
-21. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
-22. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
-23. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
+20. `docs/08_analises/27_execucao_b10_reflexo_financeiro_dashboard_2026-03-19.md`
+21. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
+22. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
+23. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
+24. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
 
 ## Proximo passo recomendado
 
-Abrir `B-10` com o primeiro reflexo financeiro de atendimento concluido e relatorios essenciais de agenda/receita. Em paralelo, decidir se `checkout_transparente` continua dentro de `B-08` estrutural ou vira trilha propria.
+Endurecer `B-10` e `BA-11` com clientes sem retorno por periodo e um recorte de relatorio mais dedicado no admin. Em paralelo, decidir se `checkout_transparente` continua dentro de `B-08` estrutural ou vira trilha propria.

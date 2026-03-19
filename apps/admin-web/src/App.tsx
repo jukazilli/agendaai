@@ -50,6 +50,7 @@ type AdminRoute =
   | "configuracoes";
 type BookingFilter = "today" | "open" | "all";
 type AgendaViewMode = "day" | "week";
+type DashboardRange = "7d" | "30d" | "all";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
 type PaymentChargeType = (typeof paymentChargeTypeValues)[number];
@@ -146,6 +147,26 @@ interface WeekDayCapacitySummary {
   readonly openBookings: number;
 }
 
+interface RevenueEntry {
+  readonly booking: Booking;
+  readonly service?: Service;
+  readonly professional?: Professional;
+  readonly client?: Client;
+  readonly paymentIntent?: PaymentIntent;
+  readonly recognizedAmount: number;
+  readonly approvedOnlineAmount: number;
+}
+
+interface DashboardRevenueSummary {
+  readonly recognizedRevenue: number;
+  readonly approvedOnlineRevenue: number;
+  readonly completedCount: number;
+  readonly averageTicket: number;
+  readonly uniqueClients: number;
+  readonly noShowRate: number;
+  readonly cancelledCount: number;
+}
+
 interface AdminRouteDefinition {
   readonly label: string;
   readonly shortLabel: string;
@@ -173,7 +194,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     eyebrow: "Gestao do negocio",
     title: "Visao gerencial do tenant",
     description:
-      "Resumo executivo do que ja existe no runtime e dos blocos que ainda nao contam com read model dedicado.",
+      "Resumo executivo com leitura operacional e financeira derivada do runtime atual, sem esconder as lacunas que ainda nao contam com read model dedicado.",
     stage: "parcial"
   },
   operacional: {
@@ -310,6 +331,7 @@ export function App() {
   const [bootError, setBootError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<BookingFilter>("today");
+  const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
   const [loginForm, setLoginForm] = useState({
     email: "owner@agendaai.demo",
     password: "agendaai-demo"
@@ -522,6 +544,15 @@ export function App() {
   const clients = bootstrap?.clients ?? [];
   const bookings = bootstrap?.bookings ?? [];
   const paymentIntents = bootstrap?.paymentIntents ?? [];
+  const dashboardBookings = filterBookingsByRange(bookings, dashboardRange);
+  const revenueEntries = buildRevenueEntries(
+    dashboardBookings,
+    services,
+    professionals,
+    clients,
+    paymentIntents
+  );
+  const dashboardRevenueSummary = summarizeRevenueEntries(revenueEntries, dashboardBookings);
   const bookingSummary = summarizeBookings(bookings);
   const agendaBookings = filterAgendaBookings(bookings, bookingFilter);
   const dayAgendaBookings = filterBookingsByDate(bookings, agendaDate);
@@ -1759,8 +1790,144 @@ export function App() {
           <article className="panel">
             <div className="panel-header">
               <div>
-                <p className="eyebrow">Leitura real do sistema</p>
-                <h2>Pontos sustentados hoje pelo bootstrap</h2>
+                <p className="eyebrow">Financeiro derivado do runtime</p>
+                <h2>Receita operacional e relatorio essencial</h2>
+              </div>
+              <div className="mode-switch">
+                <button
+                  className={dashboardRange === "7d" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setDashboardRange("7d")}
+                  type="button"
+                >
+                  7 dias
+                </button>
+                <button
+                  className={dashboardRange === "30d" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setDashboardRange("30d")}
+                  type="button"
+                >
+                  30 dias
+                </button>
+                <button
+                  className={dashboardRange === "all" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setDashboardRange("all")}
+                  type="button"
+                >
+                  Tudo
+                </button>
+              </div>
+            </div>
+
+            <p className="helper">
+              Este bloco reconhece receita a partir de bookings concluidas e entrada online aprovada a partir de `payment intents` ja conciliadas. Caixa presencial, repasse e fechamento contabil continuam fora do contrato atual.
+            </p>
+
+            <div className="stats-strip">
+              <article className="stat-card">
+                <span>Receita reconhecida</span>
+                <strong>{formatCurrency(dashboardRevenueSummary.recognizedRevenue)}</strong>
+                <small>{dashboardRevenueSummary.completedCount} atendimento(s) concluidos</small>
+              </article>
+              <article className="stat-card">
+                <span>Entrada online aprovada</span>
+                <strong>{formatCurrency(dashboardRevenueSummary.approvedOnlineRevenue)}</strong>
+                <small>Somente `payment intents` aprovadas no periodo</small>
+              </article>
+              <article className="stat-card">
+                <span>Ticket medio</span>
+                <strong>{formatCurrency(dashboardRevenueSummary.averageTicket)}</strong>
+                <small>{dashboardRevenueSummary.uniqueClients} cliente(s) atendidos</small>
+              </article>
+              <article className="stat-card">
+                <span>No-show</span>
+                <strong>{formatPercentage(dashboardRevenueSummary.noShowRate)}</strong>
+                <small>{dashboardRevenueSummary.cancelledCount} cancelamento(s) no periodo</small>
+              </article>
+            </div>
+
+            <div className="records-column">
+              {revenueEntries.length ? (
+                revenueEntries.slice(0, 8).map((entry) => (
+                  <article className="record-card" key={entry.booking.id}>
+                    <div className="record-card-header">
+                      <div className="record-stack">
+                        <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
+                        <span>
+                          {entry.client?.nome ?? "Cliente"} com {entry.professional?.nome ?? "profissional"}
+                        </span>
+                      </div>
+                      <span className="status-pill is-success">
+                        {formatCurrency(entry.recognizedAmount)}
+                      </span>
+                    </div>
+
+                    <div className="record-meta">
+                      <span>{formatDateTime(entry.booking.endAt)}</span>
+                      <span className="status-pill is-neutral">
+                        {entry.paymentIntent
+                          ? `Pagamento ${formatPaymentIntentStatus(entry.paymentIntent.status)}`
+                          : "Sem pagamento online"}
+                      </span>
+                      <span className="status-pill is-info">
+                        Online {formatCurrency(entry.approvedOnlineAmount)}
+                      </span>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">
+                  Nenhuma booking concluida encontrada em {resolveDashboardRangeLabel(dashboardRange)}.
+                </p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Leitura executiva</p>
+                <h2>O que ja e confiavel e o que continua aberto</h2>
+              </div>
+              <span className="helper-chip">{resolveDashboardRangeLabel(dashboardRange)}</span>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>Receita reconhecida (funcional)</strong>
+                <p>
+                  Ja pode ser derivada do runtime usando `booking.status = concluido` e `service.precoBase`.
+                </p>
+              </div>
+              <div className="list-card">
+                <strong>Entrada online aprovada (funcional)</strong>
+                <p>
+                  Ja pode ser lida via `payment intents` aprovadas conciliadas com a booking concluida.
+                </p>
+              </div>
+              <div className="list-card">
+                <strong>Retencao, cohort e reativacao (nao funcional)</strong>
+                <p>Nao existe read model de recorrencia, janela de retorno nem motor de recomendacao no contrato atual.</p>
+              </div>
+              <div className="list-card">
+                <strong>Caixa presencial e conciliacao financeira (nao funcional)</strong>
+                <p>O sistema ainda nao possui `cash entry`, fechamento de caixa, repasse ou contabilizacao persistida.</p>
+              </div>
+              <div className="list-card">
+                <strong>Proximos passos operacionais</strong>
+                <p>
+                  Abrir o reflexo financeiro de atendimento concluido no shell e, depois, expandir para relatorios por periodo e clientes sem retorno.
+                </p>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Base real do periodo</p>
+                <h2>Pontos sustentados pelo bootstrap atual</h2>
               </div>
               <span className="helper-chip">Funcional</span>
             </div>
@@ -1785,11 +1952,14 @@ export function App() {
             </div>
 
             <div className="button-row">
-              <button className="secondary-button" onClick={() => navigateTo("catalogo")} type="button">
-                Revisar catalogo
+              <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
+                Ir para operacao
               </button>
-              <button className="secondary-button" onClick={() => navigateTo("profissionais")} type="button">
-                Revisar equipe
+              <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+                Abrir agenda
+              </button>
+              <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
+                Revisar clientes
               </button>
               <button className="secondary-button" onClick={() => navigateTo("configuracoes")} type="button">
                 Abrir configuracoes
@@ -1800,24 +1970,24 @@ export function App() {
           <article className="panel">
             <div className="panel-header">
               <div>
-                <p className="eyebrow">Analiticos</p>
-                <h2>Blocos ainda sem contrato dedicado</h2>
+                <p className="eyebrow">Lacunas remanescentes</p>
+                <h2>O que ainda nao deve ser prometido</h2>
               </div>
               <span className="status-pill is-warning">Parcial</span>
             </div>
 
             <div className="records-column">
               <div className="list-card">
-                <strong>Grafico de faturamento vs agendamentos (nao funcional)</strong>
-                <p>O `api-rest` ainda nao entrega agregados diarios ou serie historica para desenhar o grafico do mock.</p>
+                <strong>Grafico historico de faturamento (nao funcional)</strong>
+                <p>O `api-rest` ainda nao entrega serie agregada por dia ou read model pronto para grafico executivo.</p>
               </div>
               <div className="list-card">
-                <strong>Dica automatica de reativacao (nao funcional)</strong>
-                <p>Nao existe read model de ociosidade, clientes inativos nem motor de recomendacao no contrato atual.</p>
+                <strong>Clientes sem retorno por janela (nao funcional)</strong>
+                <p>O produto ainda nao calcula inatividade por cohort, ultima visita esperada ou alvo de win-back.</p>
               </div>
               <div className="list-card">
-                <strong>Relatorios de faturamento e ticket medio (nao funcional)</strong>
-                <p>Os contratos atuais entregam bookings e clientes, mas nao consolidam receita paga por periodo.</p>
+                <strong>Relatorio financeiro completo (nao funcional)</strong>
+                <p>Receita reconhecida ja existe; conciliacao de caixa, estorno, forma presencial e saldo do periodo ainda nao.</p>
               </div>
             </div>
           </article>
@@ -2965,6 +3135,21 @@ function summarizeBookings(bookings: readonly Booking[]): BookingSummary {
   };
 }
 
+function filterBookingsByRange(bookings: readonly Booking[], range: DashboardRange): Booking[] {
+  if (range === "all") {
+    return [...bookings].sort((left, right) => right.startAt.localeCompare(left.startAt));
+  }
+
+  const days = range === "7d" ? 7 : 30;
+  const startDate = new Date();
+  startDate.setHours(0, 0, 0, 0);
+  startDate.setDate(startDate.getDate() - (days - 1));
+
+  return [...bookings]
+    .filter((booking) => new Date(booking.startAt) >= startDate)
+    .sort((left, right) => right.startAt.localeCompare(left.startAt));
+}
+
 function filterAgendaBookings(bookings: readonly Booking[], filter: BookingFilter): Booking[] {
   return [...bookings]
     .filter((booking) => {
@@ -3152,6 +3337,63 @@ function buildClientInsights(clients: readonly Client[], bookings: readonly Book
     .slice(0, 8);
 }
 
+function buildRevenueEntries(
+  bookings: readonly Booking[],
+  services: readonly Service[],
+  professionals: readonly Professional[],
+  clients: readonly Client[],
+  paymentIntents: readonly PaymentIntent[]
+): RevenueEntry[] {
+  return bookings
+    .filter((booking) => booking.status === "concluido")
+    .map((booking) => {
+      const service = services.find((item) => item.id === booking.serviceId);
+      const professional = professionals.find((item) => item.id === booking.professionalId);
+      const client = clients.find((item) => item.id === booking.clientId);
+      const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+      const approvedOnlineAmount =
+        paymentIntent?.status === "approved" || paymentIntent?.status === "authorized"
+          ? paymentIntent.amount
+          : 0;
+
+      return {
+        booking,
+        service,
+        professional,
+        client,
+        paymentIntent,
+        recognizedAmount: service?.precoBase ?? 0,
+        approvedOnlineAmount
+      };
+    })
+    .sort((left, right) => right.booking.endAt.localeCompare(left.booking.endAt));
+}
+
+function summarizeRevenueEntries(
+  entries: readonly RevenueEntry[],
+  bookings: readonly Booking[]
+): DashboardRevenueSummary {
+  const recognizedRevenue = entries.reduce((total, entry) => total + entry.recognizedAmount, 0);
+  const approvedOnlineRevenue = entries.reduce(
+    (total, entry) => total + entry.approvedOnlineAmount,
+    0
+  );
+  const completedCount = entries.length;
+  const uniqueClients = new Set(entries.map((entry) => entry.booking.clientId)).size;
+  const noShowCount = bookings.filter((booking) => booking.status === "faltou").length;
+  const cancelledCount = bookings.filter((booking) => booking.status === "cancelado").length;
+
+  return {
+    recognizedRevenue,
+    approvedOnlineRevenue,
+    completedCount,
+    averageTicket: completedCount > 0 ? recognizedRevenue / completedCount : 0,
+    uniqueClients,
+    noShowRate: bookings.length > 0 ? noShowCount / bookings.length : 0,
+    cancelledCount
+  };
+}
+
 function resolveBookingActions(booking: Booking): BookingAction[] {
   switch (booking.status) {
     case "pendente":
@@ -3309,6 +3551,16 @@ function formatAgendaWeekLabel(dates: readonly string[]): string {
   return `${startLabel} - ${endLabel}`;
 }
 
+function resolveDashboardRangeLabel(range: DashboardRange): string {
+  if (range === "7d") {
+    return "ultimos 7 dias";
+  }
+  if (range === "30d") {
+    return "ultimos 30 dias";
+  }
+  return "todo o historico";
+}
+
 function calculateRuleDurationMinutes(rule?: AvailabilityRule): number {
   if (!rule) {
     return 0;
@@ -3350,6 +3602,10 @@ function formatUtilization(bookedMinutes: number, totalMinutes: number): string 
   }
 
   return `${Math.min(Math.round((bookedMinutes / totalMinutes) * 100), 999)}%`;
+}
+
+function formatPercentage(value: number): string {
+  return `${Math.round(value * 100)}%`;
 }
 
 function resolveUtilizationTone(bookedMinutes: number, totalMinutes: number): string {

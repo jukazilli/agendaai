@@ -27,10 +27,10 @@ Este termo permanece como retrato da saida da fase documental, nao como espelho 
 Estado atual resumido:
 
 - backend real existe em `services/api-rest`;
-- `booking-web` ja fecha `B-07` e `admin-web` agora opera a primeira fatia real de `B-09`, incluindo grade semanal de capacidade;
+- `booking-web` ja fecha `B-07` e `admin-web` agora opera a primeira fatia real de `B-09`, incluindo grade semanal de capacidade e o primeiro reflexo financeiro de `B-10`;
 - `B-01` a `B-07` estao fechados no backlog oficial;
 - `B-08` ja homologou `checkout_pro` no ambiente publicado;
-- o proximo gargalo combinado passa a ser decidir `checkout_transparente` como extensao de `B-08` ou trilha propria, e abrir o reflexo financeiro de `B-10`.
+- o proximo gargalo combinado passa a ser decidir `checkout_transparente` como extensao de `B-08` ou trilha propria, e endurecer `B-10`/`B-12` com clientes sem retorno e relatorio dedicado por periodo.
 
 ## Decisao
 

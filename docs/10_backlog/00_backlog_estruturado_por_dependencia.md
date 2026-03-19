@@ -29,9 +29,9 @@ O corte derivado de `beta teste` para o `AgendaAI` esta em:
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto | Evidencia esperada |
 | --- | --- | --- | --- | --- | --- | --- |
 | 9 | B-09 | Implementar agenda e dashboard operacional | B-06, B-07 | PARCIAL | agenda do dia consulta bookings reais e permite confirmar, concluir, cancelar e reagendar no shell admin com navegacao clara entre dashboard e operacao | shell modular com dashboard, agenda, catalogo, profissionais, clientes e configuracoes ja materializado; agenda agora expoe estado de `payment intent`, sync manual, conciliacao sem `paymentId` previamente salvo, timeline diaria por data, reagendamento por slot real e grade semanal de capacidade por profissional, mas calendario mensal, drag-and-drop e analytics financeiros agregados ainda pendentes |
-| 10 | B-10 | Confirmar execucao e reconhecer receita | B-09 | NAO IMPLEMENTADO | atendimento concluido gera reflexo financeiro | transacao e UI operando |
+| 10 | B-10 | Confirmar execucao e reconhecer receita | B-09 | PARCIAL | atendimento concluido gera reflexo financeiro | dashboard do `admin-web` agora deriva receita reconhecida, entrada online aprovada, ticket medio e movimentos do periodo a partir de bookings concluidas e `payment intents`; falta read model persistido de caixa e conciliacao financeira |
 | 11 | B-11 | Implementar carteira basica de clientes | B-07, B-10 | NAO IMPLEMENTADO | cliente exibe historico e ultima visita | tela e API funcionais |
-| 12 | B-12 | Implementar relatorios essenciais | B-10, B-11 | NAO IMPLEMENTADO | agenda, receita e retorno com filtros basicos | consultas e telas |
+| 12 | B-12 | Implementar relatorios essenciais | B-10, B-11 | EM FUNDACAO | agenda, receita e retorno com filtros basicos | dashboard ja abriu filtros de periodo para agenda/receita, mas clientes sem retorno e telas dedicadas continuam pendentes |
 
 ## Trilha D - Integracoes e endurecimento
 
