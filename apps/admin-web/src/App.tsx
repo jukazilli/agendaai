@@ -42,6 +42,7 @@ import {
 type AuthMode = "login" | "onboarding";
 type AdminRoute =
   | "dashboard"
+  | "relatorios"
   | "operacional"
   | "agenda"
   | "catalogo"
@@ -51,6 +52,8 @@ type AdminRoute =
 type BookingFilter = "today" | "open" | "all";
 type AgendaViewMode = "day" | "week";
 type DashboardRange = "7d" | "30d" | "all";
+type ClientReturnWindow = "30d" | "60d" | "90d";
+type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
 type PaymentChargeType = (typeof paymentChargeTypeValues)[number];
@@ -123,6 +126,8 @@ interface ClientInsight {
   readonly openBookings: number;
   readonly completedBookings: number;
   readonly lastBooking?: Booking;
+  readonly lastCompletedBooking?: Booking;
+  readonly recognizedRevenue: number;
 }
 
 interface DayBookingSummary {
@@ -167,6 +172,21 @@ interface DashboardRevenueSummary {
   readonly cancelledCount: number;
 }
 
+interface ClientPortfolioSummary {
+  readonly activeCount: number;
+  readonly inactiveCount: number;
+  readonly neverCompletedCount: number;
+  readonly returningCount: number;
+}
+
+interface ReportGroupSummary {
+  readonly id: string;
+  readonly label: string;
+  readonly bookingsCount: number;
+  readonly completedCount: number;
+  readonly recognizedRevenue: number;
+}
+
 interface AdminRouteDefinition {
   readonly label: string;
   readonly shortLabel: string;
@@ -195,6 +215,16 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     title: "Visao gerencial do tenant",
     description:
       "Resumo executivo com leitura operacional e financeira derivada do runtime atual, sem esconder as lacunas que ainda nao contam com read model dedicado.",
+    stage: "parcial"
+  },
+  relatorios: {
+    label: "Relatorios",
+    shortLabel: "RL",
+    section: "Gestao do negocio",
+    eyebrow: "Gestao do negocio",
+    title: "Relatorios essenciais do tenant",
+    description:
+      "Comparativos por periodo de agenda, receita e retorno, derivados do runtime atual e com lacunas explicitadas quando o contrato ainda nao cobre cohort ou financeiro persistido.",
     stage: "parcial"
   },
   operacional: {
@@ -244,7 +274,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     eyebrow: "Administracao",
     title: "Base derivada da jornada real",
     description:
-      "Clientes capturados pelo fluxo publico com leitura de historico basica. CRM, segmentacao, WhatsApp e LTV seguem sem contrato dedicado.",
+      "Clientes capturados pelo fluxo publico com leitura de historico, retorno por janela e receita derivada. CRM avancado, WhatsApp e cohort seguem sem contrato dedicado.",
     stage: "parcial"
   },
   configuracoes: {
@@ -264,7 +294,7 @@ const adminNavigationSections: ReadonlyArray<{
 }> = [
   {
     label: "Gestao do negocio",
-    routes: ["dashboard"]
+    routes: ["dashboard", "relatorios"]
   },
   {
     label: "Dia a dia",
@@ -332,6 +362,11 @@ export function App() {
   const [isBusy, setIsBusy] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<BookingFilter>("today");
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
+  const [reportsRange, setReportsRange] = useState<DashboardRange>("30d");
+  const [reportsServiceFilter, setReportsServiceFilter] = useState("all");
+  const [reportsProfessionalFilter, setReportsProfessionalFilter] = useState("all");
+  const [clientReturnWindow, setClientReturnWindow] = useState<ClientReturnWindow>("30d");
+  const [clientSegmentFilter, setClientSegmentFilter] = useState<ClientSegmentFilter>("all");
   const [loginForm, setLoginForm] = useState({
     email: "owner@agendaai.demo",
     password: "agendaai-demo"
@@ -553,6 +588,37 @@ export function App() {
     paymentIntents
   );
   const dashboardRevenueSummary = summarizeRevenueEntries(revenueEntries, dashboardBookings);
+  const reportBookings = filterBookingsByReportSelection(
+    filterBookingsByRange(bookings, reportsRange),
+    reportsServiceFilter,
+    reportsProfessionalFilter
+  );
+  const previousReportBookings =
+    reportsRange === "all"
+      ? []
+      : filterBookingsByReportSelection(
+          filterBookingsByRange(bookings, reportsRange, 1),
+          reportsServiceFilter,
+          reportsProfessionalFilter
+        );
+  const reportRevenueEntries = buildRevenueEntries(
+    reportBookings,
+    services,
+    professionals,
+    clients,
+    paymentIntents
+  );
+  const reportRevenueSummary = summarizeRevenueEntries(reportRevenueEntries, reportBookings);
+  const previousReportRevenueSummary = summarizeRevenueEntries(
+    buildRevenueEntries(previousReportBookings, services, professionals, clients, paymentIntents),
+    previousReportBookings
+  );
+  const reportServiceSummaries = buildServiceReportSummaries(reportBookings, services);
+  const reportProfessionalSummaries = buildProfessionalReportSummaries(
+    reportBookings,
+    professionals,
+    services
+  );
   const bookingSummary = summarizeBookings(bookings);
   const agendaBookings = filterAgendaBookings(bookings, bookingFilter);
   const dayAgendaBookings = filterBookingsByDate(bookings, agendaDate);
@@ -560,7 +626,14 @@ export function App() {
     agendaProfessionalFilter === "all"
       ? dayAgendaBookings
       : dayAgendaBookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
-  const clientInsights = buildClientInsights(clients, bookings);
+  const clientInsights = buildClientInsights(clients, bookings, services);
+  const filteredClientInsights = filterClientInsights(
+    clientInsights,
+    clientSegmentFilter,
+    clientReturnWindow
+  );
+  const clientPortfolioSummary = summarizeClientPortfolio(clientInsights, clientReturnWindow);
+  const inactiveClientInsights = filterClientInsights(clientInsights, "inactive", clientReturnWindow);
   const pendingPaymentCount = paymentIntents.filter((intent) =>
     ["pending", "in_process", "authorized", "draft"].includes(intent.status)
   ).length;
@@ -1006,21 +1079,28 @@ export function App() {
     );
   }
 
-  function renderClientRecords(): JSX.Element {
-    if (!clientInsights.length) {
+  function renderClientRecords(entries: readonly ClientInsight[]): JSX.Element {
+    if (!entries.length) {
       return <p className="empty-state">Nenhum cliente cadastrado ainda.</p>;
     }
 
     return (
       <>
-        {clientInsights.map((entry) => (
+        {entries.map((entry) => {
+          const segment = resolveClientSegment(entry, clientReturnWindow);
+          return (
           <article className="record-card" key={entry.client.id}>
             <div className="record-card-header">
               <div className="record-stack">
                 <strong>{entry.client.nome}</strong>
                 <span>{entry.client.email}</span>
               </div>
-              <span className="status-pill is-neutral">{entry.totalBookings} bookings</span>
+              <div className="record-meta">
+                <span className={`status-pill is-${resolveClientSegmentTone(segment)}`}>
+                  {formatClientSegment(segment, clientReturnWindow)}
+                </span>
+                <span className="status-pill is-neutral">{entry.totalBookings} bookings</span>
+              </div>
             </div>
 
             <div className="record-meta">
@@ -1037,9 +1117,26 @@ export function App() {
               <span className="status-pill is-success">
                 Concluidos {entry.completedBookings}
               </span>
+              <span className="status-pill is-neutral">
+                Receita derivada {formatCurrency(entry.recognizedRevenue)}
+              </span>
+            </div>
+
+            <div className="record-meta">
+              <span>
+                Ultimo atendimento{" "}
+                {entry.lastCompletedBooking
+                  ? formatDateTime(entry.lastCompletedBooking.endAt)
+                  : "nunca concluido"}
+              </span>
+              {entry.lastCompletedBooking ? (
+                <span>
+                  Sem retorno ha {formatDaysSince(entry.lastCompletedBooking.endAt)}
+                </span>
+              ) : null}
             </div>
           </article>
-        ))}
+        )})}
       </>
     );
   }
@@ -1915,7 +2012,7 @@ export function App() {
               <div className="list-card">
                 <strong>Proximos passos operacionais</strong>
                 <p>
-                  Abrir o reflexo financeiro de atendimento concluido no shell e, depois, expandir para relatorios por periodo e clientes sem retorno.
+                  Endurecer a carteira com recortes dedicados de retorno e, depois, abrir relatorios mais densos por periodo e CRM.
                 </p>
               </div>
             </div>
@@ -1982,12 +2079,398 @@ export function App() {
                 <p>O `api-rest` ainda nao entrega serie agregada por dia ou read model pronto para grafico executivo.</p>
               </div>
               <div className="list-card">
-                <strong>Clientes sem retorno por janela (nao funcional)</strong>
-                <p>O produto ainda nao calcula inatividade por cohort, ultima visita esperada ou alvo de win-back.</p>
+                <strong>Clientes sem retorno por cohort e expectativa (nao funcional)</strong>
+                <p>O produto ja calcula janela simples de retorno, mas ainda nao entrega cohort, ultima visita esperada ou alvo preditivo de win-back.</p>
               </div>
               <div className="list-card">
                 <strong>Relatorio financeiro completo (nao funcional)</strong>
                 <p>Receita reconhecida ja existe; conciliacao de caixa, estorno, forma presencial e saldo do periodo ainda nao.</p>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Retorno de clientes</p>
+                <h2>Clientes sem retorno por periodo</h2>
+              </div>
+              <div className="mode-switch">
+                <button
+                  className={clientReturnWindow === "30d" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setClientReturnWindow("30d")}
+                  type="button"
+                >
+                  30 dias
+                </button>
+                <button
+                  className={clientReturnWindow === "60d" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setClientReturnWindow("60d")}
+                  type="button"
+                >
+                  60 dias
+                </button>
+                <button
+                  className={clientReturnWindow === "90d" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setClientReturnWindow("90d")}
+                  type="button"
+                >
+                  90 dias
+                </button>
+              </div>
+            </div>
+
+            <div className="stats-strip">
+              <article className="stat-card">
+                <span>Com retorno recente</span>
+                <strong>{clientPortfolioSummary.returningCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Sem retorno</span>
+                <strong>{clientPortfolioSummary.inactiveCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Nunca concluiram</span>
+                <strong>{clientPortfolioSummary.neverCompletedCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Carteira com atendimento</span>
+                <strong>{clientPortfolioSummary.activeCount}</strong>
+              </article>
+            </div>
+
+            <div className="records-column">
+              {inactiveClientInsights.length ? (
+                inactiveClientInsights.slice(0, 6).map((entry) => (
+                  <article className="record-card" key={entry.client.id}>
+                    <div className="record-card-header">
+                      <div className="record-stack">
+                        <strong>{entry.client.nome}</strong>
+                        <span>{entry.client.email}</span>
+                      </div>
+                      <span className="status-pill is-warning">
+                        {formatClientSegment("inactive", clientReturnWindow)}
+                      </span>
+                    </div>
+
+                    <div className="record-meta">
+                      <span>Origem {entry.client.origem}</span>
+                      <span>
+                        Ultimo atendimento{" "}
+                        {entry.lastCompletedBooking
+                          ? formatDateTime(entry.lastCompletedBooking.endAt)
+                          : "nunca concluido"}
+                      </span>
+                      <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">
+                  Nenhum cliente com retorno atrasado encontrado na janela de {resolveClientReturnWindowLabel(clientReturnWindow)}.
+                </p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Leitura honesta</p>
+                <h2>Limites deste recorte de CRM</h2>
+              </div>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>Clientes sem retorno (funcional)</strong>
+                <p>Ja podem ser derivados da ultima booking concluida, sem read model novo, desde que a regra seja janela de dias.</p>
+              </div>
+              <div className="list-card">
+                <strong>Propensao de recompra (nao funcional)</strong>
+                <p>Nao existe modelo de cohort, ciclo medio de recompra ou score preditivo no contrato atual.</p>
+              </div>
+              <div className="list-card">
+                <strong>Disparo de WhatsApp (nao funcional)</strong>
+                <p>O shell ja identifica quem esta sem retorno, mas ainda nao possui integracao transacional ou campanha conectada.</p>
+              </div>
+            </div>
+          </article>
+        </section>
+      </section>
+    );
+  }
+
+  function renderReportsView(): JSX.Element {
+    return (
+      <section className="view-stack">
+        <article className="panel">
+          <div className="panel-header">
+            <div>
+              <p className="eyebrow">Relatorios</p>
+              <h2>Agenda, receita e retorno por periodo</h2>
+            </div>
+            <span className="status-pill is-warning">Parcial</span>
+          </div>
+
+          <div className="timeline-toolbar">
+            <div className="button-row">
+              <button
+                className={reportsRange === "7d" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setReportsRange("7d")}
+                type="button"
+              >
+                7 dias
+              </button>
+              <button
+                className={reportsRange === "30d" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setReportsRange("30d")}
+                type="button"
+              >
+                30 dias
+              </button>
+              <button
+                className={reportsRange === "all" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setReportsRange("all")}
+                type="button"
+              >
+                Tudo
+              </button>
+            </div>
+
+            <label className="field timeline-date-field">
+              <span>Servico</span>
+              <select
+                onChange={(event) => setReportsServiceFilter(event.target.value)}
+                value={reportsServiceFilter}
+              >
+                <option value="all">Todos os servicos</option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="field timeline-date-field">
+              <span>Profissional</span>
+              <select
+                onChange={(event) => setReportsProfessionalFilter(event.target.value)}
+                value={reportsProfessionalFilter}
+              >
+                <option value="all">Todos os profissionais</option>
+                {professionals.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="stats-strip">
+            <article className="stat-card">
+              <span>Bookings no periodo</span>
+              <strong>{reportBookings.length}</strong>
+              <small>
+                {resolveReportComparisonLabel(
+                  reportBookings.length,
+                  previousReportBookings.length,
+                  "count",
+                  reportsRange !== "all"
+                )}
+              </small>
+            </article>
+            <article className="stat-card">
+              <span>Receita reconhecida</span>
+              <strong>{formatCurrency(reportRevenueSummary.recognizedRevenue)}</strong>
+              <small>
+                {resolveReportComparisonLabel(
+                  reportRevenueSummary.recognizedRevenue,
+                  previousReportRevenueSummary.recognizedRevenue,
+                  "currency",
+                  reportsRange !== "all"
+                )}
+              </small>
+            </article>
+            <article className="stat-card">
+              <span>Entrada online aprovada</span>
+              <strong>{formatCurrency(reportRevenueSummary.approvedOnlineRevenue)}</strong>
+              <small>
+                {resolveReportComparisonLabel(
+                  reportRevenueSummary.approvedOnlineRevenue,
+                  previousReportRevenueSummary.approvedOnlineRevenue,
+                  "currency",
+                  reportsRange !== "all"
+                )}
+              </small>
+            </article>
+            <article className="stat-card">
+              <span>No-show</span>
+              <strong>{formatPercentage(reportRevenueSummary.noShowRate)}</strong>
+              <small>
+                {resolveReportComparisonLabel(
+                  reportRevenueSummary.noShowRate,
+                  previousReportRevenueSummary.noShowRate,
+                  "percentage",
+                  reportsRange !== "all"
+                )}
+              </small>
+            </article>
+          </div>
+        </article>
+
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Servicos</p>
+                <h2>Receita e agenda por servico</h2>
+              </div>
+              <span className="helper-chip">{resolveDashboardRangeLabel(reportsRange)}</span>
+            </div>
+
+            <div className="records-column">
+              {reportServiceSummaries.length ? (
+                reportServiceSummaries.map((entry) => (
+                  <article className="record-card" key={entry.id}>
+                    <div className="record-card-header">
+                      <div className="record-stack">
+                        <strong>{entry.label}</strong>
+                        <span>{entry.bookingsCount} booking(s) no periodo</span>
+                      </div>
+                      <span className="status-pill is-success">
+                        {formatCurrency(entry.recognizedRevenue)}
+                      </span>
+                    </div>
+                    <div className="record-meta">
+                      <span>Concluidos {entry.completedCount}</span>
+                      <span className="status-pill is-neutral">
+                        Ticket medio {formatCurrency(entry.completedCount > 0 ? entry.recognizedRevenue / entry.completedCount : 0)}
+                      </span>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">Nenhum servico com dado suficiente neste recorte.</p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Profissionais</p>
+                <h2>Performance por profissional</h2>
+              </div>
+              <span className="helper-chip">Derivado do runtime</span>
+            </div>
+
+            <div className="records-column">
+              {reportProfessionalSummaries.length ? (
+                reportProfessionalSummaries.map((entry) => (
+                  <article className="record-card" key={entry.id}>
+                    <div className="record-card-header">
+                      <div className="record-stack">
+                        <strong>{entry.label}</strong>
+                        <span>{entry.bookingsCount} booking(s) no periodo</span>
+                      </div>
+                      <span className="status-pill is-success">
+                        {formatCurrency(entry.recognizedRevenue)}
+                      </span>
+                    </div>
+                    <div className="record-meta">
+                      <span>Concluidos {entry.completedCount}</span>
+                      <span className="status-pill is-neutral">
+                        Ticket medio {formatCurrency(entry.completedCount > 0 ? entry.recognizedRevenue / entry.completedCount : 0)}
+                      </span>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">Nenhum profissional com dado suficiente neste recorte.</p>
+              )}
+            </div>
+          </article>
+        </section>
+
+        <section className="workspace-grid">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Retorno</p>
+                <h2>Clientes sem retorno no shell atual</h2>
+              </div>
+              <span className="helper-chip">{resolveClientReturnWindowLabel(clientReturnWindow)}</span>
+            </div>
+
+            <div className="stats-strip">
+              <article className="stat-card">
+                <span>Com retorno</span>
+                <strong>{clientPortfolioSummary.returningCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Sem retorno</span>
+                <strong>{clientPortfolioSummary.inactiveCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Nunca concluiu</span>
+                <strong>{clientPortfolioSummary.neverCompletedCount}</strong>
+              </article>
+            </div>
+
+            <div className="records-column">
+              {inactiveClientInsights.length ? (
+                inactiveClientInsights.slice(0, 8).map((entry) => (
+                  <article className="record-card" key={entry.client.id}>
+                    <div className="record-card-header">
+                      <div className="record-stack">
+                        <strong>{entry.client.nome}</strong>
+                        <span>{entry.client.email}</span>
+                      </div>
+                      <span className="status-pill is-warning">
+                        {formatClientSegment("inactive", clientReturnWindow)}
+                      </span>
+                    </div>
+                    <div className="record-meta">
+                      <span>Ultimo atendimento {entry.lastCompletedBooking ? formatDateTime(entry.lastCompletedBooking.endAt) : "nunca"}</span>
+                      <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <p className="empty-state">
+                  Nenhum cliente sem retorno identificado na janela de {resolveClientReturnWindowLabel(clientReturnWindow)}.
+                </p>
+              )}
+            </div>
+          </article>
+
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Lacunas</p>
+                <h2>O que ainda nao existe neste modulo</h2>
+              </div>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+
+            <div className="records-column">
+              <div className="list-card">
+                <strong>Comparativo historico (funcional)</strong>
+                <p>Ja existe para o mesmo periodo imediatamente anterior, desde que o filtro nao esteja em `Tudo`.</p>
+              </div>
+              <div className="list-card">
+                <strong>Cohort e recorrencia (nao funcional)</strong>
+                <p>Os relatorios ainda nao calculam cohort de retorno, ciclo medio de recompra ou previsao de reativacao.</p>
+              </div>
+              <div className="list-card">
+                <strong>Financeiro persistido (nao funcional)</strong>
+                <p>Receita reconhecida continua derivada do runtime; nao existe `cash entry` nem conciliacao contabil persistida.</p>
               </div>
             </div>
           </article>
@@ -2586,32 +3069,91 @@ export function App() {
                 <p className="eyebrow">Clientes e CRM</p>
                 <h2>Clientes capturados pela jornada real</h2>
               </div>
-              <span className="helper-chip">Leitura derivada de booking</span>
+              <div className="mode-switch">
+                <button
+                  className={clientSegmentFilter === "all" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setClientSegmentFilter("all")}
+                  type="button"
+                >
+                  Todos
+                </button>
+                <button
+                  className={clientSegmentFilter === "returning" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setClientSegmentFilter("returning")}
+                  type="button"
+                >
+                  Retorno
+                </button>
+                <button
+                  className={clientSegmentFilter === "inactive" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setClientSegmentFilter("inactive")}
+                  type="button"
+                >
+                  Sem retorno
+                </button>
+                <button
+                  className={clientSegmentFilter === "never_completed" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setClientSegmentFilter("never_completed")}
+                  type="button"
+                >
+                  Nunca concluiu
+                </button>
+              </div>
             </div>
 
-            <div className="records-column">{renderClientRecords()}</div>
+            <div className="record-meta">
+              <span className="helper-chip">Leitura derivada de booking</span>
+              <span className="status-pill is-neutral">
+                Janela de retorno {resolveClientReturnWindowLabel(clientReturnWindow)}
+              </span>
+            </div>
+
+            <div className="stats-strip">
+              <article className="stat-card">
+                <span>Retorno recente</span>
+                <strong>{clientPortfolioSummary.returningCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Sem retorno</span>
+                <strong>{clientPortfolioSummary.inactiveCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Nunca concluiu</span>
+                <strong>{clientPortfolioSummary.neverCompletedCount}</strong>
+              </article>
+              <article className="stat-card">
+                <span>Receita derivada</span>
+                <strong>{formatCurrency(clientInsights.reduce((total, entry) => total + entry.recognizedRevenue, 0))}</strong>
+              </article>
+            </div>
+
+            <div className="records-column">{renderClientRecords(filteredClientInsights)}</div>
           </article>
 
           <aside className="panel aside-panel">
             <div className="panel-header compact">
               <div>
-                <p className="eyebrow">Lacunas</p>
-                <h3>Camadas ainda nao implementadas</h3>
+                <p className="eyebrow">Retorno</p>
+                <h3>Recorte operacional da carteira</h3>
               </div>
             </div>
 
             <div className="records-column">
               <div className="list-card">
+                <strong>Janela de retorno</strong>
+                <p>Use 30, 60 ou 90 dias para identificar clientes que nao voltaram depois do ultimo atendimento concluido.</p>
+              </div>
+              <div className="list-card">
                 <strong>WhatsApp operacional (nao funcional)</strong>
-                <p>O mock sugere acao de confirmacao por canal, mas nao ha integracao nem contrato de notificacao.</p>
+                <p>O shell ja consegue listar clientes sem retorno, mas ainda nao existe integracao nem contrato de notificacao.</p>
               </div>
               <div className="list-card">
-                <strong>LTV e score de risco (nao funcional)</strong>
-                <p>Os contratos atuais nao consolidam gasto total, recorrencia ou classificacao automatica de cliente.</p>
+                <strong>Score de risco e cohort (nao funcional)</strong>
+                <p>Os contratos atuais ainda nao consolidam ciclo medio de retorno, propensao de recompra ou cohort de retencao.</p>
               </div>
               <div className="list-card">
-                <strong>Clientes sem compra (nao funcional)</strong>
-                <p>A leitura atual mostra bookings concluidos e abertos, sem um relatorio dedicado de inatividade.</p>
+                <strong>Clientes sem retorno (funcional)</strong>
+                <p>Este recorte agora existe no shell e tambem aparece no dashboard, usando a ultima booking concluida como referencia.</p>
               </div>
             </div>
           </aside>
@@ -2691,6 +3233,8 @@ export function App() {
     switch (currentRoute) {
       case "dashboard":
         return renderDashboardView();
+      case "relatorios":
+        return renderReportsView();
       case "operacional":
         return renderOperationalView();
       case "agenda":
@@ -3135,7 +3679,11 @@ function summarizeBookings(bookings: readonly Booking[]): BookingSummary {
   };
 }
 
-function filterBookingsByRange(bookings: readonly Booking[], range: DashboardRange): Booking[] {
+function filterBookingsByRange(
+  bookings: readonly Booking[],
+  range: DashboardRange,
+  offsetPeriods = 0
+): Booking[] {
   if (range === "all") {
     return [...bookings].sort((left, right) => right.startAt.localeCompare(left.startAt));
   }
@@ -3143,10 +3691,39 @@ function filterBookingsByRange(bookings: readonly Booking[], range: DashboardRan
   const days = range === "7d" ? 7 : 30;
   const startDate = new Date();
   startDate.setHours(0, 0, 0, 0);
-  startDate.setDate(startDate.getDate() - (days - 1));
+  startDate.setDate(startDate.getDate() - (days - 1) - days * offsetPeriods);
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + days);
 
   return [...bookings]
-    .filter((booking) => new Date(booking.startAt) >= startDate)
+    .filter((booking) => {
+      const bookingDate = new Date(booking.startAt);
+      if (bookingDate < startDate) {
+        return false;
+      }
+      if (offsetPeriods > 0 && bookingDate >= endDate) {
+        return false;
+      }
+      return true;
+    })
+    .sort((left, right) => right.startAt.localeCompare(left.startAt));
+}
+
+function filterBookingsByReportSelection(
+  bookings: readonly Booking[],
+  serviceFilter: string,
+  professionalFilter: string
+): Booking[] {
+  return [...bookings]
+    .filter((booking) => {
+      if (serviceFilter !== "all" && booking.serviceId !== serviceFilter) {
+        return false;
+      }
+      if (professionalFilter !== "all" && booking.professionalId !== professionalFilter) {
+        return false;
+      }
+      return true;
+    })
     .sort((left, right) => right.startAt.localeCompare(left.startAt));
 }
 
@@ -3314,27 +3891,88 @@ function buildWeekProfessionalSummaries(
   });
 }
 
-function buildClientInsights(clients: readonly Client[], bookings: readonly Booking[]): ClientInsight[] {
+function buildClientInsights(
+  clients: readonly Client[],
+  bookings: readonly Booking[],
+  services: readonly Service[]
+): ClientInsight[] {
   return clients
     .map((client) => {
       const clientBookings = bookings
         .filter((booking) => booking.clientId === client.id)
         .sort((left, right) => right.startAt.localeCompare(left.startAt));
+      const completedBookings = clientBookings.filter((booking) => booking.status === "concluido");
+      const recognizedRevenue = completedBookings.reduce((total, booking) => {
+        const service = services.find((item) => item.id === booking.serviceId);
+        return total + (service?.precoBase ?? 0);
+      }, 0);
 
       return {
         client,
         totalBookings: clientBookings.length,
         openBookings: clientBookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
-        completedBookings: clientBookings.filter((booking) => booking.status === "concluido").length,
-        lastBooking: clientBookings[0]
+        completedBookings: completedBookings.length,
+        lastBooking: clientBookings[0],
+        lastCompletedBooking: completedBookings[0],
+        recognizedRevenue
       };
     })
     .sort((left, right) => {
       const leftDate = left.lastBooking?.startAt ?? "";
       const rightDate = right.lastBooking?.startAt ?? "";
       return rightDate.localeCompare(leftDate);
-    })
-    .slice(0, 8);
+    });
+}
+
+function filterClientInsights(
+  entries: readonly ClientInsight[],
+  filter: ClientSegmentFilter,
+  window: ClientReturnWindow
+): ClientInsight[] {
+  return entries.filter((entry) => {
+    const segment = resolveClientSegment(entry, window);
+    if (filter === "all") {
+      return true;
+    }
+    return segment === filter;
+  });
+}
+
+function summarizeClientPortfolio(
+  entries: readonly ClientInsight[],
+  window: ClientReturnWindow
+): ClientPortfolioSummary {
+  return entries.reduce<ClientPortfolioSummary>(
+    (summary, entry) => {
+      const segment = resolveClientSegment(entry, window);
+      if (segment === "returning") {
+        return { ...summary, returningCount: summary.returningCount + 1, activeCount: summary.activeCount + 1 };
+      }
+      if (segment === "inactive") {
+        return { ...summary, inactiveCount: summary.inactiveCount + 1, activeCount: summary.activeCount + 1 };
+      }
+      return { ...summary, neverCompletedCount: summary.neverCompletedCount + 1 };
+    },
+    {
+      activeCount: 0,
+      inactiveCount: 0,
+      neverCompletedCount: 0,
+      returningCount: 0
+    }
+  );
+}
+
+function resolveClientSegment(
+  entry: ClientInsight,
+  window: ClientReturnWindow
+): Exclude<ClientSegmentFilter, "all"> {
+  if (!entry.lastCompletedBooking) {
+    return "never_completed";
+  }
+
+  const daysSinceLastCompleted = calculateDaysSinceIso(entry.lastCompletedBooking.endAt);
+  const threshold = resolveClientReturnWindowDays(window);
+  return daysSinceLastCompleted > threshold ? "inactive" : "returning";
 }
 
 function buildRevenueEntries(
@@ -3392,6 +4030,86 @@ function summarizeRevenueEntries(
     noShowRate: bookings.length > 0 ? noShowCount / bookings.length : 0,
     cancelledCount
   };
+}
+
+function buildServiceReportSummaries(
+  bookings: readonly Booking[],
+  services: readonly Service[]
+): ReportGroupSummary[] {
+  const grouped = new Map<string, ReportGroupSummary>();
+
+  for (const booking of bookings) {
+    const service = services.find((item) => item.id === booking.serviceId);
+    const existing =
+      grouped.get(booking.serviceId) ??
+      ({
+        id: booking.serviceId,
+        label: service?.nome ?? "Servico removido",
+        bookingsCount: 0,
+        completedCount: 0,
+        recognizedRevenue: 0
+      } satisfies ReportGroupSummary);
+
+    grouped.set(booking.serviceId, {
+      ...existing,
+      bookingsCount: existing.bookingsCount + 1,
+      completedCount:
+        existing.completedCount + (booking.status === "concluido" ? 1 : 0),
+      recognizedRevenue:
+        existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0)
+    });
+  }
+
+  return [...grouped.values()].sort((left, right) => {
+    if (right.recognizedRevenue !== left.recognizedRevenue) {
+      return right.recognizedRevenue - left.recognizedRevenue;
+    }
+    if (right.bookingsCount !== left.bookingsCount) {
+      return right.bookingsCount - left.bookingsCount;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
+function buildProfessionalReportSummaries(
+  bookings: readonly Booking[],
+  professionals: readonly Professional[],
+  services: readonly Service[]
+): ReportGroupSummary[] {
+  const grouped = new Map<string, ReportGroupSummary>();
+
+  for (const booking of bookings) {
+    const professional = professionals.find((item) => item.id === booking.professionalId);
+    const service = services.find((item) => item.id === booking.serviceId);
+    const existing =
+      grouped.get(booking.professionalId) ??
+      ({
+        id: booking.professionalId,
+        label: professional?.nome ?? "Profissional removido",
+        bookingsCount: 0,
+        completedCount: 0,
+        recognizedRevenue: 0
+      } satisfies ReportGroupSummary);
+
+    grouped.set(booking.professionalId, {
+      ...existing,
+      bookingsCount: existing.bookingsCount + 1,
+      completedCount:
+        existing.completedCount + (booking.status === "concluido" ? 1 : 0),
+      recognizedRevenue:
+        existing.recognizedRevenue + (booking.status === "concluido" ? service?.precoBase ?? 0 : 0)
+    });
+  }
+
+  return [...grouped.values()].sort((left, right) => {
+    if (right.recognizedRevenue !== left.recognizedRevenue) {
+      return right.recognizedRevenue - left.recognizedRevenue;
+    }
+    if (right.bookingsCount !== left.bookingsCount) {
+      return right.bookingsCount - left.bookingsCount;
+    }
+    return left.label.localeCompare(right.label);
+  });
 }
 
 function resolveBookingActions(booking: Booking): BookingAction[] {
@@ -3561,6 +4279,51 @@ function resolveDashboardRangeLabel(range: DashboardRange): string {
   return "todo o historico";
 }
 
+function resolveReportComparisonLabel(
+  current: number,
+  previous: number,
+  mode: "count" | "currency" | "percentage",
+  enableComparison = true
+): string {
+  if (!enableComparison) {
+    return "Sem comparativo em todo o historico";
+  }
+
+  if (current === previous) {
+    return "Estavel vs periodo anterior";
+  }
+
+  const delta = current - previous;
+  const direction = delta > 0 ? "Acima" : "Abaixo";
+  const absoluteDelta =
+    mode === "currency"
+      ? formatCurrency(Math.abs(delta))
+      : mode === "percentage"
+        ? formatPercentage(Math.abs(delta))
+        : String(Math.abs(Math.round(delta)));
+
+  if (previous === 0) {
+    return `${direction} ${absoluteDelta} vs periodo anterior sem base`;
+  }
+
+  const variation = Math.round((Math.abs(delta) / Math.abs(previous)) * 100);
+  return `${direction} ${absoluteDelta} (${variation}%) vs periodo anterior`;
+}
+
+function resolveClientReturnWindowDays(window: ClientReturnWindow): number {
+  if (window === "30d") {
+    return 30;
+  }
+  if (window === "60d") {
+    return 60;
+  }
+  return 90;
+}
+
+function resolveClientReturnWindowLabel(window: ClientReturnWindow): string {
+  return `${resolveClientReturnWindowDays(window)} dias`;
+}
+
 function calculateRuleDurationMinutes(rule?: AvailabilityRule): number {
   if (!rule) {
     return 0;
@@ -3606,6 +4369,46 @@ function formatUtilization(bookedMinutes: number, totalMinutes: number): string 
 
 function formatPercentage(value: number): string {
   return `${Math.round(value * 100)}%`;
+}
+
+function calculateDaysSinceIso(value: string): number {
+  const now = new Date();
+  const date = new Date(value);
+  return Math.max(Math.floor((now.getTime() - date.getTime()) / 86400000), 0);
+}
+
+function formatDaysSince(value: string): string {
+  const days = calculateDaysSinceIso(value);
+  if (days === 0) {
+    return "0 dias";
+  }
+  if (days === 1) {
+    return "1 dia";
+  }
+  return `${days} dias`;
+}
+
+function resolveClientSegmentTone(segment: Exclude<ClientSegmentFilter, "all">): string {
+  if (segment === "returning") {
+    return "success";
+  }
+  if (segment === "inactive") {
+    return "warning";
+  }
+  return "neutral";
+}
+
+function formatClientSegment(
+  segment: Exclude<ClientSegmentFilter, "all">,
+  window: ClientReturnWindow
+): string {
+  if (segment === "returning") {
+    return "Retorno recente";
+  }
+  if (segment === "inactive") {
+    return `Sem retorno ${resolveClientReturnWindowLabel(window)}`;
+  }
+  return "Nunca concluiu";
 }
 
 function resolveUtilizationTone(bookedMinutes: number, totalMinutes: number): string {

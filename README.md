@@ -25,6 +25,8 @@ Este repositorio foi estruturado a partir do ciclo:
 - `B-08` ja homologou o caminho real de `checkout_pro`, com `payment intent`, `sync`, callback/retorno publicados e booking confirmada em homologacao;
 - `B-09` agora possui timeline diaria, reagendamento por slot real e grade semanal de capacidade no `admin-web`;
 - `B-10` agora abriu o primeiro reflexo financeiro real no `dashboard` do `admin-web`, com receita reconhecida por booking concluida e entrada online aprovada por periodo;
+- `B-11` agora entrou em fundacao real no `admin-web`, com janela de retorno, clientes sem retorno e receita derivada por cliente;
+- `B-12` agora possui rota dedicada de relatorios no `admin-web`, com filtros por periodo, servico e profissional, comparativo com periodo anterior e lacunas explicitas para cohort e financeiro persistido;
 - `api-rest`, `booking-web` e `admin-web` ja estao publicados em `Render` + `Vercel`;
 - existe agora uma trilha derivada de beta em `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`.
 
@@ -63,11 +65,13 @@ Este repositorio foi estruturado a partir do ciclo:
 18. `docs/08_analises/25_execucao_b09_agenda_reagendamento_2026-03-19.md`
 19. `docs/08_analises/26_execucao_b09_calendario_semanal_capacidade_2026-03-19.md`
 20. `docs/08_analises/27_execucao_b10_reflexo_financeiro_dashboard_2026-03-19.md`
-21. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
-22. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
-23. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
-24. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
+21. `docs/08_analises/28_execucao_b11_retorno_clientes_2026-03-19.md`
+22. `docs/08_analises/29_execucao_b12_relatorios_dedicados_2026-03-19.md`
+23. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
+24. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
+25. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
+26. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
 
 ## Proximo passo recomendado
 
-Endurecer `B-10` e `BA-11` com clientes sem retorno por periodo e um recorte de relatorio mais dedicado no admin. Em paralelo, decidir se `checkout_transparente` continua dentro de `B-08` estrutural ou vira trilha propria.
+Endurecer `B-12` com read model financeiro minimo, comparativos mais fortes e um recorte de cohort/recorrencia de clientes. Em paralelo, decidir se `checkout_transparente` continua dentro de `B-08` estrutural ou vira trilha propria.

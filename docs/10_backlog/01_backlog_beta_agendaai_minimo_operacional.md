@@ -34,8 +34,8 @@ Ele nao substitui `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`.
 | Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto |
 | --- | --- | --- | --- | --- | --- |
 | 9 | BA-09 | Agenda do dia no `admin-web` com acoes basicas | BA-01, BA-07 | PARCIAL | leitura de bookings pronta com filtros, acoes de confirmar/concluir/cancelar, reagendamento por slot e grade semanal com capacidade; calendario mensal/rico e drag-and-drop ainda pendentes |
-| 10 | BA-10 | Clientes derivados dos bookings reais | BA-09 | PARCIAL | ultima visita e leitura basica prontas; historico detalhado e segmentacao ainda pendentes |
-| 11 | BA-11 | Relatorios essenciais de beta | BA-09, BA-10 | EM FUNDACAO | agenda e receita por periodo ja aparecem no dashboard; clientes sem retorno e recorte dedicado de CRM ainda pendentes |
+| 10 | BA-10 | Clientes derivados dos bookings reais | BA-09 | PARCIAL | ultima visita, ultimo atendimento concluido, receita derivada e retorno por janela ja aparecem; historico detalhado e CRM transacional ainda pendentes |
+| 11 | BA-11 | Relatorios essenciais de beta | BA-09, BA-10 | PARCIAL | `admin-web` agora possui tela dedicada de relatorios com periodo, servico, profissional, comparativo e recorte de clientes sem retorno; cohort, exportacao e financeiro persistido continuam fora do beta |
 
 ## Fora do beta AgendaAI
 

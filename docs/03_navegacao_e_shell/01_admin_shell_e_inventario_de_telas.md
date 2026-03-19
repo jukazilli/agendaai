@@ -34,7 +34,7 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 | `/app/configuracoes` | Configuracoes do tenant | manter dados permanentes do negocio apos a implantacao | dados do tenant, slug, branding, integracoes e preferencias operacionais | beta obrigatoria |
 | `/app/calendario` | Calendario denso | operar visao semanal e diaria por profissional | grade temporal, filtros, conflito, reagendamento | pos-beta planejada |
 | `/app/financeiro` | Financeiro operacional | ler caixa e movimentos ligados ao atendimento | resumo financeiro, movimentacoes, conciliacao basica | pos-beta planejada |
-| `/app/relatorios` | Relatorios | acompanhar agenda, receita e retorno | filtros por periodo, cards, tabelas e comparativos | pos-beta planejada |
+| `/app/relatorios` | Relatorios | acompanhar agenda, receita e retorno | filtros por periodo, cards, tabelas e comparativos | beta materializada em modo parcial |
 | `/app/campanhas` | Campanhas e retorno | acionar win-back e comunicacoes | segmentos, disparos, historico de contato | pos-beta planejada |
 
 ## 5. User stories minimas por tela
@@ -92,9 +92,11 @@ Em `19/03/2026`, o `admin-web` passou a refletir a primeira materializacao real 
 
 - shell com navegacao lateral persistente no desktop e drawer no mobile;
 - modulos separados de `dashboard`, `operacional`, `agenda`, `catalogo`, `profissionais`, `clientes` e `configuracoes`;
-- dashboard com leitura real do bootstrap, filtro de periodo para agenda/receita e lacunas marcadas como `(nao funcional)` quando o mock sugeria blocos sem contrato;
+- dashboard com leitura real do bootstrap, filtro de periodo para agenda/receita, bloco de clientes sem retorno por janela e lacunas marcadas como `(nao funcional)` quando o mock sugeria blocos sem contrato;
 - configuracoes separadas da operacao, concentrando slug, Mercado Pago e ambiente administrativo;
 - agenda com timeline diaria por data, selecao de booking, reagendamento por slot real e grade semanal de capacidade por profissional dentro da mesma rota.
+- clientes com recorte de retorno por janela, ultimo atendimento concluido e receita derivada.
+- relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior e recorte de retorno reaproveitado do shell atual.
 
 Este documento continua sendo a referencia oficial para:
 
@@ -107,6 +109,6 @@ As lacunas remanescentes deste shell agora deixaram de ser estruturais e passara
 
 - calendario mensal e drag-and-drop;
 - analytics agregados de faturamento, ocupacao historica e retencao;
-- clientes sem retorno por periodo;
+- clientes sem retorno por cohort e expectativa;
 - branding minimo da implantacao;
-- financeiro operacional e relatorios.
+- financeiro operacional persistido.
