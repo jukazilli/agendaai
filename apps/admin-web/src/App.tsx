@@ -1,4 +1,34 @@
 import { Fragment, useEffect, useState, type CSSProperties, type FormEvent, type JSX } from "react";
+import {
+  Activity,
+  AlertCircle,
+  Bell,
+  BookOpen,
+  Calendar as CalendarIcon,
+  CalendarDays,
+  Check,
+  CheckCircle,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  CreditCard,
+  DollarSign,
+  LayoutDashboard,
+  Link as LinkIcon,
+  ListTodo,
+  Menu,
+  MessageCircle,
+  Plus,
+  Rocket,
+  Search,
+  Settings,
+  Star,
+  TrendingUp,
+  UserCircle,
+  Users,
+  XCircle,
+  type LucideIcon
+} from "lucide-react";
 
 import {
   defaultServicePaymentPolicy,
@@ -199,6 +229,12 @@ interface DashboardRevenueSummary {
   readonly cancelledCount: number;
 }
 
+interface DashboardChartPoint {
+  readonly label: string;
+  readonly recognizedRevenue: number;
+  readonly bookingsCount: number;
+}
+
 interface ClientPortfolioSummary {
   readonly activeCount: number;
   readonly inactiveCount: number;
@@ -213,6 +249,7 @@ interface AdminRouteDefinition {
   readonly label: string;
   readonly shortLabel: string;
   readonly section: "Gestao do negocio" | "Dia a dia" | "Administracao";
+  readonly icon: LucideIcon;
   readonly eyebrow: string;
   readonly title: string;
   readonly description: string;
@@ -233,6 +270,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Dashboard",
     shortLabel: "DG",
     section: "Gestao do negocio",
+    icon: LayoutDashboard,
     eyebrow: "Gestao do negocio",
     title: "Visao gerencial do tenant",
     description:
@@ -243,6 +281,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Relatorios",
     shortLabel: "RL",
     section: "Gestao do negocio",
+    icon: TrendingUp,
     eyebrow: "Gestao do negocio",
     title: "Relatorios essenciais do tenant",
     description:
@@ -253,6 +292,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Operacao diaria",
     shortLabel: "OP",
     section: "Dia a dia",
+    icon: ListTodo,
     eyebrow: "Dia a dia",
     title: "Fila operacional do dia",
     description:
@@ -263,6 +303,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Agenda / calendario",
     shortLabel: "AG",
     section: "Dia a dia",
+    icon: CalendarDays,
     eyebrow: "Planejamento",
     title: "Agenda e leitura de capacidade",
     description:
@@ -273,6 +314,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Catalogo",
     shortLabel: "CT",
     section: "Administracao",
+    icon: BookOpen,
     eyebrow: "Administracao",
     title: "Servicos e politica comercial",
     description:
@@ -283,6 +325,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Profissionais",
     shortLabel: "PF",
     section: "Administracao",
+    icon: Users,
     eyebrow: "Administracao",
     title: "Equipe e disponibilidade semanal",
     description:
@@ -293,6 +336,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Clientes",
     shortLabel: "CL",
     section: "Administracao",
+    icon: UserCircle,
     eyebrow: "Administracao",
     title: "Base derivada da jornada real",
     description:
@@ -303,6 +347,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     label: "Configuracoes",
     shortLabel: "CF",
     section: "Administracao",
+    icon: Settings,
     eyebrow: "Implantacao",
     title: "Perfil do negocio e cobranca",
     description:
@@ -362,6 +407,186 @@ const defaultServiceForm: ServiceFormState = {
   acceptedMethods: [...defaultServicePaymentPolicy.acceptedMethods]
 };
 
+function DashboardChart({
+  data
+}: {
+  readonly data: readonly DashboardChartPoint[];
+}): JSX.Element {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
+  if (!data.length) {
+    return (
+      <div className="dashboard-chart-empty">
+        <AlertCircle className="dashboard-chart-empty-icon" />
+        <p>Sem volume suficiente para compor a serie visual desta semana.</p>
+      </div>
+    );
+  }
+
+  const maxRevenue = Math.max(...data.map((item) => item.recognizedRevenue), 1) * 1.2;
+  const maxBookings = Math.max(...data.map((item) => item.bookingsCount), 1) * 1.2;
+  const width = 820;
+  const height = 280;
+  const paddingX = 42;
+  const paddingY = 22;
+  const chartWidth = width - paddingX * 2;
+  const chartHeight = height - paddingY * 2 - 20;
+
+  const getX = (index: number) =>
+    paddingX + index * (chartWidth / Math.max(data.length - 1, 1));
+  const getRevenueY = (value: number) => paddingY + chartHeight - (value / maxRevenue) * chartHeight;
+  const getBookingsY = (value: number) => paddingY + chartHeight - (value / maxBookings) * chartHeight;
+
+  const revenuePath = data
+    .map((item, index) => `${index === 0 ? "M" : "L"} ${getX(index)} ${getRevenueY(item.recognizedRevenue)}`)
+    .join(" ");
+  const revenueArea = `${revenuePath} L ${getX(data.length - 1)} ${paddingY + chartHeight} L ${getX(0)} ${paddingY + chartHeight} Z`;
+  const bookingsPath = data
+    .map((item, index) => `${index === 0 ? "M" : "L"} ${getX(index)} ${getBookingsY(item.bookingsCount)}`)
+    .join(" ");
+
+  return (
+    <div className="dashboard-chart">
+      <div className="dashboard-chart-legends">
+        <div className="dashboard-chart-legend">
+          <span className="dashboard-chart-dot is-revenue" />
+          <span>Receita reconhecida</span>
+        </div>
+        <div className="dashboard-chart-legend">
+          <span className="dashboard-chart-dot is-bookings" />
+          <span>Agendamentos</span>
+        </div>
+      </div>
+
+      <div className="dashboard-chart-svg-shell">
+        <svg viewBox={`0 0 ${width} ${height}`} className="dashboard-chart-svg" role="img">
+          <defs>
+            <linearGradient id="agendaaiRevenueArea" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(11, 122, 117, 0.28)" />
+              <stop offset="100%" stopColor="rgba(11, 122, 117, 0)" />
+            </linearGradient>
+          </defs>
+
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = paddingY + chartHeight * ratio;
+            return (
+              <g key={ratio}>
+                <line
+                  x1={paddingX}
+                  y1={y}
+                  x2={width - paddingX}
+                  y2={y}
+                  stroke="rgba(148, 163, 184, 0.22)"
+                  strokeWidth="1.5"
+                />
+                <text
+                  x={paddingX - 10}
+                  y={y + 4}
+                  textAnchor="end"
+                  className="dashboard-chart-axis-text"
+                >
+                  {ratio === 1 ? "0" : Math.round(maxRevenue * (1 - ratio))}
+                </text>
+              </g>
+            );
+          })}
+
+          <path d={revenueArea} fill="url(#agendaaiRevenueArea)" />
+          <path
+            d={revenuePath}
+            fill="none"
+            stroke="var(--ag-color-brand-primary)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <path
+            d={bookingsPath}
+            fill="none"
+            stroke="var(--ag-color-status-info)"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+
+          {data.map((item, index) => {
+            const x = getX(index);
+            return (
+              <g key={item.label}>
+                <text
+                  x={x}
+                  y={paddingY + chartHeight + 20}
+                  textAnchor="middle"
+                  className="dashboard-chart-axis-text"
+                >
+                  {item.label}
+                </text>
+
+                <rect
+                  x={x - chartWidth / Math.max(data.length - 1, 1) / 2}
+                  y={paddingY}
+                  width={chartWidth / Math.max(data.length - 1, 1)}
+                  height={chartHeight}
+                  fill="transparent"
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                />
+
+                {hoveredIndex === index ? (
+                  <g className="dashboard-chart-hover">
+                    <line
+                      x1={x}
+                      y1={paddingY}
+                      x2={x}
+                      y2={paddingY + chartHeight}
+                      stroke="rgba(100, 116, 139, 0.44)"
+                      strokeWidth="1"
+                      strokeDasharray="4 4"
+                    />
+                    <circle
+                      cx={x}
+                      cy={getRevenueY(item.recognizedRevenue)}
+                      r="5"
+                      fill="var(--ag-color-brand-primary)"
+                      stroke="#ffffff"
+                      strokeWidth="2"
+                    />
+                    <circle
+                      cx={x}
+                      cy={getBookingsY(item.bookingsCount)}
+                      r="5"
+                      fill="var(--ag-color-status-info)"
+                      stroke="#ffffff"
+                      strokeWidth="2"
+                    />
+                    <g transform={`translate(${x > width / 2 ? x - 146 : x + 14}, ${paddingY + 8})`}>
+                      <rect
+                        width="132"
+                        height="72"
+                        rx="12"
+                        fill="rgba(15, 23, 42, 0.96)"
+                      />
+                      <text x="12" y="24" className="dashboard-chart-tooltip-title">
+                        {item.label}
+                      </text>
+                      <text x="12" y="44" className="dashboard-chart-tooltip-revenue">
+                        {formatCurrency(item.recognizedRevenue)}
+                      </text>
+                      <text x="12" y="61" className="dashboard-chart-tooltip-bookings">
+                        {item.bookingsCount} agendamento(s)
+                      </text>
+                    </g>
+                  </g>
+                ) : null}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
 function isAdminRoute(value: string): value is AdminRoute {
   return Object.prototype.hasOwnProperty.call(adminRouteDefinitions, value);
 }
@@ -379,6 +604,7 @@ export function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [currentRoute, setCurrentRoute] = useState<AdminRoute>(readAdminRouteFromHash);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState(() =>
     loadStoredValue(API_BASE_STORAGE_KEY, DEPLOY_ADMIN_API_BASE_URL)
   );
@@ -683,6 +909,13 @@ export function App() {
     cashEntries
   );
   const dashboardRevenueSummary = summarizeRevenueEntries(revenueEntries, dashboardBookings);
+  const previousDashboardBookings =
+    dashboardRange === "all" ? [] : filterBookingsByRange(bookings, dashboardRange, 1);
+  const previousDashboardRevenueSummary = summarizeRevenueEntries(
+    buildRevenueEntries(previousDashboardBookings, services, professionals, clients, paymentIntents, cashEntries),
+    previousDashboardBookings
+  );
+  const dashboardChartData = buildDashboardChartData(bookings, services, cashEntries);
   const reportBookings = filterBookingsByReportSelection(
     filterBookingsByRange(bookings, reportsRange),
     reportsServiceFilter,
@@ -2083,212 +2316,407 @@ export function App() {
 
   function renderOperationalView(): JSX.Element {
     return (
-      <section className="view-stack">
-        <div className="stats-strip stats-strip-compact">
-          <article className="stat-card">
-            <span>Hoje</span>
-            <strong>{bookingSummary.today}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Abertas</span>
-            <strong>{bookingSummary.open}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Confirmadas</span>
-            <strong>{bookingSummary.confirmed}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Concluidas</span>
-            <strong>{bookingSummary.completed}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Pagto pendente</span>
-            <strong>{pendingPaymentCount}</strong>
-          </article>
-        </div>
+      <section className="view-stack operational-view-v2">
+        <section className="dashboard-toolbar">
+          <div>
+            <h2>Operacao de Hoje</h2>
+            <p className="helper">{formatAgendaDayLabel(agendaDate)}</p>
+          </div>
+          <div className="operational-day-switch">
+            <button className="secondary-button" onClick={() => handleAgendaDateShift(-1)} type="button">
+              Ontem
+            </button>
+            <button
+              className={agendaDate === formatDateInputValue(new Date()) ? "secondary-button is-active" : "secondary-button"}
+              onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
+              type="button"
+            >
+              Hoje
+            </button>
+            <button className="secondary-button" onClick={() => handleAgendaDateShift(1)} type="button">
+              Amanhã
+            </button>
+          </div>
+        </section>
 
-        <article className="panel">
-          <div className="panel-header">
+        <section className="dashboard-metric-grid operational-metric-grid">
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>Agendados</p>
+              <strong>{filteredDayAgendaBookings.length}</strong>
+              <span>No recorte diario selecionado</span>
+            </div>
+          </article>
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>Finalizados</p>
+              <strong>{filteredDayAgendaBookings.filter((booking) => booking.status === "concluido").length}</strong>
+              <span>Atendimentos concluidos</span>
+            </div>
+          </article>
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>No-Shows</p>
+              <strong>{filteredDayAgendaBookings.filter((booking) => booking.status === "faltou").length}</strong>
+              <span>Clientes ausentes</span>
+            </div>
+          </article>
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>Previsao Faturar</p>
+              <strong>
+                {formatCurrency(
+                  filteredDayAgendaBookings.reduce(
+                    (total, booking) =>
+                      total +
+                      (services.find((service) => service.id === booking.serviceId)?.precoBase ?? 0),
+                    0
+                  )
+                )}
+              </strong>
+              <span>Valor bruto das bookings do dia</span>
+            </div>
+          </article>
+        </section>
+
+        <section className="dashboard-surface operational-list-surface">
+          <div className="dashboard-surface-header">
             <div>
-              <p className="eyebrow">Operacao do dia</p>
-              <h2>Agenda administrativa</h2>
+              <h3>Lista de Atendimentos</h3>
+              <p>Timeline operacional com status, cliente, profissional e acoes reais do runtime.</p>
             </div>
-            <div className="mode-switch">
-              <button
-                className={bookingFilter === "today" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("today")}
-                type="button"
-              >
-                Hoje
-              </button>
-              <button
-                className={bookingFilter === "open" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("open")}
-                type="button"
-              >
-                Em aberto
-              </button>
-              <button
-                className={bookingFilter === "all" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("all")}
-                type="button"
-              >
-                Tudo
-              </button>
+            <div className="operational-legend">
+              <span className="status-pill is-warning">
+                <Clock className="w-3 h-3" />
+                Pendente
+              </span>
+              <span className="status-pill is-info">
+                <CheckCircle className="w-3 h-3" />
+                Confirmado
+              </span>
+              <span className="status-pill is-success">
+                <Check className="w-3 h-3" />
+                Concluido
+              </span>
             </div>
           </div>
 
-          <div className="record-meta">
-            <span className="status-pill is-neutral">Hoje {bookingSummary.today}</span>
-            <span className="status-pill is-info">Abertas {bookingSummary.open}</span>
-            <span className="status-pill is-success">Confirmadas {bookingSummary.confirmed}</span>
-            <span className="status-pill is-success">Concluidas {bookingSummary.completed}</span>
-          </div>
+          <div className="operational-list">
+            {filteredDayAgendaBookings.length ? (
+              filteredDayAgendaBookings.map((booking) => {
+                const service = services.find((item) => item.id === booking.serviceId);
+                const professional = professionals.find((item) => item.id === booking.professionalId);
+                const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+                const actions = resolveBookingActions(booking);
+                const canSyncPayment = paymentIntent !== undefined && paymentIntent.status !== "approved";
 
-          <div className="records-column">{renderAgendaRecords()}</div>
-        </article>
+                let rowClassName = "operational-row";
+                let statusBadge = (
+                  <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                    {formatBookingStatus(booking.status)}
+                  </span>
+                );
+
+                if (booking.status === "concluido") {
+                  rowClassName += " is-muted";
+                  statusBadge = (
+                    <span className="status-pill is-success">
+                      <Check className="w-3 h-3" />
+                      Concluido
+                    </span>
+                  );
+                } else if (booking.status === "faltou") {
+                  rowClassName += " is-danger";
+                  statusBadge = (
+                    <span className="status-pill is-danger">
+                      <XCircle className="w-3 h-3" />
+                      No-Show
+                    </span>
+                  );
+                } else if (booking.status === "confirmado") {
+                  statusBadge = (
+                    <span className="status-pill is-info">
+                      <CheckCircle className="w-3 h-3" />
+                      Confirmado
+                    </span>
+                  );
+                } else if (booking.status === "pendente" || booking.status === "aguardando pagamento") {
+                  statusBadge = (
+                    <span className="status-pill is-warning">
+                      <Clock className="w-3 h-3" />
+                      {formatBookingStatus(booking.status)}
+                    </span>
+                  );
+                }
+
+                return (
+                  <article className={rowClassName} key={booking.id}>
+                    <div className="operational-row-main">
+                      <div className="operational-row-time">
+                        {formatClockTime(booking.startAt)}
+                      </div>
+                      <div className="operational-row-copy">
+                        <div className="operational-row-heading">
+                          <strong>{resolveClientName(booking.clientId, clients)}</strong>
+                          <span>
+                            {service?.nome ?? "Servico"} • Prof: <b>{professional?.nome ?? "Profissional"}</b>
+                          </span>
+                        </div>
+                        <div className="operational-row-statuses">
+                          {statusBadge}
+                          {paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? (
+                            <span className="status-pill is-success">
+                              <CreditCard className="w-3 h-3" />
+                              Pago antecipado
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="operational-row-side">
+                      <div className="operational-row-price">
+                        <strong>{service ? formatCurrency(service.precoBase) : "Sem preco"}</strong>
+                        <span>{resolveClientPhone(booking.clientId, clients)}</span>
+                      </div>
+                      <div className="operational-row-actions">
+                        {actions.map((action) => (
+                          <button
+                            className={resolveActionButtonClassName(action.tone)}
+                            disabled={isBusy}
+                            key={action.label}
+                            onClick={() => void handleBookingStatusAction(booking.id, action.nextStatus)}
+                            type="button"
+                          >
+                            {action.nextStatus === "concluido" ? <Check className="w-4 h-4" /> : null}
+                            {action.nextStatus === "confirmado" ? <CheckCircle className="w-4 h-4" /> : null}
+                            {action.nextStatus === "faltou" ? <XCircle className="w-4 h-4" /> : null}
+                            {action.label}
+                          </button>
+                        ))}
+                        {canRescheduleBooking(booking) ? (
+                          <button className="secondary-button" onClick={() => handleOpenAgendaBooking(booking)} type="button">
+                            <CalendarIcon className="w-4 h-4" />
+                            Reagendar
+                          </button>
+                        ) : null}
+                        {paymentIntent && canSyncPayment ? (
+                          <button className="secondary-button" onClick={() => void handlePaymentSync(paymentIntent)} type="button">
+                            <CreditCard className="w-4 h-4" />
+                            Atualizar pagamento
+                          </button>
+                        ) : null}
+                        {booking.status === "pendente" ? (
+                          <button className="secondary-button" type="button">
+                            <MessageCircle className="w-4 h-4" />
+                            WhatsApp (nao funcional)
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <p className="empty-state">Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)}.</p>
+            )}
+          </div>
+        </section>
       </section>
     );
   }
 
   function renderDashboardView(): JSX.Element {
     return (
-      <section className="view-stack">
-        <section className="hero-grid">
-          <article className="hero-card">
-            <p className="eyebrow">Tenant ativo</p>
-            <h2>{tenant?.nome}</h2>
-            <p className="description">
-              Booking publico para o cliente e shell admin para implantacao, cobranca e operacao do negocio.
+      <section className="view-stack dashboard-view-v2">
+        <section className="dashboard-toolbar">
+          <div>
+            <h2>Visao Gerencial</h2>
+            <p className="helper">
+              O dashboard agora usa o shell da referencia visual, mas continua preso aos contratos reais do `api-rest`.
             </p>
-            <div className="hero-meta">
-              <span>/{tenant?.slug}</span>
-              <span>{tenant?.timezone}</span>
-              <span>{resolveAdminApiBaseUrl(apiBaseUrl)}</span>
-            </div>
-            <div className="button-row">
-              <a className="link-chip" href={publicBookingUrl} rel="noreferrer" target="_blank">
-                Abrir booking publico
-              </a>
-              <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
-                Ir para operacao diaria
-              </button>
-            </div>
-          </article>
-
-          <div className="stats-strip">
-            <article className="stat-card">
-              <span>Servicos</span>
-              <strong>{services.length}</strong>
-            </article>
-            <article className="stat-card">
-              <span>Profissionais</span>
-              <strong>{professionals.length}</strong>
-            </article>
-            <article className="stat-card">
-              <span>Hoje</span>
-              <strong>{bookingSummary.today}</strong>
-            </article>
-            <article className="stat-card">
-              <span>Abertas</span>
-              <strong>{bookingSummary.open}</strong>
-            </article>
-            <article className="stat-card">
-              <span>Clientes</span>
-              <strong>{clients.length}</strong>
-            </article>
-            <article className="stat-card">
-              <span>Pagto pendente</span>
-              <strong>{pendingPaymentCount}</strong>
-            </article>
           </div>
+          <label className="dashboard-select">
+            <span>Periodo</span>
+            <select
+              onChange={(event) => setDashboardRange(event.target.value as DashboardRange)}
+              value={dashboardRange}
+            >
+              <option value="7d">Ultimos 7 dias</option>
+              <option value="30d">Ultimos 30 dias</option>
+              <option value="all">Todo o historico</option>
+            </select>
+          </label>
         </section>
 
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
+        <section className="dashboard-metric-grid">
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>Receita Total</p>
+              <strong>{formatCurrency(dashboardRevenueSummary.recognizedRevenue)}</strong>
+              <span>
+                {resolveReportComparisonLabel(
+                  dashboardRevenueSummary.recognizedRevenue,
+                  previousDashboardRevenueSummary.recognizedRevenue,
+                  "currency",
+                  dashboardRange !== "all"
+                )}
+              </span>
+            </div>
+            <div className="dashboard-metric-icon is-success">
+              <DollarSign className="w-5 h-5" />
+            </div>
+          </article>
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>Taxa de Retencao</p>
+              <strong>
+                {formatPercentage(
+                  clientPortfolioSummary.activeCount > 0
+                    ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
+                    : 0
+                )}
+              </strong>
+              <span>{clientPortfolioSummary.returningCount} cliente(s) com retorno recente</span>
+            </div>
+            <div className="dashboard-metric-icon is-info">
+              <Activity className="w-5 h-5" />
+            </div>
+          </article>
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>Ticket Medio</p>
+              <strong>{formatCurrency(dashboardRevenueSummary.averageTicket)}</strong>
+              <span>{dashboardRevenueSummary.completedCount} atendimento(s) concluidos</span>
+            </div>
+            <div className="dashboard-metric-icon is-brand">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+          </article>
+          <article className="dashboard-metric-card">
+            <div className="dashboard-metric-copy">
+              <p>Taxa de No-Show</p>
+              <strong>{formatPercentage(dashboardRevenueSummary.noShowRate)}</strong>
+              <span>{dashboardRevenueSummary.cancelledCount} cancelamento(s) no periodo</span>
+            </div>
+            <div className="dashboard-metric-icon is-danger">
+              <AlertCircle className="w-5 h-5" />
+            </div>
+          </article>
+        </section>
+
+        <section className="dashboard-main-grid">
+          <article className="dashboard-surface dashboard-surface-wide">
+            <div className="dashboard-surface-header">
               <div>
-                <p className="eyebrow">Financeiro derivado do runtime</p>
-                <h2>Receita operacional e relatorio essencial</h2>
+                <h3>Evolucao de Faturamento vs Agendamentos</h3>
+                <p>
+                  Serie derivada do runtime real da ultima semana. Cohort e historico consolidado continuam fora do contrato.
+                </p>
               </div>
-              <div className="mode-switch">
-                <button
-                  className={dashboardRange === "7d" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setDashboardRange("7d")}
-                  type="button"
-                >
-                  7 dias
-                </button>
-                <button
-                  className={dashboardRange === "30d" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setDashboardRange("30d")}
-                  type="button"
-                >
-                  30 dias
-                </button>
-                <button
-                  className={dashboardRange === "all" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setDashboardRange("all")}
-                  type="button"
-                >
-                  Tudo
-                </button>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+            <DashboardChart data={dashboardChartData} />
+          </article>
+
+          <article className="dashboard-surface">
+            <div className="dashboard-surface-header">
+              <div>
+                <h3>Saude da Agenda (Semana)</h3>
+                <p>Capacidade e ocupacao derivadas da disponibilidade e das bookings reais da semana ancorada em agenda.</p>
               </div>
             </div>
 
-            <p className="helper">
-              Este bloco reconhece receita a partir de bookings concluidas e entrada online aprovada a partir de `payment intents` ja conciliadas. Caixa presencial, repasse e fechamento contabil continuam fora do contrato atual.
-            </p>
-
-            <div className="stats-strip">
-              <article className="stat-card">
-                <span>Receita reconhecida</span>
-                <strong>{formatCurrency(dashboardRevenueSummary.recognizedRevenue)}</strong>
-                <small>{dashboardRevenueSummary.completedCount} atendimento(s) concluidos</small>
-              </article>
-              <article className="stat-card">
-                <span>Entrada online aprovada</span>
-                <strong>{formatCurrency(dashboardRevenueSummary.approvedOnlineRevenue)}</strong>
-                <small>Somente `payment intents` aprovadas no periodo</small>
-              </article>
-              <article className="stat-card">
-                <span>Ticket medio</span>
-                <strong>{formatCurrency(dashboardRevenueSummary.averageTicket)}</strong>
-                <small>{dashboardRevenueSummary.uniqueClients} cliente(s) atendidos</small>
-              </article>
-              <article className="stat-card">
-                <span>No-show</span>
-                <strong>{formatPercentage(dashboardRevenueSummary.noShowRate)}</strong>
-                <small>{dashboardRevenueSummary.cancelledCount} cancelamento(s) no periodo</small>
-              </article>
+            <div className="dashboard-progress-stack">
+              <div className="dashboard-progress-block">
+                <div className="dashboard-progress-copy">
+                  <span>Capacidade Total</span>
+                  <strong>{formatMinutesAsHours(weekCapacitySummary.totalMinutes)}</strong>
+                </div>
+                <div className="dashboard-progress-bar">
+                  <span style={{ width: "100%" }} />
+                </div>
+              </div>
+              <div className="dashboard-progress-block">
+                <div className="dashboard-progress-copy">
+                  <span>Horas Ocupadas</span>
+                  <strong>
+                    {formatMinutesAsHours(weekCapacitySummary.bookedMinutes)} ({formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)})
+                  </strong>
+                </div>
+                <div className="dashboard-progress-bar">
+                  <span
+                    className="is-info"
+                    style={{
+                      width: `${Math.min(
+                        weekCapacitySummary.totalMinutes > 0
+                          ? (weekCapacitySummary.bookedMinutes / weekCapacitySummary.totalMinutes) * 100
+                          : 0,
+                        100
+                      )}%`
+                    }}
+                  />
+                </div>
+              </div>
+              <div className="dashboard-progress-block">
+                <div className="dashboard-progress-copy">
+                  <span>Clientes com Retorno</span>
+                  <strong>
+                    {clientPortfolioSummary.returningCount} ({formatPercentage(
+                      clientPortfolioSummary.activeCount > 0
+                        ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
+                        : 0
+                    )})
+                  </strong>
+                </div>
+                <div className="dashboard-progress-bar">
+                  <span
+                    className="is-success"
+                    style={{
+                      width: `${Math.min(
+                        clientPortfolioSummary.activeCount > 0
+                          ? (clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount) * 100
+                          : 0,
+                        100
+                      )}%`
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
-            <div className="records-column">
+            <div className="dashboard-tip-card">
+              <strong>Dica (nao funcional)</strong>
+              <p>
+                Voce tem {formatMinutesAsHours(weekCapacitySummary.freeMinutes)} livres nesta semana. O produto ainda nao possui motor de recomendacao para afirmar a melhor acao com acuracia.
+              </p>
+            </div>
+          </article>
+        </section>
+
+        <section className="dashboard-secondary-grid">
+          <article className="dashboard-surface">
+            <div className="dashboard-surface-header">
+              <div>
+                <h3>Movimentos recentes de receita</h3>
+                <p>Reflexo de `cash entry` minima e `payment intents` conciliadas.</p>
+              </div>
+              <button className="dashboard-link-button" onClick={() => navigateTo("relatorios")} type="button">
+                Ver relatorios
+              </button>
+            </div>
+
+            <div className="dashboard-feed">
               {revenueEntries.length ? (
-                revenueEntries.slice(0, 8).map((entry) => (
-                  <article className="record-card" key={entry.booking.id}>
-                    <div className="record-card-header">
-                      <div className="record-stack">
-                        <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
-                        <span>
-                          {entry.client?.nome ?? "Cliente"} com {entry.professional?.nome ?? "profissional"}
-                        </span>
-                      </div>
-                      <span className="status-pill is-success">
-                        {formatCurrency(entry.recognizedAmount)}
-                      </span>
+                revenueEntries.slice(0, 6).map((entry) => (
+                  <article className="dashboard-feed-item" key={entry.booking.id}>
+                    <div className="dashboard-feed-main">
+                      <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
+                      <span>{entry.client?.nome ?? "Cliente"} • {entry.professional?.nome ?? "Profissional"}</span>
                     </div>
-
-                    <div className="record-meta">
-                      <span>{formatDateTime(entry.booking.endAt)}</span>
-                      <span className="status-pill is-neutral">
-                        {entry.paymentIntent
-                          ? `Pagamento ${formatPaymentIntentStatus(entry.paymentIntent.status)}`
-                          : "Sem pagamento online"}
-                      </span>
-                      <span className="status-pill is-info">
-                        Online {formatCurrency(entry.approvedOnlineAmount)}
-                      </span>
+                    <div className="dashboard-feed-meta">
+                      <span>{formatCurrency(entry.recognizedAmount)}</span>
+                      <small>{formatDateTime(entry.booking.endAt)}</small>
                     </div>
                   </article>
                 ))
@@ -2300,224 +2728,62 @@ export function App() {
             </div>
           </article>
 
-          <article className="panel">
-            <div className="panel-header">
+          <article className="dashboard-surface">
+            <div className="dashboard-surface-header">
               <div>
-                <p className="eyebrow">Leitura executiva</p>
-                <h2>O que ja e confiavel e o que continua aberto</h2>
-              </div>
-              <span className="helper-chip">{resolveDashboardRangeLabel(dashboardRange)}</span>
-            </div>
-
-            <div className="records-column">
-              <div className="list-card">
-                <strong>Receita reconhecida (funcional)</strong>
-                <p>
-                  Agora conta com `cash entry` minima ao concluir a booking, sem depender apenas de derivacao local.
-                </p>
-              </div>
-              <div className="list-card">
-                <strong>Entrada online aprovada (funcional)</strong>
-                <p>
-                  A aprovacao conciliada do Mercado Pago ja gera movimento persistido de entrada online por booking.
-                </p>
-              </div>
-              <div className="list-card">
-                <strong>Retencao, cohort e reativacao (nao funcional)</strong>
-                <p>Nao existe read model de recorrencia, janela de retorno nem motor de recomendacao no contrato atual.</p>
-              </div>
-              <div className="list-card">
-                <strong>Caixa presencial e conciliacao financeira (parcial)</strong>
-                <p>Ja existe `cash entry` minima para receita reconhecida e entrada online; caixa presencial, repasse e contabilizacao seguem fora do corte.</p>
-              </div>
-              <div className="list-card">
-                <strong>Proximos passos operacionais</strong>
-                <p>
-                  Endurecer a carteira com recortes dedicados de retorno e, depois, abrir relatorios mais densos por periodo e CRM.
-                </p>
+                <h3>Base real do tenant</h3>
+                <p>Atalhos para o que ja esta materializado no runtime.</p>
               </div>
             </div>
-          </article>
-        </section>
 
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Base real do periodo</p>
-                <h2>Pontos sustentados pelo bootstrap atual</h2>
-              </div>
-              <span className="helper-chip">Funcional</span>
-            </div>
-
-            <div className="records-grid metrics-grid">
-              <article className="list-card">
-                <strong>Agenda do dia</strong>
-                <p>{bookingSummary.today} booking(s) no recorte de hoje com mutacao operacional ativa.</p>
+            <div className="dashboard-mini-grid">
+              <article className="dashboard-mini-card">
+                <strong>{services.length}</strong>
+                <span>Servicos ativos no catalogo</span>
               </article>
-              <article className="list-card">
-                <strong>Catalogo comercial</strong>
-                <p>{services.length} servico(s) com politica de cobranca configuravel por tenant.</p>
+              <article className="dashboard-mini-card">
+                <strong>{professionals.length}</strong>
+                <span>Profissionais publicados</span>
               </article>
-              <article className="list-card">
-                <strong>Equipe publicada</strong>
-                <p>{professionals.length} profissional(is) com especialidades e disponibilidade semanal.</p>
+              <article className="dashboard-mini-card">
+                <strong>{bookingSummary.today}</strong>
+                <span>Agendamentos para hoje</span>
               </article>
-              <article className="list-card">
-                <strong>Clientes capturados</strong>
-                <p>{clients.length} cliente(s) lidos do runtime real via bookings publicados.</p>
+              <article className="dashboard-mini-card">
+                <strong>{clients.length}</strong>
+                <span>Clientes capturados</span>
               </article>
             </div>
 
-            <div className="button-row">
-              <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
-                Ir para operacao
+            <div className="dashboard-action-grid">
+              <button className="dashboard-action-card" onClick={() => navigateTo("operacional")} type="button">
+                <ListTodo className="w-5 h-5" />
+                <div>
+                  <strong>Operacao diaria</strong>
+                  <span>Confirmar, concluir e reagendar</span>
+                </div>
               </button>
-              <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
-                Abrir agenda
+              <button className="dashboard-action-card" onClick={() => navigateTo("agenda")} type="button">
+                <CalendarDays className="w-5 h-5" />
+                <div>
+                  <strong>Agenda</strong>
+                  <span>Dia, semana e calendario mensal</span>
+                </div>
               </button>
-              <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
-                Revisar clientes
+              <button className="dashboard-action-card" onClick={() => navigateTo("clientes")} type="button">
+                <UserCircle className="w-5 h-5" />
+                <div>
+                  <strong>Clientes</strong>
+                  <span>Retorno e historico operacional</span>
+                </div>
               </button>
-              <button className="secondary-button" onClick={() => navigateTo("configuracoes")} type="button">
-                Abrir configuracoes
-              </button>
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Lacunas remanescentes</p>
-                <h2>O que ainda nao deve ser prometido</h2>
-              </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
-
-            <div className="records-column">
-              <div className="list-card">
-                <strong>Grafico historico de faturamento (nao funcional)</strong>
-                <p>O `api-rest` ainda nao entrega serie agregada por dia ou read model pronto para grafico executivo.</p>
-              </div>
-              <div className="list-card">
-                <strong>Clientes sem retorno por cohort e expectativa (nao funcional)</strong>
-                <p>O produto ja calcula janela simples de retorno, mas ainda nao entrega cohort, ultima visita esperada ou alvo preditivo de win-back.</p>
-              </div>
-              <div className="list-card">
-                <strong>Relatorio financeiro completo (nao funcional)</strong>
-                <p>`Cash entry` minima ja existe, mas conciliacao de caixa, estorno, forma presencial e saldo do periodo ainda nao.</p>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Retorno de clientes</p>
-                <h2>Clientes sem retorno por periodo</h2>
-              </div>
-              <div className="mode-switch">
-                <button
-                  className={clientReturnWindow === "30d" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setClientReturnWindow("30d")}
-                  type="button"
-                >
-                  30 dias
-                </button>
-                <button
-                  className={clientReturnWindow === "60d" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setClientReturnWindow("60d")}
-                  type="button"
-                >
-                  60 dias
-                </button>
-                <button
-                  className={clientReturnWindow === "90d" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setClientReturnWindow("90d")}
-                  type="button"
-                >
-                  90 dias
-                </button>
-              </div>
-            </div>
-
-            <div className="stats-strip">
-              <article className="stat-card">
-                <span>Com retorno recente</span>
-                <strong>{clientPortfolioSummary.returningCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Sem retorno</span>
-                <strong>{clientPortfolioSummary.inactiveCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Nunca concluiram</span>
-                <strong>{clientPortfolioSummary.neverCompletedCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Carteira com atendimento</span>
-                <strong>{clientPortfolioSummary.activeCount}</strong>
-              </article>
-            </div>
-
-            <div className="records-column">
-              {inactiveClientInsights.length ? (
-                inactiveClientInsights.slice(0, 6).map((entry) => (
-                  <article className="record-card" key={entry.client.id}>
-                    <div className="record-card-header">
-                      <div className="record-stack">
-                        <strong>{entry.client.nome}</strong>
-                        <span>{entry.client.email}</span>
-                      </div>
-                      <span className="status-pill is-warning">
-                        {formatClientSegment("inactive", clientReturnWindow)}
-                      </span>
-                    </div>
-
-                    <div className="record-meta">
-                      <span>Origem {entry.client.origem}</span>
-                      <span>
-                        Ultimo atendimento{" "}
-                        {entry.lastCompletedBooking
-                          ? formatDateTime(entry.lastCompletedBooking.endAt)
-                          : "nunca concluido"}
-                      </span>
-                      <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">
-                  Nenhum cliente com retorno atrasado encontrado na janela de {resolveClientReturnWindowLabel(clientReturnWindow)}.
-                </p>
-              )}
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Leitura honesta</p>
-                <h2>Limites deste recorte de CRM</h2>
-              </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
-
-            <div className="records-column">
-              <div className="list-card">
-                <strong>Clientes sem retorno (funcional)</strong>
-                <p>Ja podem ser derivados da ultima booking concluida, sem read model novo, desde que a regra seja janela de dias.</p>
-              </div>
-              <div className="list-card">
-                <strong>Propensao de recompra (nao funcional)</strong>
-                <p>Nao existe modelo de cohort, ciclo medio de recompra ou score preditivo no contrato atual.</p>
-              </div>
-              <div className="list-card">
-                <strong>Disparo de WhatsApp (nao funcional)</strong>
-                <p>O shell ja identifica quem esta sem retorno, mas ainda nao possui integracao transacional ou campanha conectada.</p>
-              </div>
+              <a className="dashboard-action-card" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                <Rocket className="w-5 h-5" />
+                <div>
+                  <strong>Booking publico</strong>
+                  <span>Abrir a slug real do tenant</span>
+                </div>
+              </a>
             </div>
           </article>
         </section>
@@ -3824,68 +4090,91 @@ export function App() {
 
   function renderSettingsView(): JSX.Element {
     return (
-      <section className="view-stack">
-        <section className="workspace-grid settings-grid">
+      <section className="settings-shell-v2">
+        <aside className="settings-nav-card">
+          <button className="settings-nav-item is-active" type="button">
+            <Settings className="w-5 h-5" />
+            <span>Perfil do Negocio</span>
+          </button>
+          <button className="settings-nav-item" type="button">
+            <CreditCard className="w-5 h-5" />
+            <span>Pagamentos</span>
+          </button>
+          <button className="settings-nav-item" type="button">
+            <LinkIcon className="w-5 h-5" />
+            <span>Webhooks e API</span>
+          </button>
+          <button className="settings-nav-item" type="button">
+            <Star className="w-5 h-5" />
+            <span>Assinatura AgendaAI</span>
+          </button>
+        </aside>
+
+        <div className="settings-content-stack">
           {renderSlugPanel()}
           {renderBrandingPanel()}
           {renderPaymentsPanel()}
-        </section>
 
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
+          <article className="dashboard-surface">
+            <div className="dashboard-surface-header">
               <div>
-                <p className="eyebrow">Conectividade</p>
-                <h2>Ambiente administrativo</h2>
+                <h3>Ambiente administrativo</h3>
+                <p>Parametros de operacao do tenant publicados no runtime atual.</p>
               </div>
               <span className="helper-chip">Suporte operacional</span>
             </div>
 
-            <div className="records-grid metrics-grid">
-              <div className="list-card">
+            <div className="dashboard-mini-grid">
+              <div className="dashboard-mini-card">
                 <strong>API base</strong>
-                <p>{resolveAdminApiBaseUrl(apiBaseUrl)}</p>
+                <span>{resolveAdminApiBaseUrl(apiBaseUrl)}</span>
               </div>
-              <div className="list-card">
+              <div className="dashboard-mini-card">
                 <strong>Tenant slug</strong>
-                <p>/{tenant?.slug ?? "-"}</p>
+                <span>/{tenant?.slug ?? "-"}</span>
               </div>
-              <div className="list-card">
+              <div className="dashboard-mini-card">
                 <strong>Timezone</strong>
-                <p>{tenant?.timezone ?? "-"}</p>
+                <span>{tenant?.timezone ?? "-"}</span>
               </div>
-              <div className="list-card">
+              <div className="dashboard-mini-card">
                 <strong>Publicacao</strong>
-                <p>{publicBookingUrl || "Sem slug publicada"}</p>
+                <span>{publicBookingUrl || "Sem slug publicada"}</span>
               </div>
             </div>
           </article>
 
-          <article className="panel">
-            <div className="panel-header">
+          <article className="dashboard-surface">
+            <div className="dashboard-surface-header">
               <div>
-                <p className="eyebrow">Itens fora do corte</p>
-                <h2>Configuracoes futuras</h2>
+                <h3>Itens fora do corte</h3>
+                <p>A referencia visual sugere modulos maiores do que o runtime atual suporta.</p>
               </div>
               <span className="status-pill is-warning">Parcial</span>
             </div>
 
-            <div className="records-column">
-              <div className="list-card">
-                <strong>Assinatura AgendaAI (nao funcional)</strong>
-                <p>Billing do proprio SaaS ainda nao existe no runtime do projeto.</p>
-              </div>
-              <div className="list-card">
-                <strong>Webhooks e observabilidade avancada (nao funcional)</strong>
-                <p>Hoje o owner edita URLs e credenciais; nao existe painel de eventos ou health check de integracoes.</p>
-              </div>
-              <div className="list-card">
-                <strong>Homologacao Mercado Pago</strong>
-                <p>Os campos ja existem, mas a conexao real depende das credenciais de homologacao e de uma `notification_url` publica.</p>
-              </div>
+            <div className="dashboard-feed">
+              <article className="dashboard-feed-item">
+                <div className="dashboard-feed-main">
+                  <strong>Assinatura AgendaAI (nao funcional)</strong>
+                  <span>Billing do proprio SaaS ainda nao existe no runtime do projeto.</span>
+                </div>
+              </article>
+              <article className="dashboard-feed-item">
+                <div className="dashboard-feed-main">
+                  <strong>Webhooks e observabilidade avancada (nao funcional)</strong>
+                  <span>Hoje o owner edita URLs e credenciais; ainda nao existe painel de eventos ou health check de integracoes.</span>
+                </div>
+              </article>
+              <article className="dashboard-feed-item">
+                <div className="dashboard-feed-main">
+                  <strong>Homologacao Mercado Pago</strong>
+                  <span>Os campos ja existem, mas a conexao real ainda depende das credenciais e de `notification_url` publica.</span>
+                </div>
+              </article>
             </div>
           </article>
-        </section>
+        </div>
       </section>
     );
   }
@@ -4097,7 +4386,7 @@ export function App() {
   }
 
   return (
-    <main className="shell admin-shell">
+    <main className="shell admin-shell-v2">
       {isSidebarOpen ? (
         <button
           aria-label="Fechar navegacao"
@@ -4107,40 +4396,72 @@ export function App() {
         />
       ) : null}
 
-      <aside className={`admin-sidebar${isSidebarOpen ? " is-open" : ""}`}>
-        <div className="admin-sidebar-header">
-          <div className="brand-mark">AI</div>
-          <div className="brand-copy">
-            <p className="eyebrow">AgendaAI</p>
-            <strong>Admin shell</strong>
+      <aside
+        className={`admin-sidebar-v2${isSidebarOpen ? " is-open" : ""}${isSidebarCollapsed ? " is-collapsed" : ""}`}
+      >
+        <div className="admin-sidebar-brand">
+          <div className="admin-sidebar-brand-main">
+            <div className="admin-sidebar-brand-mark">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            {!isSidebarCollapsed ? (
+              <div className="admin-sidebar-brand-copy">
+                <strong>AgendaAI</strong>
+                <span>Operacao e recorrencia</span>
+              </div>
+            ) : null}
           </div>
+          <button
+            aria-label={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"}
+            className="admin-sidebar-collapse"
+            onClick={() => setIsSidebarCollapsed((current) => !current)}
+            type="button"
+          >
+            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </button>
         </div>
 
-        <article className="sidebar-tenant-card">
-          <p className="eyebrow">Tenant ativo</p>
-          <strong>{tenant?.nome}</strong>
-          <span>/{tenant?.slug}</span>
-          <small>{tenant?.timezone}</small>
+        <article className="admin-sidebar-tenant">
+          <div className="admin-sidebar-tenant-avatar">
+            {(tenant?.nome ?? "AG").slice(0, 2).toUpperCase()}
+          </div>
+          {!isSidebarCollapsed ? (
+            <div className="admin-sidebar-tenant-copy">
+              <strong>{tenant?.nome}</strong>
+              <span>/{tenant?.slug}</span>
+              <small>{tenant?.timezone}</small>
+            </div>
+          ) : null}
         </article>
 
-        <nav className="sidebar-nav">
+        <nav className="admin-sidebar-nav no-scrollbar">
           {adminNavigationSections.map((section) => (
-            <div className="sidebar-nav-group" key={section.label}>
-              <p className="sidebar-nav-label">{section.label}</p>
+            <div className="admin-sidebar-group" key={section.label}>
+              {!isSidebarCollapsed ? (
+                <p className="admin-sidebar-group-label">{section.label}</p>
+              ) : (
+                <div className="admin-sidebar-group-divider" />
+              )}
               {section.routes.map((route) => {
                 const definition = adminRouteDefinitions[route];
+                const Icon = definition.icon;
                 return (
                   <button
-                    className={currentRoute === route ? "sidebar-nav-item is-active" : "sidebar-nav-item"}
+                    className={currentRoute === route ? "admin-sidebar-link is-active" : "admin-sidebar-link"}
                     key={route}
                     onClick={() => navigateTo(route)}
+                    title={isSidebarCollapsed ? definition.label : undefined}
                     type="button"
                   >
-                    <span className="sidebar-nav-glyph">{definition.shortLabel}</span>
-                    <span className="sidebar-nav-copy">
-                      <strong>{definition.label}</strong>
-                      <small>{definition.stage === "funcional" ? "funcional" : "parcial"}</small>
+                    <span className="admin-sidebar-link-icon">
+                      <Icon className="w-5 h-5" />
                     </span>
+                    {!isSidebarCollapsed ? (
+                      <span className="admin-sidebar-link-copy">
+                        <strong>{definition.label}</strong>
+                        <small>{definition.stage === "funcional" ? "funcional" : "parcial"}</small>
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -4148,51 +4469,73 @@ export function App() {
           ))}
         </nav>
 
-        <div className="sidebar-footer">
-          <a className="link-chip" href={publicBookingUrl} rel="noreferrer" target="_blank">
-            Abrir booking publico
+        <div className="admin-sidebar-footer">
+          <a className="admin-sidebar-footer-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+            {!isSidebarCollapsed ? "Abrir booking publico" : "Booking"}
           </a>
         </div>
       </aside>
 
-      <div className="admin-stage">
-        <header className="admin-header">
-          <div className="admin-header-main">
+      <div className="admin-stage-v2">
+        <header className="admin-topbar">
+          <div className="admin-topbar-main">
             <button
-              className="secondary-button menu-button"
+              className="admin-topbar-menu"
               onClick={() => setIsSidebarOpen(true)}
               type="button"
             >
-              Menu
+              <Menu className="w-5 h-5" />
             </button>
-            <div>
-              <p className="eyebrow">{currentRouteDefinition.eyebrow}</p>
-              <h1>{currentRouteDefinition.title}</h1>
-              <p className="description">{currentRouteDefinition.description}</p>
+            <div className="admin-topbar-title">
+              <p>{currentRouteDefinition.eyebrow}</p>
+              <strong>{currentRouteDefinition.label}</strong>
             </div>
           </div>
 
-          <div className="admin-header-actions">
-            <span
-              className={`status-pill ${
-                currentRouteDefinition.stage === "funcional" ? "is-success" : "is-warning"
-              }`}
-            >
-              {currentRouteDefinition.stage}
-            </span>
-            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
-              Atualizar
+          <div className="admin-topbar-actions">
+            <div className="admin-topbar-search">
+              <Search className="w-4 h-4" />
+              <span>Buscar cliente...</span>
+            </div>
+            <button className="admin-icon-button" type="button">
+              <Bell className="w-5 h-5" />
             </button>
-            <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
-              Sair
+            <button className="admin-primary-action" onClick={() => navigateTo("agenda")} type="button">
+              <Plus className="w-4 h-4" />
+              Novo Agendamento
             </button>
           </div>
         </header>
 
-        <section className="admin-content">
+        <section className="admin-stage-content">
+          <section className="admin-page-hero">
+            <div className="admin-page-hero-copy">
+              <p className="eyebrow">{currentRouteDefinition.eyebrow}</p>
+              <h1>{currentRouteDefinition.title}</h1>
+              <p className="description">{currentRouteDefinition.description}</p>
+            </div>
+            <div className="admin-page-hero-actions">
+              <span
+                className={`status-pill ${
+                  currentRouteDefinition.stage === "funcional" ? "is-success" : "is-warning"
+                }`}
+              >
+                {currentRouteDefinition.stage}
+              </span>
+              <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+                Atualizar
+              </button>
+              <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
+                Sair
+              </button>
+            </div>
+          </section>
+
+          <section className="admin-content">
           {feedback ? <div className={`feedback-banner is-${feedback.tone}`}>{feedback.message}</div> : null}
           {bootError ? <div className="feedback-banner is-error">{bootError}</div> : null}
           {renderCurrentView()}
+          </section>
         </section>
       </div>
     </main>
@@ -5005,6 +5348,38 @@ function buildProfessionalReportSummaries(
     });
 }
 
+function buildDashboardChartData(
+  bookings: readonly Booking[],
+  services: readonly Service[],
+  cashEntries: readonly CashEntry[]
+): DashboardChartPoint[] {
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+
+  const points: DashboardChartPoint[] = [];
+
+  for (let offset = 6; offset >= 0; offset -= 1) {
+    const anchor = new Date(today);
+    anchor.setDate(today.getDate() - offset);
+    const dateKey = formatDateInputValue(anchor);
+    const dayBookings = bookings.filter((booking) => extractDatePart(booking.startAt) === dateKey);
+    const recognizedRevenue = dayBookings.reduce((total, booking) => {
+      if (booking.status !== "concluido") {
+        return total;
+      }
+      return total + resolveRecognizedRevenueAmount(booking, services, cashEntries);
+    }, 0);
+
+    points.push({
+      label: new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(anchor),
+      recognizedRevenue,
+      bookingsCount: dayBookings.length
+    });
+  }
+
+  return points;
+}
+
 function isApprovedPaymentIntent(status: PaymentIntent["status"]): boolean {
   return status === "approved" || status === "authorized";
 }
@@ -5057,6 +5432,10 @@ function resolveBookingTitle(
 
 function resolveClientName(clientId: string, clients: readonly Client[]): string {
   return clients.find((client) => client.id === clientId)?.nome ?? "Cliente";
+}
+
+function resolveClientPhone(clientId: string, clients: readonly Client[]): string {
+  return clients.find((client) => client.id === clientId)?.telefone ?? "Sem telefone";
 }
 
 function resolveBookingStatusTone(status: Booking["status"]): string {
@@ -5181,6 +5560,13 @@ function formatAgendaMonthDayNumber(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit" }).format(
     new Date(`${value}T12:00:00`)
   );
+}
+
+function formatClockTime(value: string): string {
+  const normalizedValue = value.includes("T")
+    ? new Date(value)
+    : new Date(`2000-01-01T${value.length === 5 ? `${value}:00` : value}`);
+  return new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(normalizedValue);
 }
 
 function formatTimeRange(startAt: string, endAt: string): string {

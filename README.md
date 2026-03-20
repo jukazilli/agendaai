@@ -28,6 +28,7 @@ Este repositorio foi estruturado a partir do ciclo:
 - `B-11` agora esta fechado com detalhe operacional de cliente, historico recente, retorno por janela e movimentos financeiros persistidos;
 - `B-12` agora esta fechado com relatorios essenciais apoiados por read model do `api-rest` e por `cash entries` minimas;
 - o backlog beta/MVP agora esta fechado no menor corte operacional combinado;
+- a rodada pesada de UI/UX foi iniciada no `admin-web` com adocao da referencia visual para shell, dashboard, operacao diaria e configuracoes, preservando os contratos reais do backend;
 - `BA-04` agora tambem fechou com create/update/delete de servicos no `admin-web`;
 - `api-rest`, `booking-web` e `admin-web` ja estao publicados em `Render` + `Vercel`;
 - existe agora uma trilha derivada de beta em `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`.
@@ -73,11 +74,12 @@ Este repositorio foi estruturado a partir do ciclo:
 24. `docs/08_analises/31_execucao_b10_b11_b12_cash_entry_crm_catalogo_2026-03-19.md`
 25. `docs/08_analises/32_execucao_b09_calendario_mensal_2026-03-19.md`
 26. `docs/08_analises/33_execucao_ba03_branding_minimo_2026-03-19.md`
-27. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
-28. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
-29. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
-30. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
+27. `docs/08_analises/34_execucao_uiux_shell_admin_referencia_2026-03-19.md`
+28. `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md`
+29. `docs/09_sprints/02_desvio_beta_agendaai_2026-03-18.md`
+30. `docs/10_backlog/00_backlog_estruturado_por_dependencia.md`
+31. `docs/10_backlog/01_backlog_beta_agendaai_minimo_operacional.md`
 
 ## Proximo passo recomendado
 
-O backlog beta/MVP esta fechado. Este passa a ser o momento certo para uma rodada pesada de UI/UX, desde que o escopo beta fique congelado. No roadmap estrutural, a decisao pendente e se `checkout_transparente` continua dentro de `B-08` ou vira trilha propria pos-beta.
+O backlog beta/MVP continua fechado e a fase pesada de UI/UX ja foi iniciada no `admin-web`. O proximo passo correto e continuar a adocao visual nas telas restantes do painel (`catalogo`, `profissionais`, `clientes` e `relatorios`) antes de abrir uma rodada equivalente no `booking-web`. No roadmap estrutural, a decisao funcional pendente continua sendo se `checkout_transparente` fica em `B-08` ou migra para trilha propria pos-beta.

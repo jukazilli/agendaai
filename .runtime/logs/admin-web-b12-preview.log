@@ -1,3 +1,6 @@
 Port 4174 is in use, trying another one...
 Port 4175 is in use, trying another one...
   [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m4176[22m/[39m
+undefined
+C:\projetos\agendaai\apps\admin-web:
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vite" not found
