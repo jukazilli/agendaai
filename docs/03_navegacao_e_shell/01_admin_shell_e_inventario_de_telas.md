@@ -19,7 +19,14 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 - area central por rota;
 - topo contextual por tela;
 - acoes locais por modulo;
+- controles globais do topo sempre funcionais, nunca decorativos;
 - separacao clara entre leitura executiva, configuracao e operacao.
+
+No chrome global do shell:
+
+- busca rapida deve abrir uma rota real ligada a clientes ou carteira;
+- alertas, contexto e atalhos globais podem viver em disclosure ou sheet, sem competir com o conteudo principal da rota;
+- o topo nao deve repetir desnecessariamente o mesmo contexto que ja aparece no corpo da tela.
 
 ## 4. Inventario canonico de telas
 
@@ -58,6 +65,7 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 - deve ser uma tela de leitura e distribuicao de fluxo;
 - deve funcionar como ponto de entrada depois do login.
 - leituras concorrentes devem ser separadas por visoes dedicadas, preferencialmente via tab bar, em vez de cards e textos empilhados no mesmo viewport;
+- dentro de cada visao, graficos, radar e atalhos devem usar superficies independentes e grids dedicadas para evitar uma coluna unica excessivamente longa;
 - metadados estruturais do tenant, como slug publica, timezone e link do booking, pertencem ao shell em modo de disclosure e nao ao corpo principal do dashboard;
 - atalhos, radar semanal e base real do tenant nao devem competir visualmente com KPI executivo e grafico principal na mesma coluna lateral.
 
@@ -77,13 +85,14 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 
 - deve priorizar filtros, navegacao de data e acoes operacionais;
 - deve separar `lista` e `agenda` em visoes dedicadas, preferencialmente via tab bar responsiva;
-- o clique em um agendamento precisa abrir o detalhe completo da booking sem sair da rota;
+- o clique em um agendamento precisa abrir o detalhe completo da booking sem sair da rota, preferencialmente em modal operacional;
 - capacidade agregada semanal e mensal pertence a `relatorios`, nao ao corpo principal desta tela.
 
 ### Relatorios
 
 - deve concentrar apenas leitura gerencial, comparativos e recortes analiticos;
 - agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em visoes dedicadas, preferencialmente via tab bar;
+- quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;
 - contexto tecnico do recorte, fonte e comparativo nao deve competir com KPI e listas principais no mesmo viewport;
 - acoes operacionais continuam em `operacao diaria`, `agenda` e `clientes`.
 

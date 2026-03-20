@@ -119,6 +119,7 @@ type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
 type CounterBookingStep = "service" | "professional" | "slot" | "client";
 type ReportsWorkspaceTab = "overview" | "services" | "team" | "retention" | "agenda";
+type ReportsAgendaWorkspaceTab = "week" | "month";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
 type PaymentChargeType = (typeof paymentChargeTypeValues)[number];
@@ -712,7 +713,9 @@ export function App() {
   const [operationalWorkspaceTab, setOperationalWorkspaceTab] =
     useState<OperationalWorkspaceTab>("overview");
   const [isShellContextOpen, setIsShellContextOpen] = useState(false);
+  const [isShellPulseOpen, setIsShellPulseOpen] = useState(false);
   const [isCounterBookingModalOpen, setIsCounterBookingModalOpen] = useState(false);
+  const [isAgendaBookingModalOpen, setIsAgendaBookingModalOpen] = useState(false);
   const [counterBookingStep, setCounterBookingStep] = useState<CounterBookingStep>("service");
   const [counterBookingServiceId, setCounterBookingServiceId] = useState("");
   const [counterBookingProfessionalId, setCounterBookingProfessionalId] = useState("");
@@ -779,6 +782,8 @@ export function App() {
   >({});
   const [isLoadingWeeklyAvailability, setIsLoadingWeeklyAvailability] = useState(false);
   const [reportsWorkspaceTab, setReportsWorkspaceTab] = useState<ReportsWorkspaceTab>("overview");
+  const [reportsAgendaWorkspaceTab, setReportsAgendaWorkspaceTab] =
+    useState<ReportsAgendaWorkspaceTab>("week");
   const [isReportsContextVisible, setIsReportsContextVisible] = useState(false);
 
   useEffect(() => {
@@ -1146,6 +1151,11 @@ export function App() {
     cashEntries
   );
   const bookingSummary = summarizeBookings(bookings);
+  const todayBookings = bookings.filter((booking) => isSameCalendarDay(booking.startAt, new Date()));
+  const todayPendingCount = todayBookings.filter(
+    (booking) => booking.status === "pendente" || booking.status === "aguardando pagamento"
+  ).length;
+  const todayConfirmedCount = todayBookings.filter((booking) => booking.status === "confirmado").length;
   const dayAgendaBookings = filterBookingsByDate(bookings, agendaDate);
   const filteredDayAgendaBookings =
     agendaProfessionalFilter === "all"
@@ -1197,6 +1207,7 @@ export function App() {
   const pendingPaymentCount = paymentIntents.filter((intent) =>
     ["pending", "in_process", "authorized", "draft"].includes(intent.status)
   ).length;
+  const shellAttentionCount = todayPendingCount + pendingPaymentCount + clientPortfolioSummary.inactiveCount;
   const selectedAgendaBooking =
     filteredDayAgendaBookings.find((booking) => booking.id === selectedAgendaBookingId) ??
     bookings.find((booking) => booking.id === selectedAgendaBookingId);
@@ -1356,6 +1367,12 @@ export function App() {
       setRescheduleDate(extractDatePart(nextBooking.startAt));
     }
   }, [filteredDayAgendaBookings, selectedAgendaBookingId]);
+
+  useEffect(() => {
+    if (!selectedAgendaBooking && isAgendaBookingModalOpen) {
+      setIsAgendaBookingModalOpen(false);
+    }
+  }, [isAgendaBookingModalOpen, selectedAgendaBooking]);
 
   useEffect(() => {
     if (!selectedAgendaBooking || !sessionToken) {
@@ -1871,12 +1888,40 @@ export function App() {
     navigateTo("agenda");
   }
 
+  function toggleShellContextPanel(): void {
+    setIsShellContextOpen((current) => {
+      const next = !current;
+      if (next) {
+        setIsShellPulseOpen(false);
+      }
+      return next;
+    });
+  }
+
+  function toggleShellPulsePanel(): void {
+    setIsShellPulseOpen((current) => {
+      const next = !current;
+      if (next) {
+        setIsShellContextOpen(false);
+      }
+      return next;
+    });
+  }
+
+  function openClientsDirectoryFromShell(): void {
+    setClientSegmentFilter("all");
+    navigateTo("clientes");
+  }
+
   function navigateTo(route: AdminRoute): void {
     const nextHash = `#${route}`;
     if (typeof window !== "undefined" && window.location.hash !== nextHash) {
       window.location.hash = nextHash;
     }
     setCurrentRoute(route);
+    setIsShellContextOpen(false);
+    setIsShellPulseOpen(false);
+    setIsAgendaBookingModalOpen(false);
     setIsSidebarOpen(false);
   }
 
@@ -1951,6 +1996,15 @@ export function App() {
     setAgendaDate(extractDatePart(booking.startAt));
     setRescheduleDate(extractDatePart(booking.startAt));
     setSelectedAgendaSlotStartAt(booking.startAt);
+  }
+
+  function openAgendaBookingModal(booking: Booking): void {
+    handleAgendaBookingSelection(booking);
+    setIsAgendaBookingModalOpen(true);
+  }
+
+  function closeAgendaBookingModal(): void {
+    setIsAgendaBookingModalOpen(false);
   }
 
   function handleOpenAgendaBooking(booking: Booking): void {
@@ -3508,11 +3562,6 @@ export function App() {
       clientPortfolioSummary.activeCount > 0
         ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
         : 0;
-    const todayBookings = bookings.filter((booking) => isSameCalendarDay(booking.startAt, new Date()));
-    const todayPendingCount = todayBookings.filter(
-      (booking) => booking.status === "pendente" || booking.status === "aguardando pagamento"
-    ).length;
-    const todayConfirmedCount = todayBookings.filter((booking) => booking.status === "confirmado").length;
     const dashboardTabs: ReadonlyArray<{
       readonly id: DashboardWorkspaceTab;
       readonly label: string;
@@ -3715,53 +3764,55 @@ export function App() {
                 />
               </EntitySection>
 
-              <EntitySection
-                title="Capacidade por dia"
-                description="Cada dia da semana em leitura curta, sem competir com atalhos ou base do tenant."
-              >
-                <div className="dashboard-kpi-list">
-                  {weekDaySummaries.map((summary) => (
-                    <article className="dashboard-kpi-item" key={summary.date}>
-                      <div className="dashboard-kpi-main">
-                        <strong>{formatAgendaDayLabel(summary.date)}</strong>
-                        <span>{summary.bookingsCount} booking(s), {summary.openBookings} em aberto.</span>
-                      </div>
-                      <div className="dashboard-kpi-side">
-                        <span>{formatMinutesAsHours(summary.bookedMinutes)} / {formatMinutesAsHours(summary.totalMinutes)}</span>
-                        <small>
-                          {summary.totalMinutes > 0
-                            ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
-                            : "Sem capacidade"}
-                        </small>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </EntitySection>
+              <div className="dashboard-secondary-grid">
+                <EntitySection
+                  title="Capacidade por dia"
+                  description="Cada dia da semana em leitura curta, sem competir com atalhos ou base do tenant."
+                >
+                  <div className="dashboard-kpi-list">
+                    {weekDaySummaries.map((summary) => (
+                      <article className="dashboard-kpi-item" key={summary.date}>
+                        <div className="dashboard-kpi-main">
+                          <strong>{formatAgendaDayLabel(summary.date)}</strong>
+                          <span>{summary.bookingsCount} booking(s), {summary.openBookings} em aberto.</span>
+                        </div>
+                        <div className="dashboard-kpi-side">
+                          <span>{formatMinutesAsHours(summary.bookedMinutes)} / {formatMinutesAsHours(summary.totalMinutes)}</span>
+                          <small>
+                            {summary.totalMinutes > 0
+                              ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                              : "Sem capacidade"}
+                          </small>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </EntitySection>
 
-              <EntitySection
-                title="Carga por profissional"
-                description="Ajuda a localizar gargalos e ociosidade da equipe sem abrir a grade completa."
-              >
-                <div className="dashboard-kpi-list">
-                  {weekProfessionalSummaries.map((summary) => (
-                    <article className="dashboard-kpi-item" key={summary.professionalId}>
-                      <div className="dashboard-kpi-main">
-                        <strong>{resolveProfessionalName(summary.professionalId, professionals)}</strong>
-                        <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas na semana.</span>
-                      </div>
-                      <div className="dashboard-kpi-side">
-                        <span>{formatMinutesAsHours(summary.totalMinutes)}</span>
-                        <small>
-                          {summary.totalMinutes > 0
-                            ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
-                            : "Sem escala publicada"}
-                        </small>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </EntitySection>
+                <EntitySection
+                  title="Carga por profissional"
+                  description="Ajuda a localizar gargalos e ociosidade da equipe sem abrir a grade completa."
+                >
+                  <div className="dashboard-kpi-list">
+                    {weekProfessionalSummaries.map((summary) => (
+                      <article className="dashboard-kpi-item" key={summary.professionalId}>
+                        <div className="dashboard-kpi-main">
+                          <strong>{resolveProfessionalName(summary.professionalId, professionals)}</strong>
+                          <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas na semana.</span>
+                        </div>
+                        <div className="dashboard-kpi-side">
+                          <span>{formatMinutesAsHours(summary.totalMinutes)}</span>
+                          <small>
+                            {summary.totalMinutes > 0
+                              ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                              : "Sem escala publicada"}
+                          </small>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </EntitySection>
+              </div>
             </>
           ) : dashboardWorkspaceTab === "clients" ? (
             <EntitySection
@@ -3845,7 +3896,7 @@ export function App() {
               </div>
             </EntitySection>
           ) : dashboardWorkspaceTab === "shortcuts" ? (
-            <>
+            <div className="dashboard-secondary-grid">
               <EntitySection
                 title="Base real do tenant"
                 description="Volume publicado e carteira formada no runtime atual, separado da leitura executiva."
@@ -3884,7 +3935,7 @@ export function App() {
                   <button className="dashboard-action-card" onClick={() => navigateTo("agenda")} type="button">
                     <div>
                       <strong>Agenda</strong>
-                      <span>Dia, semana e calendario mensal com capacidade.</span>
+                      <span>Lista, grade e detalhe operacional por dia, semana e mes.</span>
                     </div>
                   </button>
                   <button className="dashboard-action-card" onClick={() => navigateTo("clientes")} type="button">
@@ -3910,9 +3961,9 @@ export function App() {
                   )}
                 </div>
               </EntitySection>
-            </>
+            </div>
           ) : (
-            <>
+            <div className="dashboard-main-grid">
               <EntitySection
                 title="Evolucao de faturamento vs agendamentos"
                 description="Visao executiva do periodo para comparar volume e receita."
@@ -3951,7 +4002,7 @@ export function App() {
                   )}
                 </div>
               </EntitySection>
-            </>
+            </div>
           )
         }
         aside={null}
@@ -4029,6 +4080,121 @@ export function App() {
             ) : null}
             <button className="secondary-button" onClick={() => navigateTo("configuracoes")} type="button">
               Abrir configuracoes
+            </button>
+          </div>
+        </aside>
+      </>
+    );
+  }
+
+  function renderShellPulsePanel(): JSX.Element | null {
+    if (!isShellPulseOpen) {
+      return null;
+    }
+
+    return (
+      <>
+        <button
+          aria-label="Fechar painel rapido"
+          className="shell-context-overlay"
+          onClick={() => setIsShellPulseOpen(false)}
+          type="button"
+        />
+        <aside className="shell-context-sheet shell-pulse-sheet" role="dialog" aria-label="Painel rapido do shell">
+          <div className="shell-context-sheet-header">
+            <div>
+              <p className="eyebrow">Painel rapido</p>
+              <h2>Atenções e atalhos</h2>
+              <p className="description">
+                Leitura curta do que pede ação agora, sem abrir outra tela só para descobrir prioridade.
+              </p>
+            </div>
+            <button
+              aria-label="Fechar painel rapido"
+              className="admin-icon-button shell-context-close"
+              onClick={() => setIsShellPulseOpen(false)}
+              type="button"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <DocumentSummaryCards
+            metrics={[
+              {
+                id: "shell-pending-day",
+                label: "Pendencias hoje",
+                value: todayPendingCount,
+                helper: "Confirmar, cobrar ou reagendar.",
+                tone: todayPendingCount > 0 ? "warning" : undefined
+              },
+              {
+                id: "shell-pending-payments",
+                label: "Pagamentos pendentes",
+                value: pendingPaymentCount,
+                helper: "Payment intents ainda vivos no runtime.",
+                tone: pendingPaymentCount > 0 ? "warning" : undefined
+              },
+              {
+                id: "shell-inactive-clients",
+                label: "Clientes sem retorno",
+                value: clientPortfolioSummary.inactiveCount,
+                helper: `Janela atual: ${resolveClientReturnWindowLabel(clientReturnWindow)}.`,
+                tone: clientPortfolioSummary.inactiveCount > 0 ? "warning" : undefined
+              },
+              {
+                id: "shell-open-bookings",
+                label: "Bookings em aberto",
+                value: bookingSummary.open,
+                helper: `${todayConfirmedCount} confirmado(s) hoje.`,
+                tone: bookingSummary.open > 0 ? "info" : undefined
+              }
+            ]}
+          />
+
+          <div className="dashboard-kpi-list shell-pulse-list">
+            <article className="dashboard-kpi-item">
+              <div className="dashboard-kpi-main">
+                <strong>Fila operacional</strong>
+                <span>
+                  {todayPendingCount > 0
+                    ? `${todayPendingCount} item(ns) pedem atenção ainda hoje.`
+                    : "Nenhuma pendência operacional aberta para hoje."}
+                </span>
+              </div>
+              <div className="dashboard-kpi-side">
+                <span>{bookingSummary.today} booking(s)</span>
+                <small>Agenda do dia</small>
+              </div>
+            </article>
+            <article className="dashboard-kpi-item">
+              <div className="dashboard-kpi-main">
+                <strong>Carteira</strong>
+                <span>
+                  {clientPortfolioSummary.inactiveCount > 0
+                    ? `${clientPortfolioSummary.inactiveCount} cliente(s) fora da janela de retorno.`
+                    : "Sem alerta de retorno no recorte ativo."}
+                </span>
+              </div>
+              <div className="dashboard-kpi-side">
+                <span>{clientPortfolioSummary.returningCount} com retorno</span>
+                <small>{resolveClientReturnWindowLabel(clientReturnWindow)}</small>
+              </div>
+            </article>
+          </div>
+
+          <div className="shell-context-sheet-actions shell-pulse-actions">
+            <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
+              Abrir operacao
+            </button>
+            <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+              Abrir agenda
+            </button>
+            <button className="secondary-button" onClick={openClientsDirectoryFromShell} type="button">
+              Abrir clientes
+            </button>
+            <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
+              Abrir relatorios
             </button>
           </div>
         </aside>
@@ -4461,6 +4627,42 @@ export function App() {
     );
   }
 
+  function renderAgendaBookingModal(): JSX.Element | null {
+    if (!isAgendaBookingModalOpen || !selectedAgendaBooking) {
+      return null;
+    }
+
+    const selectedService = services.find((item) => item.id === selectedAgendaBooking.serviceId);
+    const selectedClient = clients.find((item) => item.id === selectedAgendaBooking.clientId);
+
+    return (
+      <>
+        <button
+          aria-label="Fechar detalhe da booking"
+          className="agenda-booking-overlay"
+          onClick={closeAgendaBookingModal}
+          type="button"
+        />
+        <section className="agenda-booking-modal" role="dialog" aria-label="Detalhe da booking">
+          <div className="agenda-booking-modal-header">
+            <div>
+              <p className="eyebrow">Detalhe da booking</p>
+              <h2>{selectedService?.nome ?? "Booking selecionada"}</h2>
+              <p className="description">
+                {selectedClient?.nome ?? "Cliente"} em {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}.
+              </p>
+            </div>
+            <button className="admin-icon-button" onClick={closeAgendaBookingModal} type="button">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="agenda-booking-modal-body">{renderAgendaBookingDocument()}</div>
+        </section>
+      </>
+    );
+  }
+
   function renderAgendaBookingDocument(): JSX.Element | null {
     if (!selectedAgendaBooking) {
       return null;
@@ -4667,8 +4869,7 @@ export function App() {
 
   function renderAgendaListWorkspace(): JSX.Element {
     return (
-      <div className="ag-master-detail-grid agenda-workspace-grid">
-        <article className="ag-surface-card ag-view-panel agenda-workspace-panel">
+      <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-workspace-panel-full">
           <div className="agenda-panel-header">
             <div>
               <p className="eyebrow">Formato lista</p>
@@ -4696,7 +4897,7 @@ export function App() {
                         : "entity-card timeline-card"
                       }
                       key={booking.id}
-                      onClick={() => handleAgendaBookingSelection(booking)}
+                      onClick={() => openAgendaBookingModal(booking)}
                       type="button"
                     >
                       <div className="timeline-card-header">
@@ -4729,35 +4930,7 @@ export function App() {
               </p>
             )}
           </div>
-        </article>
-
-        <article className="ag-surface-card ag-view-panel agenda-detail-panel">
-          <div className="agenda-panel-header">
-            <div>
-              <p className="eyebrow">Detalhe da booking</p>
-              <h3>
-                {selectedAgendaBooking ?
-                  `${resolveClientName(selectedAgendaBooking.clientId, clients)}  |  ${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}`
-                : "Selecione um atendimento"}
-              </h3>
-              <p className="helper">
-                Clique em um item da lista ou da grade para abrir o documento completo e seguir com o reagendamento.
-              </p>
-            </div>
-            {selectedAgendaBooking ? (
-              <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
-                {formatBookingStatus(selectedAgendaBooking.status)}
-              </ViewBadge>
-            ) : null}
-          </div>
-
-          <div className="ag-master-detail-body">
-            {renderAgendaBookingDocument() ?? (
-              <p className="empty-state">Selecione uma booking do dia para abrir o detalhe e reagendar.</p>
-            )}
-          </div>
-        </article>
-      </div>
+      </article>
     );
   }
 
@@ -4771,8 +4944,7 @@ export function App() {
       : formatAgendaMonthLabel(agendaDate);
 
     return (
-      <div className="ag-master-detail-grid agenda-workspace-grid agenda-calendar-grid">
-        <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-calendar-panel">
+      <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-calendar-panel agenda-workspace-panel-full">
           <div className="agenda-panel-header">
             <div>
               <p className="eyebrow">Formato agenda</p>
@@ -4798,7 +4970,7 @@ export function App() {
               messages={agendaCalendarMessages}
               min={new Date(1970, 0, 1, 6, 0, 0)}
               onNavigate={(nextDate) => setAgendaDate(formatDateFns(nextDate, "yyyy-MM-dd"))}
-              onSelectEvent={(event) => handleAgendaBookingSelection(event.resource)}
+              onSelectEvent={(event) => openAgendaBookingModal(event.resource)}
               onView={(view) => {
                 if (view === "day" || view === "week" || view === "month") {
                   setAgendaViewMode(view);
@@ -4812,35 +4984,7 @@ export function App() {
               views={["day", "week", "month"]}
             />
           </div>
-        </article>
-
-        <article className="ag-surface-card ag-view-panel agenda-detail-panel">
-          <div className="agenda-panel-header">
-            <div>
-              <p className="eyebrow">Detalhe da booking</p>
-              <h3>
-                {selectedAgendaBooking ?
-                  `${resolveClientName(selectedAgendaBooking.clientId, clients)}  |  ${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}`
-                : "Selecione um evento"}
-              </h3>
-              <p className="helper">
-                Clique em um evento do calendario para abrir o documento completo e seguir com a acao operacional.
-              </p>
-            </div>
-            {selectedAgendaBooking ? (
-              <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
-                {formatBookingStatus(selectedAgendaBooking.status)}
-              </ViewBadge>
-            ) : null}
-          </div>
-
-          <div className="ag-master-detail-body">
-            {renderAgendaBookingDocument() ?? (
-              <p className="empty-state">Selecione um evento do calendario para abrir o detalhe e reagendar.</p>
-            )}
-          </div>
-        </article>
-      </div>
+      </article>
     );
   }
 
@@ -5280,6 +5424,22 @@ export function App() {
         helper: `${reportsInsightWeekCapacitySummary.openBookings} em aberto`
       }
     ];
+    const reportsAgendaTabs: ReadonlyArray<{
+      readonly id: ReportsAgendaWorkspaceTab;
+      readonly label: string;
+      readonly helper: string;
+    }> = [
+      {
+        id: "week",
+        label: "Radar da semana",
+        helper: `${reportsInsightWeekCapacitySummary.bookingsCount} booking(s)`
+      },
+      {
+        id: "month",
+        label: "Leitura do mes",
+        helper: `${reportsInsightMonthCapacitySummary.bookingsCount} booking(s)`
+      }
+    ];
     const reportsInsightMonthHighlights = reportsInsightCurrentMonthCells.filter((cell) => cell.bookingsCount > 0);
 
     return (
@@ -5701,104 +5861,92 @@ export function App() {
               </EntitySection>
             ) : reportsWorkspaceTab === "agenda" ? (
               <div className="reports-insights-stack">
-                <EntitySection
-                  title="Radar semanal da agenda"
-                  description="Leitura gerencial de capacidade e ocupacao, separada da acao operacional do dia."
-                  actions={
+                <div aria-label="Visoes da agenda em relatorios" className="dashboard-tabbar agenda-subtabbar" role="tablist">
+                  {reportsAgendaTabs.map((tab) => (
                     <button
-                      className="secondary-button"
-                      onClick={() => {
-                        setAgendaWorkspaceTab("calendar");
-                        setAgendaViewMode("week");
-                        navigateTo("agenda");
-                      }}
+                      aria-selected={reportsAgendaWorkspaceTab === tab.id}
+                      className={reportsAgendaWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                      key={tab.id}
+                      onClick={() => setReportsAgendaWorkspaceTab(tab.id)}
+                      role="tab"
                       type="button"
                     >
-                      Abrir agenda
+                      <span>{tab.label}</span>
+                      <small>{tab.helper}</small>
                     </button>
-                  }
-                >
-                  <div className="reports-insights-stack">
-                    {isLoadingWeeklyAvailability ? (
-                      <p className="helper">Carregando disponibilidade semanal da equipe...</p>
-                    ) : null}
+                  ))}
+                </div>
 
-                    <DocumentSummaryCards
-                      metrics={[
-                        {
-                          id: "week-total",
-                          label: "Capacidade total",
-                          value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.totalMinutes),
-                          helper: `${reportsInsightWeekDates.length} dia(s) no radar.`,
-                          tone: "info"
-                        },
-                        {
-                          id: "week-booked",
-                          label: "Horas ocupadas",
-                          value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.bookedMinutes),
-                          helper: `${reportsInsightWeekCapacitySummary.bookingsCount} booking(s) na semana.`,
-                          tone: "success"
-                        },
-                        {
-                          id: "week-free",
-                          label: "Horas livres",
-                          value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.freeMinutes),
-                          helper:
-                            reportsInsightWeekCapacitySummary.totalMinutes > 0
-                              ? `${formatUtilization(reportsInsightWeekCapacitySummary.bookedMinutes, reportsInsightWeekCapacitySummary.totalMinutes)} de ocupacao.`
-                              : "Sem disponibilidade publicada.",
-                          tone: "warning"
-                        },
-                        {
-                          id: "week-open",
-                          label: "Em aberto",
-                          value: reportsInsightWeekCapacitySummary.openBookings,
-                          helper: "Confirmados, pendentes e aguardando pagamento."
-                        }
-                      ]}
-                    />
-
-                    <div className="workspace-grid">
-                      <EntitySection
-                        title="Dia a dia"
-                        description="Carga por data para orientar distribuicao e remanejamento."
+                {reportsAgendaWorkspaceTab === "week" ? (
+                  <EntitySection
+                    title="Radar semanal da agenda"
+                    description="Leitura gerencial de capacidade e ocupacao, separada da acao operacional do dia."
+                    actions={
+                      <button
+                        className="secondary-button"
+                        onClick={() => {
+                          setAgendaWorkspaceTab("calendar");
+                          setAgendaViewMode("week");
+                          navigateTo("agenda");
+                        }}
+                        type="button"
                       >
-                        <div className="records-column">
-                          {reportsInsightWeekDaySummaries.map((summary) => (
-                            <article className="record-card" key={summary.date}>
-                              <div className="record-card-header">
-                                <div className="record-stack">
-                                  <strong>{formatAgendaDayLabel(summary.date)}</strong>
-                                  <span>{summary.bookingsCount} booking(s) na data</span>
-                                </div>
-                                <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
-                                  {summary.totalMinutes > 0
-                                    ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
-                                    : "Sem capacidade"}
-                                </span>
-                              </div>
-                              <div className="record-meta">
-                                <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
-                                <span>{formatMinutesAsHours(summary.totalMinutes)} totais</span>
-                                <span>{summary.openBookings} em aberto</span>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      </EntitySection>
+                        Abrir agenda
+                      </button>
+                    }
+                  >
+                    <div className="reports-insights-stack">
+                      {isLoadingWeeklyAvailability ? (
+                        <p className="helper">Carregando disponibilidade semanal da equipe...</p>
+                      ) : null}
 
-                      <EntitySection
-                        title="Equipe na semana"
-                        description="Distribuicao por profissional no mesmo radar."
-                      >
-                        <div className="records-column">
-                          {reportsInsightWeekProfessionalSummaries.length ? (
-                            reportsInsightWeekProfessionalSummaries.map((summary) => (
-                              <article className="record-card" key={summary.professionalId}>
+                      <DocumentSummaryCards
+                        metrics={[
+                          {
+                            id: "week-total",
+                            label: "Capacidade total",
+                            value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.totalMinutes),
+                            helper: `${reportsInsightWeekDates.length} dia(s) no radar.`,
+                            tone: "info"
+                          },
+                          {
+                            id: "week-booked",
+                            label: "Horas ocupadas",
+                            value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.bookedMinutes),
+                            helper: `${reportsInsightWeekCapacitySummary.bookingsCount} booking(s) na semana.`,
+                            tone: "success"
+                          },
+                          {
+                            id: "week-free",
+                            label: "Horas livres",
+                            value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.freeMinutes),
+                            helper:
+                              reportsInsightWeekCapacitySummary.totalMinutes > 0
+                                ? `${formatUtilization(reportsInsightWeekCapacitySummary.bookedMinutes, reportsInsightWeekCapacitySummary.totalMinutes)} de ocupacao.`
+                                : "Sem disponibilidade publicada.",
+                            tone: "warning"
+                          },
+                          {
+                            id: "week-open",
+                            label: "Em aberto",
+                            value: reportsInsightWeekCapacitySummary.openBookings,
+                            helper: "Confirmados, pendentes e aguardando pagamento."
+                          }
+                        ]}
+                      />
+
+                      <div className="workspace-grid">
+                        <EntitySection
+                          title="Dia a dia"
+                          description="Carga por data para orientar distribuicao e remanejamento."
+                        >
+                          <div className="records-column">
+                            {reportsInsightWeekDaySummaries.map((summary) => (
+                              <article className="record-card" key={summary.date}>
                                 <div className="record-card-header">
                                   <div className="record-stack">
-                                    <strong>{summary.professionalName}</strong>
-                                    <span>{summary.bookingsCount} booking(s) na semana</span>
+                                    <strong>{formatAgendaDayLabel(summary.date)}</strong>
+                                    <span>{summary.bookingsCount} booking(s) na data</span>
                                   </div>
                                   <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
                                     {summary.totalMinutes > 0
@@ -5812,88 +5960,131 @@ export function App() {
                                   <span>{summary.openBookings} em aberto</span>
                                 </div>
                               </article>
-                            ))
-                          ) : (
-                            <p className="empty-state">Nenhum profissional publicado para montar o radar semanal.</p>
-                          )}
-                        </div>
-                      </EntitySection>
-                    </div>
-                  </div>
-                </EntitySection>
+                            ))}
+                          </div>
+                        </EntitySection>
 
-                <EntitySection
-                  title="Visao mensal"
-                  description="Concentrado mensal para leitura gerencial, sem competir com a agenda operacional."
-                >
-                  <div className="reports-insights-stack">
-                    <DocumentSummaryCards
-                      metrics={[
-                        {
-                          id: "month-bookings",
-                          label: "Bookings no mes",
-                          value: reportsInsightMonthCapacitySummary.bookingsCount,
-                          helper: formatAgendaMonthLabel(reportsInsightAnchorDate),
-                          tone: "info"
-                        },
-                        {
-                          id: "month-booked",
-                          label: "Horas ocupadas",
-                          value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.bookedMinutes),
-                          helper: `${reportsInsightMonthHighlights.length} dia(s) com movimento.`,
-                          tone: "success"
-                        },
-                        {
-                          id: "month-free",
-                          label: "Horas livres",
-                          value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.freeMinutes),
-                          helper:
-                            reportsInsightMonthCapacitySummary.totalMinutes > 0
-                              ? `${formatUtilization(reportsInsightMonthCapacitySummary.bookedMinutes, reportsInsightMonthCapacitySummary.totalMinutes)} de ocupacao.`
-                              : "Sem disponibilidade publicada.",
-                          tone: "warning"
-                        },
-                        {
-                          id: "month-open",
-                          label: "Em aberto",
-                          value: reportsInsightMonthCapacitySummary.openBookings,
-                          helper: "Pendencias concentradas no mes atual."
-                        }
-                      ]}
-                    />
-
-                    {reportsInsightMonthHighlights.length ? (
-                      <div className="records-column">
-                        {reportsInsightMonthHighlights.slice(0, 8).map((cell) => (
-                          <article className="record-card" key={cell.date}>
-                            <div className="record-card-header">
-                              <div className="record-stack">
-                                <strong>{formatAgendaDayLabel(cell.date)}</strong>
-                                <span>{cell.bookingsCount} booking(s) no dia</span>
-                              </div>
-                              <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
-                                {cell.totalMinutes > 0
-                                  ? `${formatUtilization(cell.bookedMinutes, cell.totalMinutes)} ocupacao`
-                                  : "Sem capacidade"}
-                              </span>
-                            </div>
-                            <div className="record-meta">
-                              <span>{cell.openBookings} em aberto</span>
-                              <span>{cell.completedBookings} concluidos</span>
-                              <span>
-                                {cell.totalMinutes > 0
-                                  ? `${formatMinutesAsHours(cell.bookedMinutes)} de ${formatMinutesAsHours(cell.totalMinutes)}`
-                                  : "Sem disponibilidade"}
-                              </span>
-                            </div>
-                          </article>
-                        ))}
+                        <EntitySection
+                          title="Equipe na semana"
+                          description="Distribuicao por profissional no mesmo radar."
+                        >
+                          <div className="records-column">
+                            {reportsInsightWeekProfessionalSummaries.length ? (
+                              reportsInsightWeekProfessionalSummaries.map((summary) => (
+                                <article className="record-card" key={summary.professionalId}>
+                                  <div className="record-card-header">
+                                    <div className="record-stack">
+                                      <strong>{summary.professionalName}</strong>
+                                      <span>{summary.bookingsCount} booking(s) na semana</span>
+                                    </div>
+                                    <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
+                                      {summary.totalMinutes > 0
+                                        ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                                        : "Sem capacidade"}
+                                    </span>
+                                  </div>
+                                  <div className="record-meta">
+                                    <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
+                                    <span>{formatMinutesAsHours(summary.totalMinutes)} totais</span>
+                                    <span>{summary.openBookings} em aberto</span>
+                                  </div>
+                                </article>
+                              ))
+                            ) : (
+                              <p className="empty-state">Nenhum profissional publicado para montar o radar semanal.</p>
+                            )}
+                          </div>
+                        </EntitySection>
                       </div>
-                    ) : (
-                      <p className="empty-state">Nenhum movimento encontrado no mes corrente para este filtro.</p>
-                    )}
-                  </div>
-                </EntitySection>
+                    </div>
+                  </EntitySection>
+                ) : (
+                  <EntitySection
+                    title="Visao mensal"
+                    description="Concentrado mensal para leitura gerencial, sem competir com a agenda operacional."
+                    actions={
+                      <button
+                        className="secondary-button"
+                        onClick={() => {
+                          setAgendaWorkspaceTab("calendar");
+                          setAgendaViewMode("month");
+                          navigateTo("agenda");
+                        }}
+                        type="button"
+                      >
+                        Abrir agenda
+                      </button>
+                    }
+                  >
+                    <div className="reports-insights-stack">
+                      <DocumentSummaryCards
+                        metrics={[
+                          {
+                            id: "month-bookings",
+                            label: "Bookings no mes",
+                            value: reportsInsightMonthCapacitySummary.bookingsCount,
+                            helper: formatAgendaMonthLabel(reportsInsightAnchorDate),
+                            tone: "info"
+                          },
+                          {
+                            id: "month-booked",
+                            label: "Horas ocupadas",
+                            value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.bookedMinutes),
+                            helper: `${reportsInsightMonthHighlights.length} dia(s) com movimento.`,
+                            tone: "success"
+                          },
+                          {
+                            id: "month-free",
+                            label: "Horas livres",
+                            value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.freeMinutes),
+                            helper:
+                              reportsInsightMonthCapacitySummary.totalMinutes > 0
+                                ? `${formatUtilization(reportsInsightMonthCapacitySummary.bookedMinutes, reportsInsightMonthCapacitySummary.totalMinutes)} de ocupacao.`
+                                : "Sem disponibilidade publicada.",
+                            tone: "warning"
+                          },
+                          {
+                            id: "month-open",
+                            label: "Em aberto",
+                            value: reportsInsightMonthCapacitySummary.openBookings,
+                            helper: "Pendencias concentradas no mes atual."
+                          }
+                        ]}
+                      />
+
+                      {reportsInsightMonthHighlights.length ? (
+                        <div className="records-column">
+                          {reportsInsightMonthHighlights.slice(0, 8).map((cell) => (
+                            <article className="record-card" key={cell.date}>
+                              <div className="record-card-header">
+                                <div className="record-stack">
+                                  <strong>{formatAgendaDayLabel(cell.date)}</strong>
+                                  <span>{cell.bookingsCount} booking(s) no dia</span>
+                                </div>
+                                <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
+                                  {cell.totalMinutes > 0
+                                    ? `${formatUtilization(cell.bookedMinutes, cell.totalMinutes)} ocupacao`
+                                    : "Sem capacidade"}
+                                </span>
+                              </div>
+                              <div className="record-meta">
+                                <span>{cell.openBookings} em aberto</span>
+                                <span>{cell.completedBookings} concluidos</span>
+                                <span>
+                                  {cell.totalMinutes > 0
+                                    ? `${formatMinutesAsHours(cell.bookedMinutes)} de ${formatMinutesAsHours(cell.totalMinutes)}`
+                                    : "Sem disponibilidade"}
+                                </span>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="empty-state">Nenhum movimento encontrado no mes corrente para este filtro.</p>
+                      )}
+                    </div>
+                  </EntitySection>
+                )}
               </div>
             ) : null}
           </>
@@ -6411,6 +6602,7 @@ export function App() {
   }
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
+  const showTopbarEyebrow = currentRoute !== "profissionais" && currentRoute !== "dashboard";
   const showPageHero =
     currentRoute !== "profissionais" &&
     currentRoute !== "dashboard" &&
@@ -6709,23 +6901,37 @@ export function App() {
               <Menu className="w-5 h-5" />
             </button>
             <div className="admin-topbar-title">
-              {currentRoute === "profissionais" ? null : <p>{currentRouteDefinition.eyebrow}</p>}
+              {showTopbarEyebrow ? <p>{currentRouteDefinition.eyebrow}</p> : null}
               <strong>{currentRouteDefinition.label}</strong>
             </div>
           </div>
 
           <div className="admin-topbar-actions">
-            <div className="admin-topbar-search">
+            <button
+              aria-label="Abrir clientes para buscar cliente"
+              className="admin-topbar-search"
+              onClick={openClientsDirectoryFromShell}
+              type="button"
+            >
               <Search className="w-4 h-4" />
-              <span>Buscar cliente...</span>
-            </div>
-            <button className="admin-icon-button" type="button">
+              <span className="admin-topbar-search-copy">
+                <strong>Buscar cliente</strong>
+                <small>Abrir carteira</small>
+              </span>
+            </button>
+            <button
+              aria-label="Abrir painel rapido"
+              className={isShellPulseOpen ? "admin-icon-button is-active" : "admin-icon-button"}
+              data-count={shellAttentionCount > 0 ? Math.min(shellAttentionCount, 99) : undefined}
+              onClick={toggleShellPulsePanel}
+              type="button"
+            >
               <Bell className="w-5 h-5" />
             </button>
             {tenant ? (
               <button
                 className={isShellContextOpen ? "admin-secondary-action is-active" : "admin-secondary-action"}
-                onClick={() => setIsShellContextOpen((current) => !current)}
+                onClick={toggleShellContextPanel}
                 type="button"
               >
                 <Activity className="w-4 h-4" />
@@ -6766,8 +6972,10 @@ export function App() {
         </section>
       </div>
       </main>
+      {renderShellPulsePanel()}
       {renderShellContextPanel()}
       {renderCounterBookingModal()}
+      {renderAgendaBookingModal()}
     </Fragment>
   );
 }

@@ -948,10 +948,39 @@ a {
   background: rgba(255, 255, 255, 0.06);
 }
 
+.admin-icon-button {
+  position: relative;
+}
+
 .admin-sidebar-collapse:hover,
 .admin-icon-button:hover,
 .admin-topbar-menu:hover {
   background: rgba(255, 255, 255, 0.12);
+}
+
+.admin-icon-button.is-active {
+  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(238, 242, 255, 0.92);
+  color: #4338ca;
+}
+
+.admin-icon-button[data-count]::after {
+  content: attr(data-count);
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  box-shadow: 0 10px 18px rgba(239, 68, 68, 0.22);
 }
 
 .admin-sidebar-profile-avatar {
@@ -1137,6 +1166,39 @@ a {
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.82);
   color: var(--ag-color-text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.admin-topbar-search:hover {
+  border-color: rgba(99, 102, 241, 0.2);
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.admin-topbar-search-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-topbar-search-copy strong,
+.admin-topbar-search-copy small {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-topbar-search-copy strong {
+  color: var(--ag-color-text-primary);
+  font-size: 0.92rem;
+}
+
+.admin-topbar-search-copy small {
+  color: var(--ag-color-text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .admin-primary-action,
@@ -1175,7 +1237,8 @@ a {
 }
 
 .shell-context-overlay,
-.counter-booking-overlay {
+.counter-booking-overlay,
+.agenda-booking-overlay {
   position: fixed;
   inset: 0;
   z-index: 48;
@@ -1184,7 +1247,8 @@ a {
 }
 
 .shell-context-sheet,
-.counter-booking-modal {
+.counter-booking-modal,
+.agenda-booking-modal {
   position: fixed;
   z-index: 49;
   border: 1px solid rgba(148, 163, 184, 0.18);
@@ -1206,6 +1270,7 @@ a {
 
 .shell-context-sheet-header,
 .counter-booking-modal-header,
+.agenda-booking-modal-header,
 .counter-booking-step-heading,
 .counter-booking-footer,
 .counter-booking-footer-actions,
@@ -1218,6 +1283,7 @@ a {
 
 .shell-context-sheet-header,
 .counter-booking-modal-header,
+.agenda-booking-modal-header,
 .counter-booking-footer,
 .dashboard-kpi-item {
   align-items: flex-start;
@@ -1234,6 +1300,18 @@ a {
 .counter-booking-footer-actions {
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.shell-pulse-sheet {
+  width: min(460px, calc(100vw - 36px));
+}
+
+.shell-pulse-list {
+  gap: 12px;
+}
+
+.shell-pulse-actions .secondary-button {
+  flex: 1 1 180px;
 }
 
 .dashboard-kpi-list {
@@ -1276,6 +1354,27 @@ a {
   border-radius: 30px;
   overflow: auto;
   transform: translateX(-50%);
+}
+
+.agenda-booking-modal {
+  top: 18px;
+  left: 50%;
+  width: min(1240px, calc(100vw - 36px));
+  max-height: calc(100vh - 36px);
+  display: grid;
+  gap: 18px;
+  padding: 22px;
+  border-radius: 30px;
+  overflow: auto;
+  transform: translateX(-50%);
+}
+
+.agenda-booking-modal-body {
+  min-width: 0;
+}
+
+.agenda-booking-modal .agenda-booking-document .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
 }
 
 .counter-booking-form,
@@ -1631,6 +1730,10 @@ a {
 .agenda-workspace-panel,
 .agenda-detail-panel {
   align-content: start;
+}
+
+.agenda-workspace-panel-full {
+  min-width: 0;
 }
 
 .agenda-panel-header {
@@ -2469,7 +2572,7 @@ a {
 
 @media (max-width: 1180px) {
   .admin-topbar-search {
-    display: none;
+    min-width: 0;
   }
 
   .dashboard-action-grid {
@@ -2567,7 +2670,8 @@ a {
   }
 
   .shell-context-sheet,
-  .counter-booking-modal {
+  .counter-booking-modal,
+  .agenda-booking-modal {
     top: 14px;
     right: 14px;
     width: calc(100vw - 28px);
@@ -2658,6 +2762,14 @@ a {
     flex: 1 1 auto;
   }
 
+  .admin-topbar-search {
+    width: 100%;
+  }
+
+  .admin-topbar-search-copy small {
+    display: none;
+  }
+
   .admin-page-hero h1 {
     font-size: clamp(1.8rem, 10vw, 2.8rem);
   }
@@ -2735,6 +2847,7 @@ a {
 
   .dashboard-kpi-item,
   .counter-booking-modal-header,
+  .agenda-booking-modal-header,
   .counter-booking-footer {
     flex-direction: column;
   }
@@ -2749,7 +2862,8 @@ a {
   }
 
   .shell-context-sheet,
-  .counter-booking-modal {
+  .counter-booking-modal,
+  .agenda-booking-modal {
     padding: 18px 16px;
     border-radius: 24px;
   }
