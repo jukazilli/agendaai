@@ -25,6 +25,7 @@ import {
   TrendingUp,
   UserCircle,
   Users,
+  X,
   XCircle,
   type LucideIcon
 } from "lucide-react";
@@ -55,6 +56,8 @@ import {
   AdminApiError,
   DEFAULT_ADMIN_API_BASE_URL,
   type AdminBootstrapPayload,
+  createBooking,
+  createClient,
   createProfessional,
   createService,
   createTenantOnboarding,
@@ -102,10 +105,11 @@ type AdminRoute =
 type BookingFilter = "today" | "open" | "all";
 type AgendaViewMode = "day" | "week" | "month";
 type DashboardRange = "7d" | "30d" | "all";
-type DashboardWorkspaceTab = "executive" | "agenda" | "clients";
+type DashboardWorkspaceTab = "executive" | "agenda" | "radar" | "clients" | "shortcuts";
 type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
+type CounterBookingStep = "service" | "professional" | "slot" | "client";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
 type PaymentChargeType = (typeof paymentChargeTypeValues)[number];
@@ -162,6 +166,21 @@ interface AvailabilityDayState {
   readonly enabled: boolean;
   readonly startTime: string;
   readonly endTime: string;
+}
+
+interface CounterBookingFormState {
+  readonly nome: string;
+  readonly telefone: string;
+  readonly email: string;
+  readonly origem: string;
+  readonly status: Extract<Booking["status"], "pendente" | "confirmado">;
+}
+
+interface CounterBookingReceipt {
+  readonly booking: Booking;
+  readonly client: Client;
+  readonly service: Service;
+  readonly professional: Professional;
 }
 
 interface BookingSummary {
@@ -416,6 +435,14 @@ const defaultBrandingForm: BrandingFormState = {
   accentColor: ""
 };
 
+const defaultCounterBookingForm: CounterBookingFormState = {
+  nome: "",
+  telefone: "",
+  email: "",
+  origem: "balcao",
+  status: "confirmado"
+};
+
 const defaultServiceForm: ServiceFormState = {
   nome: "",
   duracaoMin: "45",
@@ -642,6 +669,21 @@ export function App() {
   const [bookingFilter, setBookingFilter] = useState<BookingFilter>("today");
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
   const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("executive");
+  const [isShellContextOpen, setIsShellContextOpen] = useState(false);
+  const [isCounterBookingModalOpen, setIsCounterBookingModalOpen] = useState(false);
+  const [counterBookingStep, setCounterBookingStep] = useState<CounterBookingStep>("service");
+  const [counterBookingServiceId, setCounterBookingServiceId] = useState("");
+  const [counterBookingProfessionalId, setCounterBookingProfessionalId] = useState("");
+  const [counterBookingDate, setCounterBookingDate] = useState(() => formatDateInputValue(new Date()));
+  const [counterBookingSlots, setCounterBookingSlots] = useState<AvailabilitySlot[]>([]);
+  const [counterBookingSlotStartAt, setCounterBookingSlotStartAt] = useState("");
+  const [isLoadingCounterBookingSlots, setIsLoadingCounterBookingSlots] = useState(false);
+  const [counterBookingForm, setCounterBookingForm] = useState<CounterBookingFormState>(
+    defaultCounterBookingForm
+  );
+  const [counterBookingError, setCounterBookingError] = useState<string | null>(null);
+  const [isSubmittingCounterBooking, setIsSubmittingCounterBooking] = useState(false);
+  const [counterBookingReceipt, setCounterBookingReceipt] = useState<CounterBookingReceipt | null>(null);
   const [reportsRange, setReportsRange] = useState<DashboardRange>("30d");
   const [reportsServiceFilter, setReportsServiceFilter] = useState("all");
   const [reportsProfessionalFilter, setReportsProfessionalFilter] = useState("all");
@@ -983,6 +1025,25 @@ export function App() {
   const bookings = bootstrap?.bookings ?? [];
   const paymentIntents = bootstrap?.paymentIntents ?? [];
   const cashEntries = bootstrap?.cashEntries ?? [];
+  const bookableServices = services.filter((service) => service.status === "active");
+  const activeProfessionals = professionals.filter((professional) => {
+    const normalizedStatus = professional.status.trim().toLowerCase();
+    return normalizedStatus === "active" || normalizedStatus === "ativo";
+  });
+  const counterBookingProfessionals = getSupportedProfessionalsForService(
+    activeProfessionals,
+    counterBookingServiceId
+  );
+  const counterBookingSelectedService = bookableServices.find(
+    (service) => service.id === counterBookingServiceId
+  );
+  const counterBookingSelectedProfessional = counterBookingProfessionals.find(
+    (professional) => professional.id === counterBookingProfessionalId
+  );
+  const counterBookingSelectedSlot = counterBookingSlots.find(
+    (slot) => slot.startAt === counterBookingSlotStartAt
+  );
+  const counterBookingClientMatch = findMatchingClient(clients, counterBookingForm);
   const dashboardBookings = filterBookingsByRange(bookings, dashboardRange);
   const revenueEntries = buildRevenueEntries(
     dashboardBookings,
@@ -1264,6 +1325,107 @@ export function App() {
     sessionToken
   ]);
 
+  useEffect(() => {
+    setIsShellContextOpen(false);
+  }, [currentRoute]);
+
+  useEffect(() => {
+    if (!isCounterBookingModalOpen) {
+      return;
+    }
+
+    if (!bookableServices.length) {
+      if (counterBookingServiceId) {
+        setCounterBookingServiceId("");
+      }
+      return;
+    }
+
+    if (!bookableServices.some((service) => service.id === counterBookingServiceId)) {
+      setCounterBookingServiceId(bookableServices[0].id);
+    }
+  }, [bookableServices, counterBookingServiceId, isCounterBookingModalOpen]);
+
+  useEffect(() => {
+    if (!isCounterBookingModalOpen) {
+      return;
+    }
+
+    if (!counterBookingProfessionals.length) {
+      if (counterBookingProfessionalId) {
+        setCounterBookingProfessionalId("");
+      }
+      return;
+    }
+
+    if (!counterBookingProfessionals.some((professional) => professional.id === counterBookingProfessionalId)) {
+      setCounterBookingProfessionalId(counterBookingProfessionals[0].id);
+    }
+  }, [counterBookingProfessionalId, counterBookingProfessionals, isCounterBookingModalOpen]);
+
+  useEffect(() => {
+    if (
+      !isCounterBookingModalOpen ||
+      !sessionToken ||
+      !counterBookingServiceId ||
+      !counterBookingProfessionalId ||
+      !counterBookingDate
+    ) {
+      setCounterBookingSlots([]);
+      setCounterBookingSlotStartAt("");
+      setIsLoadingCounterBookingSlots(false);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingCounterBookingSlots(true);
+
+    async function loadCounterBookingSlots() {
+      try {
+        const slots = await fetchAvailabilitySlots(apiBaseUrl, sessionToken, {
+          serviceId: counterBookingServiceId,
+          professionalId: counterBookingProfessionalId,
+          date: counterBookingDate
+        });
+
+        if (ignore) {
+          return;
+        }
+
+        setCounterBookingSlots(slots);
+        setCounterBookingSlotStartAt((current) => {
+          if (current && slots.some((slot) => slot.startAt === current)) {
+            return current;
+          }
+
+          return slots[0]?.startAt ?? "";
+        });
+      } catch (error) {
+        if (!ignore) {
+          setCounterBookingError(toErrorMessage(error));
+          setCounterBookingSlots([]);
+          setCounterBookingSlotStartAt("");
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingCounterBookingSlots(false);
+        }
+      }
+    }
+
+    void loadCounterBookingSlots();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    apiBaseUrl,
+    counterBookingDate,
+    counterBookingProfessionalId,
+    counterBookingServiceId,
+    isCounterBookingModalOpen,
+    sessionToken
+  ]);
+
   async function refreshAdminState(): Promise<void> {
     if (!sessionToken) {
       return;
@@ -1483,6 +1645,135 @@ export function App() {
         message: `Booking reagendada para ${formatDateTime(nextSlot.startAt)}.`
       });
     });
+  }
+
+  function openCounterBookingModal(): void {
+    setCounterBookingStep("service");
+    setCounterBookingServiceId(bookableServices[0]?.id ?? "");
+    setCounterBookingProfessionalId("");
+    setCounterBookingDate(formatDateInputValue(new Date()));
+    setCounterBookingSlots([]);
+    setCounterBookingSlotStartAt("");
+    setCounterBookingForm(defaultCounterBookingForm);
+    setCounterBookingError(null);
+    setCounterBookingReceipt(null);
+    setIsShellContextOpen(false);
+    setIsCounterBookingModalOpen(true);
+  }
+
+  function closeCounterBookingModal(): void {
+    setIsCounterBookingModalOpen(false);
+    setCounterBookingError(null);
+  }
+
+  function handleCounterBookingGoToStep(step: CounterBookingStep): void {
+    if (!isCounterBookingStepAvailable(step, counterBookingSelectedService, counterBookingSelectedProfessional, counterBookingSelectedSlot)) {
+      return;
+    }
+
+    setCounterBookingError(null);
+    setCounterBookingStep(step);
+  }
+
+  function handleCounterBookingNextStep(): void {
+    const nextStep = resolveNextCounterBookingStep(counterBookingStep);
+    if (!nextStep) {
+      return;
+    }
+
+    if (
+      !isCounterBookingStepComplete(
+        counterBookingStep,
+        counterBookingSelectedService,
+        counterBookingSelectedProfessional,
+        counterBookingSelectedSlot,
+        counterBookingForm
+      )
+    ) {
+      setCounterBookingError(resolveCounterBookingStepValidationMessage(counterBookingStep));
+      return;
+    }
+
+    setCounterBookingError(null);
+    setCounterBookingStep(nextStep);
+  }
+
+  function handleCounterBookingPreviousStep(): void {
+    const previousStep = resolvePreviousCounterBookingStep(counterBookingStep);
+    if (!previousStep) {
+      return;
+    }
+
+    setCounterBookingError(null);
+    setCounterBookingStep(previousStep);
+  }
+
+  async function handleSubmitCounterBooking(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+
+    if (!counterBookingSelectedService || !counterBookingSelectedProfessional || !counterBookingSelectedSlot) {
+      setCounterBookingError("Selecione servico, profissional e horario antes de salvar.");
+      return;
+    }
+
+    if (!isCounterBookingStepComplete("client", counterBookingSelectedService, counterBookingSelectedProfessional, counterBookingSelectedSlot, counterBookingForm)) {
+      setCounterBookingError(resolveCounterBookingStepValidationMessage("client"));
+      return;
+    }
+
+    setIsSubmittingCounterBooking(true);
+    setCounterBookingError(null);
+
+    try {
+      const matchedClient = findMatchingClient(clients, counterBookingForm);
+      const client =
+        matchedClient ??
+        (await createClient(apiBaseUrl, sessionToken, {
+          nome: counterBookingForm.nome.trim(),
+          telefone: counterBookingForm.telefone.trim(),
+          email: counterBookingForm.email.trim().toLowerCase(),
+          origem: counterBookingForm.origem.trim().toLowerCase()
+        }));
+
+      const booking = await createBooking(apiBaseUrl, sessionToken, {
+        clientId: client.id,
+        serviceId: counterBookingSelectedService.id,
+        professionalId: counterBookingSelectedProfessional.id,
+        status: counterBookingForm.status,
+        startAt: counterBookingSelectedSlot.startAt,
+        endAt: counterBookingSelectedSlot.endAt
+      });
+
+      await refreshAdminState();
+      setCounterBookingReceipt({
+        booking,
+        client,
+        service: counterBookingSelectedService,
+        professional: counterBookingSelectedProfessional
+      });
+      setFeedback({
+        tone: "success",
+        message: `Agendamento criado para ${client.nome} em ${formatDateTime(counterBookingSelectedSlot.startAt)}.`
+      });
+    } catch (error) {
+      setCounterBookingError(toErrorMessage(error));
+    } finally {
+      setIsSubmittingCounterBooking(false);
+    }
+  }
+
+  function handleOpenCounterBookingInAgenda(): void {
+    if (!counterBookingReceipt) {
+      return;
+    }
+
+    setAgendaViewMode("day");
+    setAgendaDate(extractDatePart(counterBookingReceipt.booking.startAt));
+    setRescheduleDate(extractDatePart(counterBookingReceipt.booking.startAt));
+    setSelectedAgendaBookingId(counterBookingReceipt.booking.id);
+    setSelectedAgendaSlotStartAt(counterBookingReceipt.booking.startAt);
+    setIsCounterBookingModalOpen(false);
+    navigateTo("agenda");
   }
 
   function navigateTo(route: AdminRoute): void {
@@ -3046,15 +3337,17 @@ export function App() {
     }> = [
       { id: "executive", label: "Resumo executivo", icon: LayoutDashboard },
       { id: "agenda", label: "Agenda da semana", icon: CalendarDays },
-      { id: "clients", label: "Clientes e retorno", icon: Users }
+      { id: "radar", label: "Radar da semana", icon: Activity },
+      { id: "clients", label: "Clientes e retorno", icon: Users },
+      { id: "shortcuts", label: "Acessos rapidos", icon: Rocket }
     ];
 
     return (
       <DocumentViewLayout
         className="dashboard-document-view"
-        eyebrow="Dashboard"
-        title="Dashboard central"
-        subtitle={`${tenant?.nome ?? "Tenant nao carregado"} · leitura executiva e distribuicao de fluxo do negocio.`}
+        eyebrow="Visao executiva"
+        title={tenant?.nome ?? "Tenant nao carregado"}
+        subtitle="Leitura gerencial do tenant para distribuir operacao, agenda, clientes e relatorios sem misturar configuracao no corpo da tela."
         pageActions={
           <div className="dashboard-document-actions">
             <label className="dashboard-select">
@@ -3068,48 +3361,15 @@ export function App() {
                 <option value="all">Todo o historico</option>
               </select>
             </label>
-            {publicBookingUrl ? (
-              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
-                Abrir booking
-              </a>
-            ) : null}
+            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+              Atualizar
+            </button>
             <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
               Abrir relatorios
             </button>
           </div>
         }
-        header={
-          <DocumentHeader
-            fields={[
-              {
-                id: "tenant",
-                label: "Tenant",
-                value: tenant?.nome ?? "Tenant nao carregado"
-              },
-              {
-                id: "slug",
-                label: "Slug publica",
-                value: tenant?.slug ? `/${tenant.slug}` : "Nao publicada"
-              },
-              {
-                id: "today-bookings",
-                label: "Agenda hoje",
-                value: `${bookingSummary.today} booking(s)`
-              },
-              {
-                id: "timezone",
-                label: "Timezone",
-                value: tenant?.timezone ?? "-"
-              }
-              ,
-              {
-                id: "range",
-                label: "Janela ativa",
-                value: resolveDashboardRangeLabel(dashboardRange)
-              }
-            ]}
-          />
-        }
+        header={null}
         summary={
           <DocumentSummaryCards
             metrics={[
@@ -3231,6 +3491,95 @@ export function App() {
                 </div>
               </div>
             </EntitySection>
+          ) : dashboardWorkspaceTab === "radar" ? (
+            <>
+              <EntitySection
+                title="Radar da semana"
+                description="Leitura concentrada de capacidade, horas livres e presenca de pendencias em um painel proprio."
+              >
+                <DocumentSummaryCards
+                  metrics={[
+                    {
+                      id: "radar-capacity",
+                      label: "Capacidade total",
+                      value: formatMinutesAsHours(weekCapacitySummary.totalMinutes),
+                      helper: "Disponibilidade derivada da equipe publicada."
+                    },
+                    {
+                      id: "radar-booked",
+                      label: "Horas ocupadas",
+                      value: formatMinutesAsHours(weekCapacitySummary.bookedMinutes),
+                      helper: `${weekCapacitySummary.bookingsCount} booking(s) distribuidas.`,
+                      tone: "info"
+                    },
+                    {
+                      id: "radar-free",
+                      label: "Horas livres",
+                      value: formatMinutesAsHours(weekCapacitySummary.freeMinutes),
+                      helper:
+                        weekCapacitySummary.totalMinutes > 0
+                          ? `${formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)} de ocupacao`
+                          : "Sem disponibilidade publicada."
+                    },
+                    {
+                      id: "radar-open",
+                      label: "Em aberto",
+                      value: weekCapacitySummary.openBookings,
+                      helper: "Pendencias operacionais vivas nesta semana.",
+                      tone: "warning"
+                    }
+                  ]}
+                />
+              </EntitySection>
+
+              <EntitySection
+                title="Capacidade por dia"
+                description="Cada dia da semana em leitura curta, sem competir com atalhos ou base do tenant."
+              >
+                <div className="dashboard-kpi-list">
+                  {weekDaySummaries.map((summary) => (
+                    <article className="dashboard-kpi-item" key={summary.date}>
+                      <div className="dashboard-kpi-main">
+                        <strong>{formatAgendaDayLabel(summary.date)}</strong>
+                        <span>{summary.bookingsCount} booking(s), {summary.openBookings} em aberto.</span>
+                      </div>
+                      <div className="dashboard-kpi-side">
+                        <span>{formatMinutesAsHours(summary.bookedMinutes)} / {formatMinutesAsHours(summary.totalMinutes)}</span>
+                        <small>
+                          {summary.totalMinutes > 0
+                            ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                            : "Sem capacidade"}
+                        </small>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </EntitySection>
+
+              <EntitySection
+                title="Carga por profissional"
+                description="Ajuda a localizar gargalos e ociosidade da equipe sem abrir a grade completa."
+              >
+                <div className="dashboard-kpi-list">
+                  {weekProfessionalSummaries.map((summary) => (
+                    <article className="dashboard-kpi-item" key={summary.professionalId}>
+                      <div className="dashboard-kpi-main">
+                        <strong>{resolveProfessionalName(summary.professionalId, professionals)}</strong>
+                        <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas na semana.</span>
+                      </div>
+                      <div className="dashboard-kpi-side">
+                        <span>{formatMinutesAsHours(summary.totalMinutes)}</span>
+                        <small>
+                          {summary.totalMinutes > 0
+                            ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                            : "Sem escala publicada"}
+                        </small>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </EntitySection>
+            </>
           ) : dashboardWorkspaceTab === "clients" ? (
             <EntitySection
               title="Clientes e retorno"
@@ -3312,6 +3661,73 @@ export function App() {
                 </div>
               </div>
             </EntitySection>
+          ) : dashboardWorkspaceTab === "shortcuts" ? (
+            <>
+              <EntitySection
+                title="Base real do tenant"
+                description="Volume publicado e carteira formada no runtime atual, separado da leitura executiva."
+              >
+                <div className="dashboard-mini-grid">
+                  <div className="dashboard-mini-card">
+                    <strong>{services.length}</strong>
+                    <span>Servico(s) ativos no catalogo.</span>
+                  </div>
+                  <div className="dashboard-mini-card">
+                    <strong>{professionals.length}</strong>
+                    <span>Profissional(is) publicados na agenda.</span>
+                  </div>
+                  <div className="dashboard-mini-card">
+                    <strong>{bookingSummary.today}</strong>
+                    <span>Agendamento(s) previstas para hoje.</span>
+                  </div>
+                  <div className="dashboard-mini-card">
+                    <strong>{clients.length}</strong>
+                    <span>Cliente(s) capturados pela jornada publica.</span>
+                  </div>
+                </div>
+              </EntitySection>
+
+              <EntitySection
+                title="Acessos rapidos"
+                description="Atalhos separados da analise para nao competir com KPI, grafico e leitura semanal."
+              >
+                <div className="dashboard-action-grid">
+                  <button className="dashboard-action-card" onClick={() => navigateTo("operacional")} type="button">
+                    <div>
+                      <strong>Operacao diaria</strong>
+                      <span>Confirmar, concluir e reagendar atendimentos.</span>
+                    </div>
+                  </button>
+                  <button className="dashboard-action-card" onClick={() => navigateTo("agenda")} type="button">
+                    <div>
+                      <strong>Agenda</strong>
+                      <span>Dia, semana e calendario mensal com capacidade.</span>
+                    </div>
+                  </button>
+                  <button className="dashboard-action-card" onClick={() => navigateTo("clientes")} type="button">
+                    <div>
+                      <strong>Clientes</strong>
+                      <span>Retorno e historico operacional por cliente.</span>
+                    </div>
+                  </button>
+                  {publicBookingUrl ? (
+                    <a className="dashboard-action-card" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                      <div>
+                        <strong>Booking publico</strong>
+                        <span>{publicBookingUrl}</span>
+                      </div>
+                    </a>
+                  ) : (
+                    <div className="dashboard-action-card is-muted">
+                      <div>
+                        <strong>Booking publico</strong>
+                        <span>Publique a slug do tenant para abrir o link.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </EntitySection>
+            </>
           ) : (
             <>
               <EntitySection
@@ -3355,126 +3771,510 @@ export function App() {
             </>
           )
         }
-        aside={
-          <div className="dashboard-aside-stack">
-            <EntityAsideSummary
-              title={dashboardWorkspaceTab === "agenda" ? "Radar da semana" : "Base real do tenant"}
-              description={
-                dashboardWorkspaceTab === "agenda"
-                  ? "Capacidade e ocupacao da equipe publicada."
-                  : "Leitura curta da base real para orientar a proxima navegacao."
-              }
-              items={
-                dashboardWorkspaceTab === "agenda"
-                  ? [
-                      {
-                        id: "capacity",
-                        label: "Capacidade total",
-                        value: formatMinutesAsHours(weekCapacitySummary.totalMinutes),
-                        description: "Disponibilidade derivada da equipe publicada."
-                      },
-                      {
-                        id: "booked",
-                        label: "Horas ocupadas",
-                        value: formatMinutesAsHours(weekCapacitySummary.bookedMinutes),
-                        description: `${weekCapacitySummary.bookingsCount} booking(s) distribuidas na semana.`
-                      },
-                      {
-                        id: "free",
-                        label: "Horas livres",
-                        value: formatMinutesAsHours(weekCapacitySummary.freeMinutes),
-                        description:
-                          weekCapacitySummary.totalMinutes > 0
-                            ? `${formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)} de ocupacao`
-                            : "Sem disponibilidade publicada."
-                      },
-                      {
-                        id: "open",
-                        label: "Bookings em aberto",
-                        value: weekCapacitySummary.openBookings,
-                        description: "Pendencias operacionais ainda vivas na agenda."
-                      }
-                    ]
-                  : [
-                      {
-                        id: "services",
-                        label: "Servicos ativos",
-                        value: services.length,
-                        description: "Itens comerciais publicados no catalogo."
-                      },
-                      {
-                        id: "professionals",
-                        label: "Profissionais publicados",
-                        value: professionals.length,
-                        description: "Equipe visivel na agenda e no booking."
-                      },
-                      {
-                        id: "today-bookings",
-                        label: "Agendamentos para hoje",
-                        value: bookingSummary.today,
-                        description: "Fila operacional do dia corrente."
-                      },
-                      {
-                        id: "clients",
-                        label: "Clientes capturados",
-                        value: clients.length,
-                        description: "Base formada a partir da jornada publica."
-                      }
-                    ]
-              }
-            />
-
-            <EntityAsideSummary
-              title="Acessos rapidos"
-              description="Rotas mais uteis a partir desta visao."
-              items={[
-                {
-                  id: "operacional",
-                  label: "Operacao diaria",
-                  description: "Confirmar, concluir e reagendar atendimentos.",
-                  action: (
-                    <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
-                      Abrir
-                    </button>
-                  )
-                },
-                {
-                  id: "agenda",
-                  label: "Agenda",
-                  description: "Dia, semana e calendario mensal com capacidade.",
-                  action: (
-                    <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
-                      Abrir
-                    </button>
-                  )
-                },
-                {
-                  id: "clientes",
-                  label: "Clientes",
-                  description: "Retorno e historico operacional por cliente.",
-                  action: (
-                    <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
-                      Abrir
-                    </button>
-                  )
-                },
-                {
-                  id: "booking",
-                  label: "Booking publico",
-                  description: publicBookingUrl || "Slug ainda nao publicada.",
-                  action: publicBookingUrl ? (
-                    <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
-                      Abrir
-                    </a>
-                  ) : (
-                    <span className="helper-chip">Sem link</span>
-                  )
-                }
-              ]}
-            />
-          </div>
-        }
+        aside={null}
       />
+    );
+  }
+
+  function renderShellContextPanel(): JSX.Element | null {
+    if (!isShellContextOpen) {
+      return null;
+    }
+
+    return (
+      <>
+        <button
+          aria-label="Fechar contexto do tenant"
+          className="shell-context-overlay"
+          onClick={() => setIsShellContextOpen(false)}
+          type="button"
+        />
+        <aside className="shell-context-sheet" role="dialog" aria-label="Contexto do tenant">
+          <div className="shell-context-sheet-header">
+            <div>
+              <p className="eyebrow">Contexto do tenant</p>
+              <h2>{tenant?.nome ?? "Tenant nao carregado"}</h2>
+            </div>
+            <button
+              aria-label="Fechar contexto"
+              className="admin-icon-button shell-context-close"
+              onClick={() => setIsShellContextOpen(false)}
+              type="button"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="dashboard-kpi-list">
+            <article className="dashboard-kpi-item">
+              <div className="dashboard-kpi-main">
+                <strong>Slug publica</strong>
+                <span>{tenant?.slug ? `/${tenant.slug}` : "Nao publicada"}</span>
+              </div>
+              <div className="dashboard-kpi-side">
+                <span>Booking publico</span>
+                <small>{publicBookingUrl || "Sem link publicado"}</small>
+              </div>
+            </article>
+            <article className="dashboard-kpi-item">
+              <div className="dashboard-kpi-main">
+                <strong>Agenda hoje</strong>
+                <span>{bookingSummary.today} booking(s)</span>
+              </div>
+              <div className="dashboard-kpi-side">
+                <span>Janela ativa</span>
+                <small>{resolveDashboardRangeLabel(dashboardRange)}</small>
+              </div>
+            </article>
+            <article className="dashboard-kpi-item">
+              <div className="dashboard-kpi-main">
+                <strong>Timezone</strong>
+                <span>{tenant?.timezone ?? "-"}</span>
+              </div>
+              <div className="dashboard-kpi-side">
+                <span>Tenant</span>
+                <small>{tenant?.nome ?? "Nao carregado"}</small>
+              </div>
+            </article>
+          </div>
+
+          <div className="shell-context-sheet-actions">
+            {publicBookingUrl ? (
+              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                Abrir booking
+              </a>
+            ) : null}
+            <button className="secondary-button" onClick={() => navigateTo("configuracoes")} type="button">
+              Abrir configuracoes
+            </button>
+          </div>
+        </aside>
+      </>
+    );
+  }
+
+  function renderCounterBookingModal(): JSX.Element | null {
+    if (!isCounterBookingModalOpen) {
+      return null;
+    }
+
+    const progressSteps = [
+      {
+        id: "service" as CounterBookingStep,
+        step: "01",
+        label: "Servico",
+        complete: Boolean(counterBookingSelectedService),
+        available: true
+      },
+      {
+        id: "professional" as CounterBookingStep,
+        step: "02",
+        label: "Profissional",
+        complete: Boolean(counterBookingSelectedProfessional),
+        available: Boolean(counterBookingSelectedService)
+      },
+      {
+        id: "slot" as CounterBookingStep,
+        step: "03",
+        label: "Horario",
+        complete: Boolean(counterBookingSelectedSlot),
+        available: Boolean(counterBookingSelectedService && counterBookingSelectedProfessional)
+      },
+      {
+        id: "client" as CounterBookingStep,
+        step: "04",
+        label: "Cliente",
+        complete:
+          Boolean(counterBookingForm.nome && counterBookingForm.telefone && counterBookingForm.email),
+        available: Boolean(counterBookingSelectedService && counterBookingSelectedProfessional && counterBookingSelectedSlot)
+      }
+    ];
+
+    if (counterBookingReceipt) {
+      return (
+        <>
+          <button
+            aria-label="Fechar modal de novo agendamento"
+            className="counter-booking-overlay"
+            onClick={closeCounterBookingModal}
+            type="button"
+          />
+          <section className="counter-booking-modal" role="dialog" aria-label="Novo agendamento">
+            <div className="counter-booking-modal-header">
+              <div>
+                <p className="eyebrow">Novo agendamento</p>
+                <h2>Reserva criada no balcão</h2>
+              </div>
+              <button className="admin-icon-button" onClick={closeCounterBookingModal} type="button">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="counter-booking-success">
+              <DocumentSummaryCards
+                metrics={[
+                  {
+                    id: "receipt-service",
+                    label: "Servico",
+                    value: counterBookingReceipt.service.nome,
+                    helper: `${counterBookingReceipt.service.duracaoMin} min`
+                  },
+                  {
+                    id: "receipt-professional",
+                    label: "Profissional",
+                    value: counterBookingReceipt.professional.nome,
+                    helper: formatBookingStatus(counterBookingReceipt.booking.status),
+                    tone: "success"
+                  },
+                  {
+                    id: "receipt-schedule",
+                    label: "Horario",
+                    value: formatDateTime(counterBookingReceipt.booking.startAt),
+                    helper: formatTimeRange(
+                      counterBookingReceipt.booking.startAt,
+                      counterBookingReceipt.booking.endAt
+                    )
+                  },
+                  {
+                    id: "receipt-client",
+                    label: "Cliente",
+                    value: counterBookingReceipt.client.nome,
+                    helper: counterBookingReceipt.client.telefone
+                  }
+                ]}
+              />
+              <div className="counter-booking-footer">
+                <button className="secondary-button" onClick={openCounterBookingModal} type="button">
+                  Novo agendamento
+                </button>
+                <button className="admin-primary-action" onClick={handleOpenCounterBookingInAgenda} type="button">
+                  Abrir agenda
+                </button>
+              </div>
+            </div>
+          </section>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <button
+          aria-label="Fechar modal de novo agendamento"
+          className="counter-booking-overlay"
+          onClick={closeCounterBookingModal}
+          type="button"
+        />
+        <section className="counter-booking-modal" role="dialog" aria-label="Novo agendamento">
+          <div className="counter-booking-modal-header">
+            <div>
+              <p className="eyebrow">Novo agendamento</p>
+              <h2>Agendar cliente no balcão</h2>
+              <p className="description">
+                Mesma jornada do booking publico, mas persistida pelo admin com contrato interno.
+              </p>
+            </div>
+            <button className="admin-icon-button" onClick={closeCounterBookingModal} type="button">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <form className="counter-booking-form" onSubmit={(event) => void handleSubmitCounterBooking(event)}>
+            <div className="counter-booking-progress" aria-label="Etapas do agendamento">
+              {progressSteps.map((step) => (
+                <button
+                  aria-current={counterBookingStep === step.id ? "step" : undefined}
+                  className={
+                    counterBookingStep === step.id
+                      ? "counter-booking-progress-pill is-active"
+                      : step.complete
+                        ? "counter-booking-progress-pill is-complete"
+                        : "counter-booking-progress-pill"
+                  }
+                  disabled={!step.available}
+                  key={step.id}
+                  onClick={() => handleCounterBookingGoToStep(step.id)}
+                  type="button"
+                >
+                  <strong>{step.step}</strong>
+                  <span>{step.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="counter-booking-layout">
+              <div className="counter-booking-main">
+                {counterBookingStep === "service" ? (
+                  <section className="counter-booking-step-card">
+                    <div className="counter-booking-step-heading">
+                      <span>01</span>
+                      <div>
+                        <h3>Escolha o serviço</h3>
+                        <p>Comece pelo atendimento que será marcado no balcão.</p>
+                      </div>
+                    </div>
+
+                    <div className="counter-booking-choice-grid">
+                      {bookableServices.length ? (
+                        bookableServices.map((service) => (
+                          <button
+                            className={
+                              service.id === counterBookingServiceId
+                                ? "counter-booking-choice-card is-active"
+                                : "counter-booking-choice-card"
+                            }
+                            key={service.id}
+                            onClick={() => setCounterBookingServiceId(service.id)}
+                            type="button"
+                          >
+                            <strong>{service.nome}</strong>
+                            <span>{service.duracaoMin} min</span>
+                            <small>{formatCurrency(service.precoBase)}</small>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="empty-state">Publique ao menos um servico ativo no catalogo.</p>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                {counterBookingStep === "professional" ? (
+                  <section className="counter-booking-step-card">
+                    <div className="counter-booking-step-heading">
+                      <span>02</span>
+                      <div>
+                        <h3>Escolha o profissional</h3>
+                        <p>Mostramos apenas a equipe compativel com o servico selecionado.</p>
+                      </div>
+                    </div>
+
+                    <div className="counter-booking-choice-grid">
+                      {counterBookingProfessionals.length ? (
+                        counterBookingProfessionals.map((professional) => (
+                          <button
+                            className={
+                              professional.id === counterBookingProfessionalId
+                                ? "counter-booking-choice-card is-active"
+                                : "counter-booking-choice-card"
+                            }
+                            key={professional.id}
+                            onClick={() => setCounterBookingProfessionalId(professional.id)}
+                            type="button"
+                          >
+                            <strong>{professional.nome}</strong>
+                            <span>{resolveProfessionalSummaryLine(resolveProfessionalServiceNames(professional, services))}</span>
+                            <small>{formatProfessionalStatus(professional.status)}</small>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="empty-state">Nenhum profissional ativo atende esse servico.</p>
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                {counterBookingStep === "slot" ? (
+                  <section className="counter-booking-step-card">
+                    <div className="counter-booking-step-heading">
+                      <span>03</span>
+                      <div>
+                        <h3>Escolha o horario</h3>
+                        <p>Os slots saem da disponibilidade real do profissional no admin.</p>
+                      </div>
+                    </div>
+
+                    <label className="field">
+                      <span>Data</span>
+                      <input
+                        type="date"
+                        value={counterBookingDate}
+                        onChange={(event) => setCounterBookingDate(event.target.value)}
+                      />
+                    </label>
+
+                    {isLoadingCounterBookingSlots ? (
+                      <p className="helper">Carregando horarios disponiveis...</p>
+                    ) : counterBookingSlots.length ? (
+                      <div className="slot-grid">
+                        {counterBookingSlots.map((slot) => (
+                          <button
+                            className={
+                              slot.startAt === counterBookingSlotStartAt
+                                ? "secondary-button is-active"
+                                : "secondary-button"
+                            }
+                            key={slot.startAt}
+                            onClick={() => setCounterBookingSlotStartAt(slot.startAt)}
+                            type="button"
+                          >
+                            {slot.startTime}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="empty-state">Nenhum slot disponivel para esta data.</p>
+                    )}
+                  </section>
+                ) : null}
+
+                {counterBookingStep === "client" ? (
+                  <section className="counter-booking-step-card">
+                    <div className="counter-booking-step-heading">
+                      <span>04</span>
+                      <div>
+                        <h3>Dados do cliente</h3>
+                        <p>Se a base ja tiver esse cliente, o admin reutiliza o cadastro automaticamente.</p>
+                      </div>
+                    </div>
+
+                    <div className="counter-booking-fields">
+                      <label className="field">
+                        <span>Nome</span>
+                        <input
+                          required
+                          type="text"
+                          value={counterBookingForm.nome}
+                          onChange={(event) =>
+                            setCounterBookingForm({ ...counterBookingForm, nome: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Telefone</span>
+                        <input
+                          required
+                          type="tel"
+                          value={counterBookingForm.telefone}
+                          onChange={(event) =>
+                            setCounterBookingForm({ ...counterBookingForm, telefone: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>E-mail</span>
+                        <input
+                          required
+                          type="email"
+                          value={counterBookingForm.email}
+                          onChange={(event) =>
+                            setCounterBookingForm({ ...counterBookingForm, email: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Origem</span>
+                        <input
+                          required
+                          type="text"
+                          value={counterBookingForm.origem}
+                          onChange={(event) =>
+                            setCounterBookingForm({ ...counterBookingForm, origem: event.target.value })
+                          }
+                        />
+                      </label>
+                      <label className="field">
+                        <span>Status inicial</span>
+                        <select
+                          value={counterBookingForm.status}
+                          onChange={(event) =>
+                            setCounterBookingForm({
+                              ...counterBookingForm,
+                              status: event.target.value as CounterBookingFormState["status"]
+                            })
+                          }
+                        >
+                          <option value="confirmado">Confirmado</option>
+                          <option value="pendente">Pendente</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    {counterBookingClientMatch ? (
+                      <div className="counter-booking-match">
+                        <ViewBadge tone="info">Cliente ja existe</ViewBadge>
+                        <span>
+                          O cadastro de {counterBookingClientMatch.nome} sera reutilizado para evitar duplicidade.
+                        </span>
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
+
+                {counterBookingError ? <div className="feedback-banner is-error">{counterBookingError}</div> : null}
+
+                <div className="counter-booking-footer">
+                  <button className="secondary-button" onClick={closeCounterBookingModal} type="button">
+                    Cancelar
+                  </button>
+                  <div className="counter-booking-footer-actions">
+                    {counterBookingStep !== "service" ? (
+                      <button className="secondary-button" onClick={handleCounterBookingPreviousStep} type="button">
+                        Voltar
+                      </button>
+                    ) : null}
+                    {counterBookingStep !== "client" ? (
+                      <button className="admin-primary-action" onClick={handleCounterBookingNextStep} type="button">
+                        Continuar
+                      </button>
+                    ) : (
+                      <button className="admin-primary-action" disabled={isSubmittingCounterBooking} type="submit">
+                        {isSubmittingCounterBooking ? "Salvando..." : "Salvar agendamento"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <aside className="counter-booking-aside">
+                <DocumentSummaryCards
+                  metrics={[
+                    {
+                      id: "summary-service",
+                      label: "Servico",
+                      value: counterBookingSelectedService?.nome ?? "--",
+                      helper: counterBookingSelectedService
+                        ? `${counterBookingSelectedService.duracaoMin} min`
+                        : "Escolha um servico para iniciar."
+                    },
+                    {
+                      id: "summary-professional",
+                      label: "Profissional",
+                      value: counterBookingSelectedProfessional?.nome ?? "--",
+                      helper: counterBookingSelectedProfessional
+                        ? resolveProfessionalSummaryLine(
+                            resolveProfessionalServiceNames(counterBookingSelectedProfessional, services)
+                          )
+                        : "Selecione quem vai atender."
+                    },
+                    {
+                      id: "summary-slot",
+                      label: "Horario",
+                      value: counterBookingSelectedSlot
+                        ? formatDateTime(counterBookingSelectedSlot.startAt)
+                        : "--",
+                      helper: counterBookingSelectedSlot
+                        ? formatTimeRange(counterBookingSelectedSlot.startAt, counterBookingSelectedSlot.endAt)
+                        : "Defina data e slot disponivel."
+                    },
+                    {
+                      id: "summary-status",
+                      label: "Status inicial",
+                      value: formatBookingStatus(counterBookingForm.status),
+                      helper: "Pode ser ajustado depois na operacao."
+                    }
+                  ]}
+                />
+
+                <div className="counter-booking-aside-card">
+                  <strong>Regras deste fluxo</strong>
+                  <p>O agendamento nasce pelo admin sem abrir checkout publico e continua respeitando disponibilidade e conflito de slot.</p>
+                </div>
+              </aside>
+            </div>
+          </form>
+        </section>
+      </>
     );
   }
 
@@ -5538,6 +6338,7 @@ export function App() {
   }
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
+  const showPageHero = currentRoute !== "profissionais" && currentRoute !== "dashboard";
 
   if (!sessionToken) {
     return (
@@ -5721,7 +6522,8 @@ export function App() {
   }
 
   return (
-    <main className="shell admin-shell-v2">
+    <Fragment>
+      <main className="shell admin-shell-v2">
       {isSidebarOpen ? (
         <button
           aria-label="Fechar navegacao"
@@ -5842,7 +6644,17 @@ export function App() {
             <button className="admin-icon-button" type="button">
               <Bell className="w-5 h-5" />
             </button>
-            <button className="admin-primary-action" onClick={() => navigateTo("agenda")} type="button">
+            {tenant ? (
+              <button
+                className={isShellContextOpen ? "admin-secondary-action is-active" : "admin-secondary-action"}
+                onClick={() => setIsShellContextOpen((current) => !current)}
+                type="button"
+              >
+                <Activity className="w-4 h-4" />
+                Contexto
+              </button>
+            ) : null}
+            <button className="admin-primary-action" onClick={openCounterBookingModal} type="button">
               <Plus className="w-4 h-4" />
               Novo Agendamento
             </button>
@@ -5850,7 +6662,7 @@ export function App() {
         </header>
 
         <section className={currentRoute === "profissionais" ? "admin-stage-content is-professionals-route" : "admin-stage-content"}>
-          {currentRoute !== "profissionais" ? (
+          {showPageHero ? (
             <section className="admin-page-hero">
               <div className="admin-page-hero-copy">
                 <p className="eyebrow">{currentRouteDefinition.eyebrow}</p>
@@ -5875,7 +6687,10 @@ export function App() {
           </section>
         </section>
       </div>
-    </main>
+      </main>
+      {renderShellContextPanel()}
+      {renderCounterBookingModal()}
+    </Fragment>
   );
 }
 
@@ -6981,6 +7796,83 @@ function resolveClientReturnWindowLabel(window: ClientReturnWindow): string {
   return `${resolveClientReturnWindowDays(window)} dias`;
 }
 
+function isCounterBookingStepAvailable(
+  step: CounterBookingStep,
+  service?: Service,
+  professional?: Professional,
+  slot?: AvailabilitySlot
+): boolean {
+  if (step === "service") {
+    return true;
+  }
+  if (step === "professional") {
+    return Boolean(service);
+  }
+  if (step === "slot") {
+    return Boolean(service && professional);
+  }
+  return Boolean(service && professional && slot);
+}
+
+function isCounterBookingStepComplete(
+  step: CounterBookingStep,
+  service: Service | undefined,
+  professional: Professional | undefined,
+  slot: AvailabilitySlot | undefined,
+  form: CounterBookingFormState
+): boolean {
+  if (step === "service") {
+    return Boolean(service);
+  }
+  if (step === "professional") {
+    return Boolean(professional);
+  }
+  if (step === "slot") {
+    return Boolean(slot);
+  }
+
+  return Boolean(form.nome.trim() && form.telefone.trim() && form.email.trim());
+}
+
+function resolveCounterBookingStepValidationMessage(step: CounterBookingStep): string {
+  if (step === "service") {
+    return "Escolha um servico para iniciar o agendamento.";
+  }
+  if (step === "professional") {
+    return "Selecione um profissional compativel com o servico.";
+  }
+  if (step === "slot") {
+    return "Escolha uma data e um slot real antes de continuar.";
+  }
+  return "Preencha nome, telefone e e-mail do cliente antes de salvar.";
+}
+
+function resolveNextCounterBookingStep(step: CounterBookingStep): CounterBookingStep | null {
+  if (step === "service") {
+    return "professional";
+  }
+  if (step === "professional") {
+    return "slot";
+  }
+  if (step === "slot") {
+    return "client";
+  }
+  return null;
+}
+
+function resolvePreviousCounterBookingStep(step: CounterBookingStep): CounterBookingStep | null {
+  if (step === "client") {
+    return "slot";
+  }
+  if (step === "slot") {
+    return "professional";
+  }
+  if (step === "professional") {
+    return "service";
+  }
+  return null;
+}
+
 function calculateRuleDurationMinutes(rule?: AvailabilityRule): number {
   if (!rule) {
     return 0;
@@ -7114,6 +8006,54 @@ function resolveProfessionalInitials(value: string): string {
     .slice(0, 2)
     .map((part) => part.slice(0, 1).toUpperCase())
     .join("");
+}
+
+function resolveServiceName(serviceId: string, services: readonly Service[]): string {
+  return services.find((service) => service.id === serviceId)?.nome ?? "Servico";
+}
+
+function resolveProfessionalName(professionalId: string, professionals: readonly Professional[]): string {
+  return professionals.find((professional) => professional.id === professionalId)?.nome ?? "Profissional";
+}
+
+function getSupportedProfessionalsForService(
+  professionals: readonly Professional[],
+  serviceId: string
+): Professional[] {
+  if (!serviceId) {
+    return [...professionals];
+  }
+
+  return professionals.filter((professional) => professional.especialidades.includes(serviceId));
+}
+
+function findMatchingClient(
+  clients: readonly Client[],
+  form: Pick<CounterBookingFormState, "email" | "telefone" | "nome">
+): Client | undefined {
+  const normalizedEmail = form.email.trim().toLowerCase();
+  const normalizedPhone = normalizePhoneLookup(form.telefone);
+  const normalizedName = form.nome.trim().toLowerCase();
+
+  return clients.find((client) => {
+    const clientEmail = client.email.trim().toLowerCase();
+    const clientPhone = normalizePhoneLookup(client.telefone);
+    const clientName = client.nome.trim().toLowerCase();
+
+    if (normalizedEmail && clientEmail && normalizedEmail === clientEmail) {
+      return true;
+    }
+
+    if (normalizedPhone && clientPhone && normalizedPhone === clientPhone) {
+      return true;
+    }
+
+    return Boolean(normalizedName) && normalizedName === clientName;
+  });
+}
+
+function normalizePhoneLookup(value: string): string {
+  return value.replace(/\D+/g, "");
 }
 
 function resolveProfessionalServiceNames(

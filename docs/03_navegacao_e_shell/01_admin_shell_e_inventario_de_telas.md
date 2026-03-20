@@ -57,6 +57,9 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 - nao deve conter formularios completos de catalogo, pagamento ou equipe;
 - deve ser uma tela de leitura e distribuicao de fluxo;
 - deve funcionar como ponto de entrada depois do login.
+- leituras concorrentes devem ser separadas por visoes dedicadas, preferencialmente via tab bar, em vez de cards e textos empilhados no mesmo viewport;
+- metadados estruturais do tenant, como slug publica, timezone e link do booking, pertencem ao shell em modo de disclosure e nao ao corpo principal do dashboard;
+- atalhos, radar semanal e base real do tenant nao devem competir visualmente com KPI executivo e grafico principal na mesma coluna lateral.
 
 ### Implantacao
 

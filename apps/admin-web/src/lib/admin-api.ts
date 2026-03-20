@@ -388,6 +388,42 @@ export async function fetchAvailabilitySlots(
   return response.items;
 }
 
+export async function createClient(
+  apiBaseUrl: string,
+  token: string,
+  payload: {
+    nome: string;
+    telefone: string;
+    email: string;
+    origem: string;
+  }
+): Promise<Client> {
+  return await requestJson<Client>(apiBaseUrl, "/v1/admin/clients", {
+    method: "POST",
+    token,
+    body: payload
+  });
+}
+
+export async function createBooking(
+  apiBaseUrl: string,
+  token: string,
+  payload: {
+    clientId: string;
+    serviceId: string;
+    professionalId: string;
+    status: Booking["status"];
+    startAt: string;
+    endAt: string;
+  }
+): Promise<Booking> {
+  return await requestJson<Booking>(apiBaseUrl, "/v1/admin/bookings", {
+    method: "POST",
+    token,
+    body: payload
+  });
+}
+
 export async function updateBooking(
   apiBaseUrl: string,
   token: string,
