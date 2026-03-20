@@ -81,6 +81,9 @@ No chrome global do shell:
 
 - podem compartilhar linguagem visual de editor;
 - nao devem ocupar a mesma rota da agenda;
+- entidades simples de cadastro, como `catalogo`, devem nascer em `registro master` com lista principal e acoes explicitas de `novo`, `visualizar` e `editar`;
+- quando a entidade for simples, o workspace nao deve carregar blocos narrativos como `o que voce controla aqui`, `em evolucao`, resumos laterais ou politicas duplicadas fora do proprio registro;
+- `master-detail` deve ficar reservado para superficies com vinculos ou leitura relacional mais densa, como `profissionais` com `servicos` e `horarios`;
 - disponibilidade detalhada pode nascer em `profissionais` ou migrar depois para `calendario`.
 
 ### Agenda

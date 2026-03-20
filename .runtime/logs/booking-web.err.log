@@ -1914,3 +1914,55 @@ Require stack:
 Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
 
 https://nextjs.org/docs/messages/module-not-found
+ ⨯ TypeError: fetch failed
+    at async f (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:1:33566)
+    at async h (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:7607) {
+  digest: '2779633464',
+  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3333
+      at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:3333) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 3333
+  }
+}
+ ⨯ TypeError: fetch failed
+    at async f (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:1:33566)
+    at async h (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:7607) {
+  digest: '2779633464',
+  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3333
+      at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:3333) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 3333
+  }
+}
+ ⨯ TypeError: fetch failed
+    at async f (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:1:33566)
+    at async h (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:7607) {
+  digest: '2779633464',
+  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3333
+      at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:3333) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 3333
+  }
+}
+ ⨯ TypeError: fetch failed
+    at async f (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:1:33566)
+    at async h (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:7607) {
+  digest: '2779633464',
+  [cause]: Error: connect ECONNREFUSED 127.0.0.1:3333
+      at <unknown> (Error: connect ECONNREFUSED 127.0.0.1:3333) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 3333
+  }
+}

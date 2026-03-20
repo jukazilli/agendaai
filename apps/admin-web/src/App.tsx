@@ -114,6 +114,7 @@ type AgendaWorkspaceTab = "list" | "calendar";
 type DashboardRange = "7d" | "30d" | "all";
 type DashboardWorkspaceTab = "executive" | "agenda" | "radar" | "clients" | "shortcuts";
 type OperationalWorkspaceTab = "overview" | "pending" | "confirmed" | "completed" | "noshow";
+type ServiceWorkspaceMode = "browse" | "view" | "edit" | "new";
 type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
@@ -742,6 +743,7 @@ export function App() {
     email: "owner@agendaai.demo",
     password: "agendaai-demo"
   });
+  const [openRouteTabs, setOpenRouteTabs] = useState<AdminRoute[]>([defaultAdminRoute]);
   const [onboardingForm, setOnboardingForm] = useState({
     nome: "",
     slug: "",
@@ -755,6 +757,7 @@ export function App() {
   const [brandingForm, setBrandingForm] = useState<BrandingFormState>(defaultBrandingForm);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>(defaultPaymentForm);
   const [selectedServiceId, setSelectedServiceId] = useState("");
+  const [serviceWorkspaceMode, setServiceWorkspaceMode] = useState<ServiceWorkspaceMode>("browse");
   const [serviceForm, setServiceForm] = useState<ServiceFormState>(defaultServiceForm);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState("");
   const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
@@ -805,6 +808,10 @@ export function App() {
       window.removeEventListener("hashchange", syncRouteFromHash);
     };
   }, []);
+
+  useEffect(() => {
+    setOpenRouteTabs((current) => (current.includes(currentRoute) ? current : [...current, currentRoute]));
+  }, [currentRoute]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -952,6 +959,7 @@ export function App() {
       setSlug("");
       setBrandingForm(defaultBrandingForm);
       setPaymentForm(defaultPaymentForm);
+      setServiceWorkspaceMode("browse");
       setServiceForm(defaultServiceForm);
       return;
     }
@@ -960,16 +968,19 @@ export function App() {
     setBrandingForm(toBrandingForm(bootstrap.session.tenant.branding));
     setPaymentForm(toPaymentForm(bootstrap.paymentSettings));
 
-    const service =
-      bootstrap.services.find((item) => item.id === selectedServiceId) ?? bootstrap.services[0];
+    const service = selectedServiceId ?
+        bootstrap.services.find((item) => item.id === selectedServiceId)
+      : undefined;
     if (service) {
-      if (service.id !== selectedServiceId) {
-        setSelectedServiceId(service.id);
-      }
       setServiceForm(toServiceForm(service));
+    } else if (serviceWorkspaceMode === "new") {
+      setServiceForm(defaultServiceForm);
     } else {
       if (selectedServiceId) {
         setSelectedServiceId("");
+      }
+      if (serviceWorkspaceMode !== "browse") {
+        setServiceWorkspaceMode("browse");
       }
       setServiceForm(defaultServiceForm);
     }
@@ -990,7 +1001,13 @@ export function App() {
         especialidades: []
       });
     }
-  }, [bootstrap, isCreatingProfessional, selectedProfessionalId, selectedServiceId]);
+  }, [
+    bootstrap,
+    isCreatingProfessional,
+    selectedProfessionalId,
+    selectedServiceId,
+    serviceWorkspaceMode
+  ]);
 
   useEffect(() => {
     if (!sessionToken || !selectedProfessionalId) {
@@ -1634,6 +1651,7 @@ export function App() {
           await updateService(apiBaseUrl, sessionToken, selectedServiceId, payload)
         : await createService(apiBaseUrl, sessionToken, payload);
       setSelectedServiceId(service.id);
+      setServiceWorkspaceMode("view");
       await refreshAdminState();
       setFeedback({ tone: "success", message: selectedServiceId ? "Servico atualizado." : "Servico criado." });
     });
@@ -1647,6 +1665,7 @@ export function App() {
     await runAction(async () => {
       await deleteService(apiBaseUrl, sessionToken, selectedServiceId);
       setSelectedServiceId("");
+      setServiceWorkspaceMode("browse");
       setServiceForm(defaultServiceForm);
       await refreshAdminState();
       setFeedback({
@@ -1925,6 +1944,22 @@ export function App() {
     setIsSidebarOpen(false);
   }
 
+  function closeWorkspaceTab(route: AdminRoute): void {
+    setOpenRouteTabs((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+
+      const nextTabs = current.filter((item) => item !== route);
+      if (route === currentRoute) {
+        const fallbackRoute = nextTabs[nextTabs.length - 1] ?? defaultAdminRoute;
+        window.setTimeout(() => navigateTo(fallbackRoute), 0);
+      }
+
+      return nextTabs;
+    });
+  }
+
   function scrollProfessionalsWorkspaceIntoView(): void {
     if (typeof window === "undefined") {
       return;
@@ -1952,6 +1987,34 @@ export function App() {
     }
 
     scrollProfessionalsWorkspaceIntoView();
+  }
+
+  function selectServiceRecord(serviceId: string): void {
+    setSelectedServiceId(serviceId);
+    if (serviceWorkspaceMode === "new") {
+      setServiceWorkspaceMode("browse");
+    }
+  }
+
+  function openServiceWorkspace(mode: Exclude<ServiceWorkspaceMode, "browse">, serviceId?: string): void {
+    if (mode === "new") {
+      setSelectedServiceId("");
+      setServiceForm(defaultServiceForm);
+      setServiceWorkspaceMode("new");
+      return;
+    }
+
+    const targetServiceId = serviceId ?? selectedServiceId;
+    if (!targetServiceId) {
+      return;
+    }
+
+    setSelectedServiceId(targetServiceId);
+    setServiceWorkspaceMode(mode);
+  }
+
+  function closeServiceWorkspace(): void {
+    setServiceWorkspaceMode("browse");
   }
 
   function openProfessionalAvailabilityWorkspace(professionalId: string): void {
@@ -2409,206 +2472,318 @@ export function App() {
   }
 
   function renderCatalogPanel(): JSX.Element {
-    return (
-      <EntitySection
-        title="Lista e editor de servicos"
-        description="Cadastro real de servicos e de politica comercial sem misturar agenda, equipe ou operacao diaria."
-      >
-        <div className="editor-layout">
-          <div className="entity-list">
-            {services.length ? (
-              services.map((service) => (
-                <button
-                  className={service.id === selectedServiceId ? "entity-card is-active" : "entity-card"}
-                  key={service.id}
-                  onClick={() => setSelectedServiceId(service.id)}
-                  type="button"
-                >
-                  <strong>{service.nome}</strong>
-                  <span>
-                    {service.duracaoMin} min - {formatCurrency(service.precoBase)}
-                  </span>
-                  <small>
-                    {service.paymentPolicy.collectionMode === "none"
-                      ? "Reserva imediata"
-                      : service.paymentPolicy.collectionMode}
-                  </small>
-                </button>
-              ))
-            ) : (
-              <p className="empty-state">Nenhum servico cadastrado ainda.</p>
-            )}
-          </div>
+    const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+    const isViewingService = serviceWorkspaceMode === "view" && Boolean(selectedService);
+    const isEditingService = serviceWorkspaceMode === "edit" && Boolean(selectedService);
+    const isCreatingService = serviceWorkspaceMode === "new";
+    const canOpenSelectedService = Boolean(selectedService);
 
-          <form className="stack-form" onSubmit={handleSaveService}>
-            <div className="form-grid">
-              <label className="field">
-                <span>Nome</span>
-                <input
-                  required
-                  type="text"
-                  value={serviceForm.nome}
-                  onChange={(event) => setServiceForm({ ...serviceForm, nome: event.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Duracao</span>
-                <input
-                  required
-                  min="1"
-                  type="number"
-                  value={serviceForm.duracaoMin}
-                  onChange={(event) =>
-                    setServiceForm({ ...serviceForm, duracaoMin: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Preco</span>
-                <input
-                  required
-                  min="0"
-                  step="0.01"
-                  type="number"
-                  value={serviceForm.precoBase}
-                  onChange={(event) =>
-                    setServiceForm({ ...serviceForm, precoBase: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Status</span>
-                <input
-                  required
-                  type="text"
-                  value={serviceForm.status}
-                  onChange={(event) =>
-                    setServiceForm({ ...serviceForm, status: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Cobranca</span>
-                <select
-                  value={serviceForm.collectionMode}
-                  onChange={(event) =>
-                    setServiceForm({
-                      ...serviceForm,
-                      collectionMode: event.target.value as PaymentCollectionMode
-                    })
-                  }
-                >
-                  {paymentCollectionModeValues.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Checkout</span>
-                <select
-                  disabled={serviceForm.collectionMode === "none"}
-                  value={serviceForm.checkoutMode}
-                  onChange={(event) =>
-                    setServiceForm({
-                      ...serviceForm,
-                      checkoutMode: event.target.value as PaymentCheckoutMode
-                    })
-                  }
-                >
-                  {paymentCheckoutModeValues.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Tipo</span>
-                <select
-                  disabled={serviceForm.collectionMode === "none"}
-                  value={serviceForm.chargeType}
-                  onChange={(event) =>
-                    setServiceForm({
-                      ...serviceForm,
-                      chargeType: event.target.value as PaymentChargeType
-                    })
-                  }
-                >
-                  {paymentChargeTypeValues.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {serviceForm.chargeType === "fixed" ? (
+    return (
+      <>
+        <EntitySection
+          title="Servicos"
+          actions={
+            <div className="entity-record-actions">
+              <button
+                className="secondary-button"
+                onClick={() => openServiceWorkspace("new")}
+                type="button"
+              >
+                Novo
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!canOpenSelectedService}
+                onClick={() => openServiceWorkspace("view")}
+                type="button"
+              >
+                Visualizar
+              </button>
+              <button
+                className="primary-button"
+                disabled={!canOpenSelectedService}
+                onClick={() => openServiceWorkspace("edit")}
+                type="button"
+              >
+                Editar
+              </button>
+            </div>
+          }
+        >
+          {services.length ? (
+            <div className="entity-record-list" role="list">
+              {services.map((service, index) => {
+                const collectionLabel =
+                  service.paymentPolicy.collectionMode === "none" ? "Reserva imediata" : service.paymentPolicy.collectionMode;
+
+                return (
+                  <button
+                    aria-pressed={service.id === selectedServiceId}
+                    className={service.id === selectedServiceId ? "entity-record-row is-selected" : "entity-record-row"}
+                    key={service.id}
+                    onClick={() => selectServiceRecord(service.id)}
+                    type="button"
+                  >
+                    <span className="entity-record-row-index">{String(index + 1).padStart(2, "0")}</span>
+                    <div className="entity-record-row-main">
+                      <strong>{service.nome}</strong>
+                      <span>{service.duracaoMin} min</span>
+                    </div>
+                    <div className="entity-record-row-meta">
+                      <span>{formatCurrency(service.precoBase)}</span>
+                      <span>{collectionLabel}</span>
+                      <span className={`status-pill is-${service.status === "active" ? "success" : "warning"}`}>
+                        {service.status}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="empty-state">Nenhum servico cadastrado ainda.</p>
+          )}
+        </EntitySection>
+
+        {isViewingService && selectedService ? (
+          <EntitySection
+            title={`Visualizar ${selectedService.nome}`}
+            actions={
+              <div className="button-row">
+                <button className="secondary-button" onClick={() => closeServiceWorkspace()} type="button">
+                  Fechar
+                </button>
+                <button className="primary-button" onClick={() => openServiceWorkspace("edit")} type="button">
+                  Editar
+                </button>
+              </div>
+            }
+          >
+            <div className="catalog-record-preview-grid">
+              <div className="dashboard-mini-card">
+                <strong>Status</strong>
+                <span>{selectedService.status}</span>
+              </div>
+              <div className="dashboard-mini-card">
+                <strong>Duracao</strong>
+                <span>{formatMinutesAsHours(selectedService.duracaoMin)}</span>
+              </div>
+              <div className="dashboard-mini-card">
+                <strong>Preco base</strong>
+                <span>{formatCurrency(selectedService.precoBase)}</span>
+              </div>
+              <div className="dashboard-mini-card">
+                <strong>Cobranca</strong>
+                <span>
+                  {selectedService.paymentPolicy.collectionMode === "none"
+                    ? "Reserva imediata"
+                    : selectedService.paymentPolicy.collectionMode}
+                </span>
+              </div>
+              <div className="dashboard-mini-card">
+                <strong>Checkout</strong>
+                <span>{selectedService.paymentPolicy.checkoutMode}</span>
+              </div>
+              <div className="dashboard-mini-card">
+                <strong>Meios aceitos</strong>
+                <span>{selectedService.paymentPolicy.acceptedMethods.join(" | ") || "Nao definidos"}</span>
+              </div>
+            </div>
+          </EntitySection>
+        ) : null}
+
+        {(isEditingService || isCreatingService) ? (
+          <EntitySection
+            title={isCreatingService ? "Novo servico" : `Editar ${selectedService?.nome ?? "servico"}`}
+            actions={
+              <div className="button-row">
+                {!isCreatingService && selectedService ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => openServiceWorkspace("view")}
+                    type="button"
+                  >
+                    Visualizar
+                  </button>
+                ) : null}
+                <button className="secondary-button" onClick={() => closeServiceWorkspace()} type="button">
+                  Voltar para a lista
+                </button>
+              </div>
+            }
+          >
+            <form className="stack-form" onSubmit={handleSaveService}>
+              <div className="form-grid">
                 <label className="field">
-                  <span>Valor</span>
+                  <span>Nome</span>
                   <input
+                    required
+                    type="text"
+                    value={serviceForm.nome}
+                    onChange={(event) => setServiceForm({ ...serviceForm, nome: event.target.value })}
+                  />
+                </label>
+                <label className="field">
+                  <span>Duracao</span>
+                  <input
+                    required
+                    min="1"
+                    type="number"
+                    value={serviceForm.duracaoMin}
+                    onChange={(event) =>
+                      setServiceForm({ ...serviceForm, duracaoMin: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Preco</span>
+                  <input
+                    required
                     min="0"
                     step="0.01"
                     type="number"
-                    value={serviceForm.fixedAmount}
+                    value={serviceForm.precoBase}
                     onChange={(event) =>
-                      setServiceForm({ ...serviceForm, fixedAmount: event.target.value })
+                      setServiceForm({ ...serviceForm, precoBase: event.target.value })
                     }
                   />
                 </label>
-              ) : (
                 <label className="field">
-                  <span>Percentual</span>
+                  <span>Status</span>
                   <input
-                    max="100"
-                    min="1"
-                    type="number"
-                    value={serviceForm.percentage}
+                    required
+                    type="text"
+                    value={serviceForm.status}
                     onChange={(event) =>
-                      setServiceForm({ ...serviceForm, percentage: event.target.value })
+                      setServiceForm({ ...serviceForm, status: event.target.value })
                     }
                   />
                 </label>
-              )}
-            </div>
-
-            <fieldset className="checkbox-group">
-              <legend>Meios aceitos</legend>
-              {paymentMethodValues.map((method) => (
-                <label className="check-item" key={method}>
-                  <input
-                    checked={serviceForm.acceptedMethods.includes(method)}
-                    type="checkbox"
-                    onChange={() =>
+                <label className="field">
+                  <span>Cobranca</span>
+                  <select
+                    value={serviceForm.collectionMode}
+                    onChange={(event) =>
                       setServiceForm({
                         ...serviceForm,
-                        acceptedMethods: toggleArrayValue(serviceForm.acceptedMethods, method)
+                        collectionMode: event.target.value as PaymentCollectionMode
                       })
                     }
-                  />
-                  <span>{method}</span>
+                  >
+                    {paymentCollectionModeValues.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
                 </label>
-              ))}
-            </fieldset>
+                <label className="field">
+                  <span>Checkout</span>
+                  <select
+                    disabled={serviceForm.collectionMode === "none"}
+                    value={serviceForm.checkoutMode}
+                    onChange={(event) =>
+                      setServiceForm({
+                        ...serviceForm,
+                        checkoutMode: event.target.value as PaymentCheckoutMode
+                      })
+                    }
+                  >
+                    {paymentCheckoutModeValues.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field">
+                  <span>Tipo</span>
+                  <select
+                    disabled={serviceForm.collectionMode === "none"}
+                    value={serviceForm.chargeType}
+                    onChange={(event) =>
+                      setServiceForm({
+                        ...serviceForm,
+                        chargeType: event.target.value as PaymentChargeType
+                      })
+                    }
+                  >
+                    {paymentChargeTypeValues.map((mode) => (
+                      <option key={mode} value={mode}>
+                        {mode}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {serviceForm.chargeType === "fixed" ? (
+                  <label className="field">
+                    <span>Valor</span>
+                    <input
+                      min="0"
+                      step="0.01"
+                      type="number"
+                      value={serviceForm.fixedAmount}
+                      onChange={(event) =>
+                        setServiceForm({ ...serviceForm, fixedAmount: event.target.value })
+                      }
+                    />
+                  </label>
+                ) : (
+                  <label className="field">
+                    <span>Percentual</span>
+                    <input
+                      max="100"
+                      min="1"
+                      type="number"
+                      value={serviceForm.percentage}
+                      onChange={(event) =>
+                        setServiceForm({ ...serviceForm, percentage: event.target.value })
+                      }
+                    />
+                  </label>
+                )}
+              </div>
 
-            <div className="button-row">
-              <button className="primary-button" disabled={isBusy} type="submit">
-                {selectedServiceId ? "Salvar servico" : "Criar servico"}
-              </button>
-              {selectedServiceId ? (
-                <button
-                  className="secondary-button is-danger"
-                  disabled={isBusy}
-                  onClick={() => void handleDeleteSelectedService()}
-                  type="button"
-                >
-                  Excluir servico
-                </button>
-              ) : null}
-            </div>
-          </form>
-        </div>
-      </EntitySection>
+              <fieldset className="checkbox-group">
+                <legend>Meios aceitos</legend>
+                {paymentMethodValues.map((method) => (
+                  <label className="check-item" key={method}>
+                    <input
+                      checked={serviceForm.acceptedMethods.includes(method)}
+                      type="checkbox"
+                      onChange={() =>
+                        setServiceForm({
+                          ...serviceForm,
+                          acceptedMethods: toggleArrayValue(serviceForm.acceptedMethods, method)
+                        })
+                      }
+                    />
+                    <span>{method}</span>
+                  </label>
+                ))}
+              </fieldset>
+
+              <div className="catalog-form-footer">
+                <div className="button-row">
+                  <button className="primary-button" disabled={isBusy} type="submit">
+                    {selectedServiceId ? "Salvar servico" : "Criar servico"}
+                  </button>
+                  {selectedServiceId ? (
+                    <button
+                      className="secondary-button is-danger"
+                      disabled={isBusy}
+                      onClick={() => void handleDeleteSelectedService()}
+                      type="button"
+                    >
+                      Excluir servico
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </form>
+          </EntitySection>
+        ) : null}
+      </>
     );
   }
 
@@ -5209,168 +5384,16 @@ export function App() {
   }
 
   function renderCatalogView(): JSX.Element {
-    const selectedService = services.find((service) => service.id === selectedServiceId);
-    const isCreatingService = !selectedServiceId;
-    const acceptedMethodsLabel = serviceForm.acceptedMethods.length
-      ? serviceForm.acceptedMethods.join(" | ")
-      : "Sem meio explicito";
-    const chargingModeLabel =
-      serviceForm.collectionMode === "none" ? "Reserva imediata" : serviceForm.collectionMode;
-    const checkoutModeLabel =
-      serviceForm.collectionMode === "none" ? "Sem checkout" : serviceForm.checkoutMode;
-    const servicesWithSignal = services.filter((service) => service.exigeSinal).length;
-    const immediateServices = services.filter((service) => !service.exigeSinal).length;
+    const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+    const isCreatingService = serviceWorkspaceMode === "new";
 
     return (
       <EntityViewLayout
         className="catalog-entity-view"
         eyebrow="Catalogo"
-        title={isCreatingService ? "Novo servico" : selectedService?.nome ?? "Editar servico"}
-        subtitle={
-          isCreatingService ?
-            "Cadastre um novo servico e defina a politica comercial antes de publica-lo na jornada do cliente."
-          : "Resumo do servico com cobranca e meios de pagamento configurados para o booking."
-        }
-        statusBadge={
-          isCreatingService ? (
-            <ViewBadge tone="info">Novo cadastro</ViewBadge>
-          ) : (
-            <ViewBadge tone={selectedService?.status === "active" ? "success" : "warning"}>
-              {selectedService?.status ?? serviceForm.status}
-            </ViewBadge>
-          )
-        }
-        pageActions={
-          <button
-            className="secondary-button"
-            onClick={() => {
-              setSelectedServiceId("");
-              setServiceForm(defaultServiceForm);
-            }}
-            type="button"
-          >
-            Novo servico
-          </button>
-        }
-        identityCard={
-          <EntityIdentityCard
-            title="Identidade comercial"
-            description="Resumo do servico selecionado ou do cadastro em andamento."
-            fields={[
-              {
-                id: "service-name",
-                label: "Servico",
-                value: serviceForm.nome || selectedService?.nome || "Novo servico"
-              },
-              {
-                id: "service-status",
-                label: "Status",
-                value: selectedService?.status ?? serviceForm.status
-              },
-              {
-                id: "service-duration",
-                label: "Duracao",
-                value: `${serviceForm.duracaoMin || selectedService?.duracaoMin || 0} min`
-              },
-              {
-                id: "service-price",
-                label: "Preco base",
-                value: formatCurrency(Number(serviceForm.precoBase || selectedService?.precoBase || 0))
-              },
-              {
-                id: "service-collection",
-                label: "Cobranca",
-                value: chargingModeLabel,
-                helper: checkoutModeLabel
-              },
-              {
-                id: "service-methods",
-                label: "Meios aceitos",
-                value: acceptedMethodsLabel,
-                helper: "Meios usados quando o servico exige pagamento antecipado."
-              }
-            ]}
-          />
-        }
-        sections={
-          <>
-            {renderCatalogPanel()}
-
-            <EntitySection
-              title="Politica comercial atual"
-              description="Leitura rapida do mix atual do catalogo publicado."
-            >
-              <div className="dashboard-mini-grid">
-                <div className="dashboard-mini-card">
-                  <strong>{services.length}</strong>
-                  <span>Servicos no catalogo</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>{servicesWithSignal}</strong>
-                  <span>Com sinal antecipado</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>{immediateServices}</strong>
-                  <span>Reserva imediata</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>{professionals.length}</strong>
-                  <span>Profissionais para vinculo operacional</span>
-                </div>
-              </div>
-            </EntitySection>
-          </>
-        }
-        aside={
-          <div className="catalog-aside-stack">
-            <EntityAsideSummary
-              title="O que voce controla aqui"
-              description="Oferta publicada e regras comerciais dos servicos."
-              items={[
-                {
-                  id: "catalog-services",
-                  label: "Servicos e precificacao",
-                  description: "Nome, duracao, status e preco base de cada servico.",
-                  active: true
-                },
-                {
-                  id: "catalog-policies",
-                  label: "Cobranca antecipada",
-                  description: "Sinal, checkout e meios aceitos por servico.",
-                  active: true
-                },
-                {
-                  id: "catalog-publication",
-                  label: "Publicacao do booking",
-                  description: "Servicos ativos e profissionais vinculados definem o que pode ser reservado.",
-                  active: true
-                }
-              ]}
-            />
-
-            <EntityAsideSummary
-              title="Em evolucao"
-              description="Frentes comerciais que ainda nao aparecem como entidade propria no catalogo."
-              items={[
-                {
-                  id: "catalog-products",
-                  label: "Produtos, kits e combos",
-                  description: "Ainda nao ha uma operacao separada para venda de itens fisicos ou pacotes."
-                },
-                {
-                  id: "catalog-addons",
-                  label: "Add-ons e bundles",
-                  description: "Hoje o catalogo trabalha com servicos unitarios, sem combinacoes prontas."
-                },
-                {
-                  id: "catalog-publication-flow",
-                  label: "Fluxo editorial",
-                  description: "Rascunho, revisao e publicacao separada ainda nao fazem parte desta tela."
-                }
-              ]}
-            />
-          </div>
-        }
+        title={isCreatingService ? "Novo servico" : "Catalogo"}
+        identityCard={null}
+        sections={renderCatalogPanel()}
       />
     );
   }
@@ -6900,48 +6923,79 @@ export function App() {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="admin-topbar-title">
-              {showTopbarEyebrow ? <p>{currentRouteDefinition.eyebrow}</p> : null}
-              <strong>{currentRouteDefinition.label}</strong>
+            <div aria-label="Abas do workspace" className="admin-route-strip" role="tablist">
+              {openRouteTabs.map((route) => {
+                const definition = adminRouteDefinitions[route];
+
+                return (
+                  <div
+                    aria-selected={currentRoute === route}
+                    className={currentRoute === route ? "admin-route-tab is-active" : "admin-route-tab"}
+                    key={route}
+                    role="tab"
+                  >
+                    <button
+                      className="admin-route-tab-trigger"
+                      onClick={() => navigateTo(route)}
+                      type="button"
+                    >
+                      <span className="admin-route-tab-dot" />
+                      <span className="admin-route-tab-label">{definition.label}</span>
+                    </button>
+                    {openRouteTabs.length > 1 ? (
+                      <button
+                        aria-label={`Fechar aba ${definition.label}`}
+                        className="admin-route-tab-close"
+                        onClick={() => closeWorkspaceTab(route)}
+                        type="button"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    ) : null}
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           <div className="admin-topbar-actions">
             <button
               aria-label="Abrir clientes para buscar cliente"
-              className="admin-topbar-search"
+              className="admin-icon-button admin-topbar-utility"
               onClick={openClientsDirectoryFromShell}
+              title="Buscar cliente"
               type="button"
             >
               <Search className="w-4 h-4" />
-              <span className="admin-topbar-search-copy">
-                <strong>Buscar cliente</strong>
-                <small>Abrir carteira</small>
-              </span>
             </button>
             <button
               aria-label="Abrir painel rapido"
-              className={isShellPulseOpen ? "admin-icon-button is-active" : "admin-icon-button"}
+              className={isShellPulseOpen ? "admin-icon-button admin-topbar-utility is-active" : "admin-icon-button admin-topbar-utility"}
               data-count={shellAttentionCount > 0 ? Math.min(shellAttentionCount, 99) : undefined}
               onClick={toggleShellPulsePanel}
+              title="Alertas"
               type="button"
             >
               <Bell className="w-5 h-5" />
             </button>
             {tenant ? (
               <button
-                className={isShellContextOpen ? "admin-secondary-action is-active" : "admin-secondary-action"}
+                aria-label="Abrir contexto"
+                className={isShellContextOpen ? "admin-icon-button admin-topbar-utility is-active" : "admin-icon-button admin-topbar-utility"}
                 onClick={toggleShellContextPanel}
+                title="Contexto"
                 type="button"
               >
                 <Activity className="w-4 h-4" />
-                Contexto
               </button>
             ) : null}
             <button className="admin-primary-action" onClick={openCounterBookingModal} type="button">
               <Plus className="w-4 h-4" />
               Novo Agendamento
             </button>
+            <div aria-label={`Perfil ${sidebarProfileName}`} className="admin-topbar-avatar" title={sidebarProfileName}>
+              {resolveProfessionalInitials(sidebarProfileName)}
+            </div>
           </div>
         </header>
 
