@@ -244,14 +244,76 @@ a {
 
 .client-record-button {
   width: 100%;
-  border: 1px solid rgba(11, 122, 117, 0.12);
+  display: grid;
+  gap: 14px;
+  border: 1px solid rgba(var(--ag-color-brand-primary-rgb), 0.12);
+  background: rgba(255, 255, 255, 0.94);
   text-align: left;
   cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.client-record-button:hover {
+  border-color: rgba(var(--ag-color-brand-primary-rgb), 0.26);
+  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+  transform: translateY(-1px);
 }
 
 .client-record-button.is-active {
-  border-color: rgba(11, 122, 117, 0.4);
-  box-shadow: 0 0 0 1px rgba(11, 122, 117, 0.14);
+  border-color: rgba(var(--ag-color-brand-primary-rgb), 0.38);
+  box-shadow: 0 0 0 1px rgba(var(--ag-color-brand-primary-rgb), 0.16);
+  background: linear-gradient(180deg, rgba(var(--ag-color-brand-primary-rgb), 0.08), rgba(255, 255, 255, 0.98));
+}
+
+.client-record-topline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.client-record-kpi,
+.client-record-meta-item {
+  display: grid;
+  gap: 4px;
+}
+
+.client-record-kpi {
+  min-width: 140px;
+  justify-items: end;
+  text-align: right;
+}
+
+.client-record-kpi span,
+.client-record-meta-item span {
+  margin: 0;
+  color: var(--ag-color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.client-record-kpi strong,
+.client-record-meta-item strong {
+  color: var(--ag-color-text-primary);
+  line-height: 1.5;
+}
+
+.client-record-kpi strong {
+  font-size: 1.04rem;
+}
+
+.client-record-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px 14px;
+}
+
+.client-record-emphasis {
+  padding-top: 6px;
+  border-top: 1px solid rgba(var(--ag-color-brand-primary-rgb), 0.1);
 }
 
 .detail-list {
@@ -1277,6 +1339,28 @@ a {
   gap: 24px;
 }
 
+.dashboard-document-view .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.dashboard-document-actions,
+.dashboard-aside-stack,
+.dashboard-retention-preview {
+  display: grid;
+  gap: 16px;
+}
+
+.dashboard-document-actions {
+  grid-auto-flow: column;
+  align-items: end;
+  justify-content: end;
+  gap: 12px;
+}
+
+.dashboard-document-actions .dashboard-select {
+  min-width: 220px;
+}
+
 .dashboard-toolbar {
   display: flex;
   align-items: flex-end;
@@ -1935,12 +2019,35 @@ a {
 }
 
 .professional-entity-view .ag-view-panel,
-.agenda-master-detail .ag-view-panel {
+.agenda-master-detail .ag-view-panel,
+.clients-master-detail .ag-view-panel {
   background: rgba(255, 255, 255, 0.94);
 }
 
 .agenda-booking-document {
   gap: 18px;
+}
+
+.clients-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.client-summary-metrics .ag-document-summary-card {
+  min-height: 136px;
+}
+
+.clients-record-list,
+.client-detail-document {
+  align-content: start;
+}
+
+.client-detail-document {
+  display: grid;
+  gap: 16px;
 }
 
 .agenda-booking-document .ag-view-title {
@@ -2156,6 +2263,12 @@ a {
   .operational-row-actions {
     justify-content: flex-start;
   }
+
+  .dashboard-document-actions,
+  .clients-toolbar {
+    justify-content: flex-start;
+    grid-auto-flow: row;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2187,6 +2300,17 @@ a {
 
   .admin-primary-action {
     min-width: 0;
+  }
+
+  .dashboard-document-actions .dashboard-select,
+  .clients-toolbar .dashboard-select {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .client-record-kpi {
+    justify-items: start;
+    text-align: left;
   }
 }
 
@@ -2258,5 +2382,9 @@ a {
 
   .settings-nav-card {
     padding: 10px;
+  }
+
+  .client-record-meta-grid {
+    grid-template-columns: 1fr;
   }
 }

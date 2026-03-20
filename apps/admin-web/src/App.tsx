@@ -1069,9 +1069,7 @@ export function App() {
     paymentIntents.find((intent) => intent.bookingId === selectedAgendaBooking?.id);
   const selectedClientInsight =
     filteredClientInsights.find((entry) => entry.client.id === selectedClientId) ??
-    clientInsights.find((entry) => entry.client.id === selectedClientId) ??
-    filteredClientInsights[0] ??
-    clientInsights[0];
+    filteredClientInsights[0];
   const selectedClientBookings = selectedClientInsight ?
       bookings
         .filter((booking) => booking.clientId === selectedClientInsight.client.id)
@@ -1126,7 +1124,15 @@ export function App() {
     agendaMonthCells.find((cell) => cell.date === agendaDate) ?? currentMonthCells[0];
 
   useEffect(() => {
-    const nextClientId = filteredClientInsights[0]?.client.id ?? clientInsights[0]?.client.id ?? "";
+    const nextClientId = filteredClientInsights[0]?.client.id ?? "";
+
+    if (!filteredClientInsights.length) {
+      if (selectedClientId) {
+        setSelectedClientId("");
+      }
+      return;
+    }
+
     if (!selectedClientId && nextClientId) {
       setSelectedClientId(nextClientId);
       return;
@@ -1134,11 +1140,11 @@ export function App() {
 
     if (
       selectedClientId &&
-      !clientInsights.some((entry) => entry.client.id === selectedClientId)
+      !filteredClientInsights.some((entry) => entry.client.id === selectedClientId)
     ) {
       setSelectedClientId(nextClientId);
     }
-  }, [clientInsights, filteredClientInsights, selectedClientId]);
+  }, [filteredClientInsights, selectedClientId]);
 
   useEffect(() => {
     if (agendaProfessionalFilter === "all") {
@@ -1667,51 +1673,74 @@ export function App() {
             onClick={() => setSelectedClientId(entry.client.id)}
             type="button"
           >
-            <div className="record-card-header">
+            <div className="client-record-topline">
               <div className="record-stack">
                 <strong>{entry.client.nome}</strong>
                 <span>{entry.client.email}</span>
               </div>
-              <div className="record-meta">
-                <span className={`status-pill is-${resolveClientSegmentTone(segment)}`}>
-                  {formatClientSegment(segment, clientReturnWindow)}
-                </span>
-                <span className="status-pill is-neutral">{entry.totalBookings} bookings</span>
+              <div className="client-record-kpi">
+                <span>Receita derivada</span>
+                <strong>{formatCurrency(entry.recognizedRevenue)}</strong>
               </div>
             </div>
 
             <div className="record-meta">
-              <span>{entry.client.telefone || "Sem telefone"}</span>
-              <span>Origem {entry.client.origem}</span>
-              <span>
-                Ultimo movimento{" "}
-                {entry.lastBooking ? formatDateTime(entry.lastBooking.startAt) : "sem booking"}
+              <span className={`status-pill is-${resolveClientSegmentTone(segment)}`}>
+                {formatClientSegment(segment, clientReturnWindow)}
               </span>
-            </div>
-
-            <div className="record-meta">
+              <span className="status-pill is-neutral">{entry.totalBookings} booking(s)</span>
               <span className="status-pill is-info">Em aberto {entry.openBookings}</span>
               <span className="status-pill is-success">
                 Concluidos {entry.completedBookings}
               </span>
-              <span className="status-pill is-neutral">
-                Receita persistida {formatCurrency(entry.recognizedRevenue)}
-              </span>
             </div>
 
-            <div className="record-meta">
-              <span>
-                Ultimo atendimento{" "}
-                {entry.lastCompletedBooking
-                  ? formatDateTime(entry.lastCompletedBooking.endAt)
-                  : "nunca concluido"}
-              </span>
-              {entry.lastCompletedBooking ? (
+            <div className="client-record-meta-grid">
+              <div className="client-record-meta-item">
+                <span>Contato</span>
+                <strong>{entry.client.telefone || "Sem telefone"}</strong>
+              </div>
+              <div className="client-record-meta-item">
+                <span>Origem</span>
+                <strong>{entry.client.origem}</strong>
+              </div>
+              <div className="client-record-meta-item">
+                <span>Ultimo movimento</span>
+                <strong>
+                  {entry.lastBooking ? formatDateTime(entry.lastBooking.startAt) : "Sem booking"}
+                </strong>
+              </div>
+              <div className="client-record-meta-item">
+                <span>Retorno</span>
+                <strong>
+                  {entry.lastCompletedBooking
+                    ? `Sem retorno ha ${formatDaysSince(entry.lastCompletedBooking.endAt)}`
+                    : "Nunca concluiu"}
+                </strong>
+              </div>
+              <div className="client-record-meta-item">
+                <span>Ultimo concluido</span>
+                <strong>
+                  {entry.lastCompletedBooking
+                    ? formatDateTime(entry.lastCompletedBooking.endAt)
+                    : "Nao houve"}
+                </strong>
+              </div>
+              <div className="client-record-meta-item">
+                <span>Movimentos</span>
+                <strong>{entry.cashEntriesCount}</strong>
+              </div>
+            </div>
+
+            <div className="record-meta client-record-emphasis">
+              <span>Leitura derivada de booking real</span>
+              {entry.lastCashEntry ? (
                 <span>
-                  Sem retorno ha {formatDaysSince(entry.lastCompletedBooking.endAt)}
+                  Ultimo movimento financeiro {formatDateTime(entry.lastCashEntry.occurredAt)}
                 </span>
-              ) : null}
-              <span>Movimentos {entry.cashEntriesCount}</span>
+              ) : (
+                <span>Nenhum movimento financeiro persistido</span>
+              )}
             </div>
           </button>
         )})}
@@ -2993,267 +3022,446 @@ export function App() {
   }
 
   function renderDashboardView(): JSX.Element {
-    return (
-      <section className="view-stack dashboard-view-v2">
-        <section className="dashboard-toolbar">
-          <div>
-            <h2>Visao Gerencial</h2>
-            <p className="helper">
-              O dashboard agora usa o shell da referencia visual, mas continua preso aos contratos reais do `api-rest`.
-            </p>
-          </div>
-          <label className="dashboard-select">
-            <span>Periodo</span>
-            <select
-              onChange={(event) => setDashboardRange(event.target.value as DashboardRange)}
-              value={dashboardRange}
-            >
-              <option value="7d">Ultimos 7 dias</option>
-              <option value="30d">Ultimos 30 dias</option>
-              <option value="all">Todo o historico</option>
-            </select>
-          </label>
-        </section>
+    const retentionRate =
+      clientPortfolioSummary.activeCount > 0
+        ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
+        : 0;
 
-        <section className="dashboard-metric-grid">
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>Receita Total</p>
-              <strong>{formatCurrency(dashboardRevenueSummary.recognizedRevenue)}</strong>
-              <span>
-                {resolveReportComparisonLabel(
+    return (
+      <DocumentViewLayout
+        className="dashboard-document-view"
+        eyebrow="Visao gerencial"
+        title={tenant?.nome ?? "Tenant nao carregado"}
+        subtitle="Ponto de entrada do admin para entender estado do negocio, distribuir fluxo e reconhecer o que ainda continua parcial no runtime."
+        statusBadge={<ViewBadge tone="warning">Leitura parcial do runtime</ViewBadge>}
+        pageActions={
+          <div className="dashboard-document-actions">
+            <label className="dashboard-select">
+              <span>Periodo</span>
+              <select
+                onChange={(event) => setDashboardRange(event.target.value as DashboardRange)}
+                value={dashboardRange}
+              >
+                <option value="7d">Ultimos 7 dias</option>
+                <option value="30d">Ultimos 30 dias</option>
+                <option value="all">Todo o historico</option>
+              </select>
+            </label>
+            <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
+              Abrir relatorios
+            </button>
+          </div>
+        }
+        header={
+          <DocumentHeader
+            fields={[
+              {
+                id: "slug",
+                label: "Slug publica",
+                value: tenant?.slug ? `/${tenant.slug}` : "Nao publicada"
+              },
+              {
+                id: "booking-url",
+                label: "Booking publico",
+                value: publicBookingUrl || "Sem URL publicada"
+              },
+              {
+                id: "timezone",
+                label: "Timezone",
+                value: tenant?.timezone ?? "-"
+              },
+              {
+                id: "range",
+                label: "Janela ativa",
+                value: resolveDashboardRangeLabel(dashboardRange)
+              }
+            ]}
+          />
+        }
+        summary={
+          <DocumentSummaryCards
+            metrics={[
+              {
+                id: "recognized-revenue",
+                label: "Receita reconhecida",
+                value: formatCurrency(dashboardRevenueSummary.recognizedRevenue),
+                helper: resolveReportComparisonLabel(
                   dashboardRevenueSummary.recognizedRevenue,
                   previousDashboardRevenueSummary.recognizedRevenue,
                   "currency",
                   dashboardRange !== "all"
-                )}
-              </span>
-            </div>
-            <div className="dashboard-metric-icon is-success">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </article>
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>Taxa de Retencao</p>
-              <strong>
-                {formatPercentage(
-                  clientPortfolioSummary.activeCount > 0
-                    ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
-                    : 0
-                )}
-              </strong>
-              <span>{clientPortfolioSummary.returningCount} cliente(s) com retorno recente</span>
-            </div>
-            <div className="dashboard-metric-icon is-info">
-              <Activity className="w-5 h-5" />
-            </div>
-          </article>
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>Ticket Medio</p>
-              <strong>{formatCurrency(dashboardRevenueSummary.averageTicket)}</strong>
-              <span>{dashboardRevenueSummary.completedCount} atendimento(s) concluidos</span>
-            </div>
-            <div className="dashboard-metric-icon is-brand">
-              <TrendingUp className="w-5 h-5" />
-            </div>
-          </article>
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>Taxa de No-Show</p>
-              <strong>{formatPercentage(dashboardRevenueSummary.noShowRate)}</strong>
-              <span>{dashboardRevenueSummary.cancelledCount} cancelamento(s) no periodo</span>
-            </div>
-            <div className="dashboard-metric-icon is-danger">
-              <AlertCircle className="w-5 h-5" />
-            </div>
-          </article>
-        </section>
+                ),
+                tone: "success"
+              },
+              {
+                id: "approved-online",
+                label: "Entrada online aprovada",
+                value: formatCurrency(dashboardRevenueSummary.approvedOnlineRevenue),
+                helper: "Soma conciliada de payment intents aprovadas ligadas a bookings concluidas.",
+                tone: "info"
+              },
+              {
+                id: "retention",
+                label: "Taxa de retencao",
+                value: formatPercentage(retentionRate),
+                helper: `${clientPortfolioSummary.returningCount} cliente(s) com retorno recente.`,
+                tone: "success"
+              },
+              {
+                id: "average-ticket",
+                label: "Ticket medio",
+                value: formatCurrency(dashboardRevenueSummary.averageTicket),
+                helper: `${dashboardRevenueSummary.completedCount} atendimento(s) concluidos no recorte.`,
+                tone: "info"
+              },
+              {
+                id: "no-show",
+                label: "Taxa de no-show",
+                value: formatPercentage(dashboardRevenueSummary.noShowRate),
+                helper: `${dashboardRevenueSummary.cancelledCount} cancelamento(s) no periodo.`,
+                tone: "danger"
+              }
+            ]}
+          />
+        }
+        tabs={
+          <DocumentTabs
+            tabs={[
+              { id: "overview", label: "Visao geral", active: true },
+              { id: "capacity", label: "Agenda e capacidade" },
+              { id: "retention", label: "Retorno e base real" }
+            ]}
+          />
+        }
+        items={
+          <>
+            <EntitySection
+              title="Evolucao de faturamento vs agendamentos"
+              description="Serie derivada do runtime real. Cohort, historico consolidado e read model temporal completo continuam fora do contrato."
+              actions={<ViewBadge tone="warning">Parcial</ViewBadge>}
+            >
+              <DashboardChart data={dashboardChartData} />
+            </EntitySection>
 
-        <section className="dashboard-main-grid">
-          <article className="dashboard-surface dashboard-surface-wide">
-            <div className="dashboard-surface-header">
-              <div>
-                <h3>Evolucao de Faturamento vs Agendamentos</h3>
-                <p>
-                  Serie derivada do runtime real da ultima semana. Cohort e historico consolidado continuam fora do contrato.
-                </p>
-              </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
-            <DashboardChart data={dashboardChartData} />
-          </article>
-
-          <article className="dashboard-surface">
-            <div className="dashboard-surface-header">
-              <div>
-                <h3>Saude da Agenda (Semana)</h3>
-                <p>Capacidade e ocupacao derivadas da disponibilidade e das bookings reais da semana ancorada em agenda.</p>
-              </div>
-            </div>
-
-            <div className="dashboard-progress-stack">
-              <div className="dashboard-progress-block">
-                <div className="dashboard-progress-copy">
-                  <span>Capacidade Total</span>
-                  <strong>{formatMinutesAsHours(weekCapacitySummary.totalMinutes)}</strong>
-                </div>
-                <div className="dashboard-progress-bar">
-                  <span style={{ width: "100%" }} />
-                </div>
-              </div>
-              <div className="dashboard-progress-block">
-                <div className="dashboard-progress-copy">
-                  <span>Horas Ocupadas</span>
-                  <strong>
-                    {formatMinutesAsHours(weekCapacitySummary.bookedMinutes)} ({formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)})
-                  </strong>
-                </div>
-                <div className="dashboard-progress-bar">
-                  <span
-                    className="is-info"
-                    style={{
-                      width: `${Math.min(
-                        weekCapacitySummary.totalMinutes > 0
-                          ? (weekCapacitySummary.bookedMinutes / weekCapacitySummary.totalMinutes) * 100
-                          : 0,
-                        100
-                      )}%`
-                    }}
-                  />
-                </div>
-              </div>
-              <div className="dashboard-progress-block">
-                <div className="dashboard-progress-copy">
-                  <span>Clientes com Retorno</span>
-                  <strong>
-                    {clientPortfolioSummary.returningCount} ({formatPercentage(
-                      clientPortfolioSummary.activeCount > 0
-                        ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
-                        : 0
-                    )})
-                  </strong>
-                </div>
-                <div className="dashboard-progress-bar">
-                  <span
-                    className="is-success"
-                    style={{
-                      width: `${Math.min(
-                        clientPortfolioSummary.activeCount > 0
-                          ? (clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount) * 100
-                          : 0,
-                        100
-                      )}%`
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="dashboard-tip-card">
-              <strong>Dica (nao funcional)</strong>
-              <p>
-                Voce tem {formatMinutesAsHours(weekCapacitySummary.freeMinutes)} livres nesta semana. O produto ainda nao possui motor de recomendacao para afirmar a melhor acao com acuracia.
-              </p>
-            </div>
-          </article>
-        </section>
-
-        <section className="dashboard-secondary-grid">
-          <article className="dashboard-surface">
-            <div className="dashboard-surface-header">
-              <div>
-                <h3>Movimentos recentes de receita</h3>
-                <p>Reflexo de `cash entry` minima e `payment intents` conciliadas.</p>
-              </div>
-              <button className="dashboard-link-button" onClick={() => navigateTo("relatorios")} type="button">
-                Ver relatorios
-              </button>
-            </div>
-
-            <div className="dashboard-feed">
-              {revenueEntries.length ? (
-                revenueEntries.slice(0, 6).map((entry) => (
-                  <article className="dashboard-feed-item" key={entry.booking.id}>
-                    <div className="dashboard-feed-main">
-                      <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
-                      <span>{entry.client?.nome ?? "Cliente"}  |  {entry.professional?.nome ?? "Profissional"}</span>
+            <div className="dashboard-secondary-grid">
+              <EntitySection
+                title="Saude da agenda da semana"
+                description="Capacidade e ocupacao derivadas da disponibilidade publicada e das bookings reais ancoradas na agenda."
+              >
+                <div className="dashboard-progress-stack">
+                  <div className="dashboard-progress-block">
+                    <div className="dashboard-progress-copy">
+                      <span>Capacidade total</span>
+                      <strong>{formatMinutesAsHours(weekCapacitySummary.totalMinutes)}</strong>
                     </div>
-                    <div className="dashboard-feed-meta">
-                      <span>{formatCurrency(entry.recognizedAmount)}</span>
-                      <small>{formatDateTime(entry.booking.endAt)}</small>
+                    <div className="dashboard-progress-bar">
+                      <span style={{ width: "100%" }} />
                     </div>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">
-                  Nenhuma booking concluida encontrada em {resolveDashboardRangeLabel(dashboardRange)}.
-                </p>
-              )}
-            </div>
-          </article>
+                  </div>
+                  <div className="dashboard-progress-block">
+                    <div className="dashboard-progress-copy">
+                      <span>Horas ocupadas</span>
+                      <strong>
+                        {formatMinutesAsHours(weekCapacitySummary.bookedMinutes)} ({formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)})
+                      </strong>
+                    </div>
+                    <div className="dashboard-progress-bar">
+                      <span
+                        className="is-info"
+                        style={{
+                          width: `${Math.min(
+                            weekCapacitySummary.totalMinutes > 0
+                              ? (weekCapacitySummary.bookedMinutes / weekCapacitySummary.totalMinutes) * 100
+                              : 0,
+                            100
+                          )}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="dashboard-progress-block">
+                    <div className="dashboard-progress-copy">
+                      <span>Clientes com retorno</span>
+                      <strong>
+                        {clientPortfolioSummary.returningCount} ({formatPercentage(retentionRate)})
+                      </strong>
+                    </div>
+                    <div className="dashboard-progress-bar">
+                      <span
+                        className="is-success"
+                        style={{
+                          width: `${Math.min(retentionRate * 100, 100)}%`
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
 
-          <article className="dashboard-surface">
-            <div className="dashboard-surface-header">
-              <div>
-                <h3>Base real do tenant</h3>
-                <p>Atalhos para o que ja esta materializado no runtime.</p>
+                <div className="dashboard-tip-card">
+                  <strong>Dica ainda sem automacao</strong>
+                  <p>
+                    Voce tem {formatMinutesAsHours(weekCapacitySummary.freeMinutes)} livres nesta semana. O produto ainda nao possui motor de recomendacao para afirmar a melhor acao com acuracia.
+                  </p>
+                </div>
+              </EntitySection>
+
+              <EntitySection
+                title="Movimentos recentes de receita"
+                description="Reflexo de `cash entry` minima e de `payment intents` conciliadas com atendimentos concluidos."
+                actions={
+                  <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
+                    Ver relatorios
+                  </button>
+                }
+              >
+                <div className="dashboard-feed">
+                  {revenueEntries.length ? (
+                    revenueEntries.slice(0, 6).map((entry) => (
+                      <article className="dashboard-feed-item" key={entry.booking.id}>
+                        <div className="dashboard-feed-main">
+                          <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
+                          <span>{entry.client?.nome ?? "Cliente"} | {entry.professional?.nome ?? "Profissional"}</span>
+                        </div>
+                        <div className="dashboard-feed-meta">
+                          <span>{formatCurrency(entry.recognizedAmount)}</span>
+                          <small>{formatDateTime(entry.booking.endAt)}</small>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">
+                      Nenhuma booking concluida encontrada em {resolveDashboardRangeLabel(dashboardRange)}.
+                    </p>
+                  )}
+                </div>
+              </EntitySection>
+            </div>
+
+            <EntitySection
+              title="Clientes sem retorno no shell atual"
+              description={`Preview dos clientes inativos na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}. O detalhe completo continua na rota Clientes.`}
+              actions={
+                <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
+                  Abrir clientes
+                </button>
+              }
+            >
+              <div className="dashboard-retention-preview">
+                <DocumentSummaryCards
+                  metrics={[
+                    {
+                      id: "returning-count",
+                      label: "Com retorno",
+                      value: activeClientRecurrence.returningCount,
+                      helper: "Clientes com retorno dentro da janela ativa.",
+                      tone: "success"
+                    },
+                    {
+                      id: "inactive-count",
+                      label: "Sem retorno",
+                      value: activeClientRecurrence.inactiveCount,
+                      helper: "Clientes fora da janela ativa.",
+                      tone: "warning"
+                    },
+                    {
+                      id: "never-completed-count",
+                      label: "Nunca concluiu",
+                      value: activeClientRecurrence.neverCompletedCount,
+                      helper: "Entraram na base, mas sem atendimento concluido."
+                    },
+                    {
+                      id: "average-recurrence",
+                      label: "Recorrencia media",
+                      value:
+                        activeClientRecurrence.averageRecurrenceDays === null
+                          ? "n/d"
+                          : `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`,
+                      helper: "Media disponivel apenas quando o read model consegue calcular."
+                    }
+                  ]}
+                />
+
+                <div className="records-column">
+                  {activeClientRecurrence.inactiveClients.length ? (
+                    activeClientRecurrence.inactiveClients.slice(0, 4).map((entry) => (
+                      <article className="record-card" key={entry.clientId}>
+                        <div className="record-card-header">
+                          <div className="record-stack">
+                            <strong>{entry.nome}</strong>
+                            <span>{entry.email}</span>
+                          </div>
+                          <span className="status-pill is-warning">
+                            {formatClientSegment("inactive", activeClientRecurrence.window)}
+                          </span>
+                        </div>
+                        <div className="record-meta">
+                          <span>
+                            Ultimo atendimento {entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "nunca"}
+                          </span>
+                          <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
+                          <span>
+                            Recorrencia media{" "}
+                            {entry.averageRecurrenceDays === null
+                              ? "n/d"
+                              : `${Math.round(entry.averageRecurrenceDays)} dias`}
+                          </span>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">
+                      Nenhum cliente sem retorno identificado na janela de{" "}
+                      {resolveClientReturnWindowLabel(activeClientRecurrence.window)}.
+                    </p>
+                  )}
+                </div>
               </div>
-            </div>
+            </EntitySection>
+          </>
+        }
+        aside={
+          <div className="dashboard-aside-stack">
+            <EntityAsideSummary
+              title="Base real do tenant"
+              description="Tudo aqui ja existe no runtime e serve como distribuicao de fluxo para o owner."
+              items={[
+                {
+                  id: "services",
+                  label: "Servicos ativos",
+                  value: services.length,
+                  description: "Itens comerciais publicados no catalogo."
+                },
+                {
+                  id: "professionals",
+                  label: "Profissionais publicados",
+                  value: professionals.length,
+                  description: "Equipe visivel na agenda e no booking."
+                },
+                {
+                  id: "today-bookings",
+                  label: "Agendamentos para hoje",
+                  value: bookingSummary.today,
+                  description: "Fila operacional do dia corrente."
+                },
+                {
+                  id: "clients",
+                  label: "Clientes capturados",
+                  value: clients.length,
+                  description: "Base formada a partir da jornada publica."
+                }
+              ]}
+            />
 
-            <div className="dashboard-mini-grid">
-              <article className="dashboard-mini-card">
-                <strong>{services.length}</strong>
-                <span>Servicos ativos no catalogo</span>
-              </article>
-              <article className="dashboard-mini-card">
-                <strong>{professionals.length}</strong>
-                <span>Profissionais publicados</span>
-              </article>
-              <article className="dashboard-mini-card">
-                <strong>{bookingSummary.today}</strong>
-                <span>Agendamentos para hoje</span>
-              </article>
-              <article className="dashboard-mini-card">
-                <strong>{clients.length}</strong>
-                <span>Clientes capturados</span>
-              </article>
-            </div>
+            <EntityAsideSummary
+              title="Acessos rapidos"
+              description="Rotas mais uteis depois da leitura inicial do dashboard."
+              items={[
+                {
+                  id: "operacional",
+                  label: "Operacao diaria",
+                  description: "Confirmar, concluir e reagendar atendimentos.",
+                  action: (
+                    <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
+                      Abrir
+                    </button>
+                  )
+                },
+                {
+                  id: "agenda",
+                  label: "Agenda",
+                  description: "Dia, semana e calendario mensal com capacidade.",
+                  action: (
+                    <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+                      Abrir
+                    </button>
+                  )
+                },
+                {
+                  id: "clientes",
+                  label: "Clientes",
+                  description: "Retorno e historico operacional por cliente.",
+                  action: (
+                    <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
+                      Abrir
+                    </button>
+                  )
+                },
+                {
+                  id: "booking",
+                  label: "Booking publico",
+                  description: publicBookingUrl || "Slug ainda nao publicada.",
+                  action: publicBookingUrl ? (
+                    <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                      Abrir
+                    </a>
+                  ) : (
+                    <span className="helper-chip">Sem link</span>
+                  )
+                }
+              ]}
+            />
 
-            <div className="dashboard-action-grid">
-              <button className="dashboard-action-card" onClick={() => navigateTo("operacional")} type="button">
-                <ListTodo className="w-5 h-5" />
-                <div>
-                  <strong>Operacao diaria</strong>
-                  <span>Confirmar, concluir e reagendar</span>
-                </div>
-              </button>
-              <button className="dashboard-action-card" onClick={() => navigateTo("agenda")} type="button">
-                <CalendarDays className="w-5 h-5" />
-                <div>
-                  <strong>Agenda</strong>
-                  <span>Dia, semana e calendario mensal</span>
-                </div>
-              </button>
-              <button className="dashboard-action-card" onClick={() => navigateTo("clientes")} type="button">
-                <UserCircle className="w-5 h-5" />
-                <div>
-                  <strong>Clientes</strong>
-                  <span>Retorno e historico operacional</span>
-                </div>
-              </button>
-              <a className="dashboard-action-card" href={publicBookingUrl} rel="noreferrer" target="_blank">
-                <Rocket className="w-5 h-5" />
-                <div>
-                  <strong>Booking publico</strong>
-                  <span>Abrir a slug real do tenant</span>
-                </div>
-              </a>
-            </div>
-          </article>
-        </section>
-      </section>
+            <EntityAsideSummary
+              title="Radar rapido da semana"
+              items={[
+                {
+                  id: "capacity",
+                  label: "Capacidade total",
+                  value: formatMinutesAsHours(weekCapacitySummary.totalMinutes),
+                  description: "Disponibilidade derivada da equipe publicada."
+                },
+                {
+                  id: "booked",
+                  label: "Horas ocupadas",
+                  value: formatMinutesAsHours(weekCapacitySummary.bookedMinutes),
+                  description: `${weekCapacitySummary.bookingsCount} booking(s) distribuidas na semana.`
+                },
+                {
+                  id: "free",
+                  label: "Horas livres",
+                  value: formatMinutesAsHours(weekCapacitySummary.freeMinutes),
+                  description:
+                    weekCapacitySummary.totalMinutes > 0
+                      ? `${formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)} de ocupacao`
+                      : "Sem disponibilidade publicada."
+                },
+                {
+                  id: "open",
+                  label: "Bookings em aberto",
+                  value: weekCapacitySummary.openBookings,
+                  description: "Pendencias operacionais ainda vivas na agenda."
+                }
+              ]}
+            />
+          </div>
+        }
+        impactPanel={
+          <DocumentImpactPanel
+            sections={[
+              {
+                id: "dashboard-supported",
+                title: "Sustentado hoje pelo runtime",
+                tone: "success",
+                items: [
+                  "Receita reconhecida, entrada online aprovada, ticket medio e no-show ja saem de contratos reais.",
+                  "Capacidade semanal e retorno basico do cliente ja conseguem orientar a distribuicao do fluxo.",
+                  "O dashboard continua como tela de leitura e distribuicao, sem reabrir catalogo, equipe ou configuracoes aqui."
+                ]
+              },
+              {
+                id: "dashboard-gaps",
+                title: "O que ainda continua parcial",
+                tone: "warning",
+                items: [
+                  "Historico temporal consolidado, cohort e serie analitica mais rica ainda nao possuem read model dedicado.",
+                  "Motor de reativacao, score de risco e recomendacoes automaticas continuam fora do escopo atual.",
+                  "O dashboard nao substitui relatorios nem agenda operacional; ele apenas direciona o owner para essas rotas."
+                ]
+              }
+            ]}
+          />
+        }
+      />
     );
   }
 
@@ -4532,109 +4740,117 @@ export function App() {
 
   function renderClientsView(): JSX.Element {
     return (
-      <section className="view-stack">
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Clientes e CRM</p>
-                <h2>Clientes capturados pela jornada real</h2>
-              </div>
-              <div className="mode-switch">
-                <button
-                  className={clientSegmentFilter === "all" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setClientSegmentFilter("all")}
-                  type="button"
-                >
-                  Todos
-                </button>
-                <button
-                  className={clientSegmentFilter === "returning" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setClientSegmentFilter("returning")}
-                  type="button"
-                >
-                  Retorno
-                </button>
-                <button
-                  className={clientSegmentFilter === "inactive" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setClientSegmentFilter("inactive")}
-                  type="button"
-                >
-                  Sem retorno
-                </button>
-                <button
-                  className={clientSegmentFilter === "never_completed" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setClientSegmentFilter("never_completed")}
-                  type="button"
-                >
-                  Nunca concluiu
-                </button>
-              </div>
-            </div>
+      <MasterDetailLayout
+        className="clients-master-detail"
+        eyebrow="Clientes e CRM"
+        title="Carteira e retorno da base real"
+        subtitle="Lista derivada do booking publico, com leitura operacional do cliente sem misturar cohort, mensagens e automacoes fora do corte."
+        toolbar={
+          <div className="clients-toolbar">
+            <label className="dashboard-select">
+              <span>Janela</span>
+              <select
+                onChange={(event) => setClientReturnWindow(event.target.value as ClientReturnWindow)}
+                value={clientReturnWindow}
+              >
+                <option value="30d">30 dias</option>
+                <option value="60d">60 dias</option>
+                <option value="90d">90 dias</option>
+              </select>
+            </label>
 
+            <div className="mode-switch">
+              <button
+                className={clientSegmentFilter === "all" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setClientSegmentFilter("all")}
+                type="button"
+              >
+                Todos
+              </button>
+              <button
+                className={clientSegmentFilter === "returning" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setClientSegmentFilter("returning")}
+                type="button"
+              >
+                Retorno
+              </button>
+              <button
+                className={clientSegmentFilter === "inactive" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setClientSegmentFilter("inactive")}
+                type="button"
+              >
+                Sem retorno
+              </button>
+              <button
+                className={clientSegmentFilter === "never_completed" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setClientSegmentFilter("never_completed")}
+                type="button"
+              >
+                Nunca concluiu
+              </button>
+            </div>
+          </div>
+        }
+        masterTitle="Carteira no recorte atual"
+        masterDescription={`Janela de retorno ${resolveClientReturnWindowLabel(clientReturnWindow)} com ${filteredClientInsights.length} cliente(s) no filtro ativo.`}
+        master={
+          <>
             <div className="record-meta">
               <span className="helper-chip">Leitura derivada de booking</span>
               <span className="status-pill is-neutral">
-                Janela de retorno {resolveClientReturnWindowLabel(clientReturnWindow)}
+                {clientInsights.length} cliente(s) na base total
               </span>
             </div>
 
-            <div className="stats-strip">
-              <article className="stat-card">
-                <span>Retorno recente</span>
-                <strong>{clientPortfolioSummary.returningCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Sem retorno</span>
-                <strong>{clientPortfolioSummary.inactiveCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Nunca concluiu</span>
-                <strong>{clientPortfolioSummary.neverCompletedCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Receita derivada</span>
-                <strong>{formatCurrency(clientInsights.reduce((total, entry) => total + entry.recognizedRevenue, 0))}</strong>
-              </article>
-            </div>
+            <DocumentSummaryCards
+              className="client-summary-metrics"
+              metrics={[
+                {
+                  id: "returning",
+                  label: "Retorno recente",
+                  value: clientPortfolioSummary.returningCount,
+                  helper: "Clientes com ultimo concluido dentro da janela.",
+                  tone: "success"
+                },
+                {
+                  id: "inactive",
+                  label: "Sem retorno",
+                  value: clientPortfolioSummary.inactiveCount,
+                  helper: `Nao voltaram em ${resolveClientReturnWindowLabel(clientReturnWindow)}.`,
+                  tone: "warning"
+                },
+                {
+                  id: "never-completed",
+                  label: "Nunca concluiu",
+                  value: clientPortfolioSummary.neverCompletedCount,
+                  helper: "Entraram na base sem atendimento concluido."
+                },
+                {
+                  id: "recognized-revenue",
+                  label: "Receita derivada",
+                  value: formatCurrency(
+                    clientInsights.reduce((total, entry) => total + entry.recognizedRevenue, 0)
+                  ),
+                  helper: "Soma da receita persistida minima por cliente.",
+                  tone: "info"
+                }
+              ]}
+            />
 
-            <div className="records-column">{renderClientRecords(filteredClientInsights)}</div>
-          </article>
-
-          <aside className="panel aside-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">CRM operacional</p>
-                <h3>Detalhe do cliente selecionado</h3>
-              </div>
+            <div className="records-column clients-record-list">
+              {renderClientRecords(filteredClientInsights)}
             </div>
-
-            <div className="records-column">
-              <div className="list-card">
-                <strong>{selectedClientInsight?.client.nome ?? "Selecione um cliente"}</strong>
-                <p>
-                  {selectedClientInsight ?
-                    `${selectedClientInsight.client.email}  |  ${selectedClientInsight.client.telefone || "Sem telefone"}`
-                  : "Clique em um cliente da carteira para abrir o detalhe operacional."}
-                </p>
-              </div>
-              {selectedClientInsight ? renderSelectedClientDetail() : null}
-              <div className="list-card">
-                <strong>Janela de retorno</strong>
-                <p>Use 30, 60 ou 90 dias para identificar clientes que nao voltaram depois do ultimo atendimento concluido.</p>
-              </div>
-              <div className="list-card">
-                <strong>WhatsApp operacional (nao funcional)</strong>
-                <p>O shell ja consegue listar clientes sem retorno, mas ainda nao existe integracao nem contrato de notificacao.</p>
-              </div>
-              <div className="list-card">
-                <strong>Score de risco e cohort (nao funcional)</strong>
-                <p>Os contratos atuais ainda nao consolidam ciclo medio de retorno, propensao de recompra ou cohort de retencao.</p>
-              </div>
-            </div>
-          </aside>
-        </section>
-      </section>
+          </>
+        }
+        detailTitle={selectedClientInsight ? selectedClientInsight.client.nome : "Nenhum cliente selecionado"}
+        detailDescription={
+          selectedClientInsight ?
+            `${formatClientSegment(resolveClientSegment(selectedClientInsight, clientReturnWindow), clientReturnWindow)} com historico essencial, receita persistida minima e lacunas explicitas do CRM atual.`
+          : "Selecione um cliente da carteira para abrir o detalhe operacional."
+        }
+        detail={selectedClientInsight ? renderSelectedClientDetail() : undefined}
+        emptyDetail={<p className="empty-state">Selecione um cliente da carteira para abrir o detalhe operacional.</p>}
+      />
     );
   }
 
@@ -4646,49 +4862,96 @@ export function App() {
     const segment = resolveClientSegment(selectedClientInsight, clientReturnWindow);
 
     return (
-      <>
-        <div className="stats-strip">
-          <article className="stat-card">
-            <span>Segmento</span>
-            <strong>{formatClientSegment(segment, clientReturnWindow)}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Receita persistida</span>
-            <strong>{formatCurrency(selectedClientInsight.recognizedRevenue)}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Bookings</span>
-            <strong>{selectedClientInsight.totalBookings}</strong>
-          </article>
-          <article className="stat-card">
-            <span>Movimentos</span>
-            <strong>{selectedClientInsight.cashEntriesCount}</strong>
-          </article>
+      <div className="client-detail-document">
+        <div className="record-meta">
+          <ViewBadge tone={resolveClientSegmentTone(segment)}>
+            {formatClientSegment(segment, clientReturnWindow)}
+          </ViewBadge>
+          <ViewBadge tone="info">{selectedClientInsight.totalBookings} booking(s)</ViewBadge>
+          <span className="status-pill is-neutral">
+            Origem {selectedClientInsight.client.origem}
+          </span>
         </div>
 
-        <div className="list-card">
-          <strong>Contexto atual</strong>
-          <p>
-            Origem {selectedClientInsight.client.origem}  |  ultimo movimento{" "}
-            {selectedClientInsight.lastBooking
-              ? formatDateTime(selectedClientInsight.lastBooking.startAt)
-              : "sem booking"}
-          </p>
-          <div className="record-meta">
-            <span className={`status-pill is-${resolveClientSegmentTone(segment)}`}>
-              {formatClientSegment(segment, clientReturnWindow)}
-            </span>
-            <span className="status-pill is-neutral">
-              Ultimo concluido{" "}
-              {selectedClientInsight.lastCompletedBooking
-                ? formatDateTime(selectedClientInsight.lastCompletedBooking.endAt)
-                : "nunca"}
-            </span>
-          </div>
-        </div>
+        <DocumentHeader
+          fields={[
+            {
+              id: "email",
+              label: "E-mail",
+              value: selectedClientInsight.client.email
+            },
+            {
+              id: "phone",
+              label: "Telefone",
+              value: selectedClientInsight.client.telefone || "Sem telefone"
+            },
+            {
+              id: "last-booking",
+              label: "Ultimo movimento",
+              value: selectedClientInsight.lastBooking ?
+                formatDateTime(selectedClientInsight.lastBooking.startAt)
+              : "Sem booking"
+            },
+            {
+              id: "last-completed",
+              label: "Ultimo concluido",
+              value: selectedClientInsight.lastCompletedBooking ?
+                formatDateTime(selectedClientInsight.lastCompletedBooking.endAt)
+              : "Nunca concluiu"
+            }
+          ]}
+        />
 
-        <div className="list-card">
-          <strong>Ultimas bookings</strong>
+        <DocumentSummaryCards
+          metrics={[
+            {
+              id: "segment",
+              label: "Segmento",
+              value: formatClientSegment(segment, clientReturnWindow),
+              helper: `Janela atual ${resolveClientReturnWindowLabel(clientReturnWindow)}.`,
+              tone:
+                segment === "returning"
+                  ? "success"
+                  : segment === "inactive"
+                    ? "warning"
+                    : undefined
+            },
+            {
+              id: "recognized-revenue",
+              label: "Receita persistida",
+              value: formatCurrency(selectedClientInsight.recognizedRevenue),
+              helper: "Valor derivado de cash entry minima.",
+              tone: "success"
+            },
+            {
+              id: "bookings",
+              label: "Bookings",
+              value: selectedClientInsight.totalBookings,
+              helper: `${selectedClientInsight.completedBookings} concluidas e ${selectedClientInsight.openBookings} em aberto.`
+            },
+            {
+              id: "cash-entries",
+              label: "Movimentos",
+              value: selectedClientInsight.cashEntriesCount,
+              helper: selectedClientInsight.lastCashEntry ?
+                formatDateTime(selectedClientInsight.lastCashEntry.occurredAt)
+              : "Nenhum movimento financeiro persistido."
+            }
+          ]}
+        />
+
+        <DocumentTabs
+          tabs={[
+            { id: "history", label: "Historico", active: true },
+            { id: "finance", label: "Financeiro" },
+            { id: "gaps", label: "Lacunas" }
+          ]}
+        />
+
+        <EntitySection
+          title="Ultimas bookings"
+          description="Leitura operacional recente para atendimento, retorno e contexto comercial."
+        >
           {selectedClientBookings.length ? (
             <div className="records-column detail-list">
               {selectedClientBookings.slice(0, 5).map((booking) => (
@@ -4707,12 +4970,14 @@ export function App() {
               ))}
             </div>
           ) : (
-            <p>Nenhuma booking encontrada para este cliente.</p>
+            <p className="helper">Nenhuma booking encontrada para este cliente.</p>
           )}
-        </div>
+        </EntitySection>
 
-        <div className="list-card">
-          <strong>Movimentos financeiros persistidos</strong>
+        <EntitySection
+          title="Movimentos financeiros persistidos"
+          description="Persistencia minima de receita reconhecida e reflexos online ja vinculados ao cliente."
+        >
           {selectedClientCashEntries.length ? (
             <div className="records-column detail-list">
               {selectedClientCashEntries.slice(0, 5).map((entry) => (
@@ -4732,10 +4997,66 @@ export function App() {
               ))}
             </div>
           ) : (
-            <p>Nenhum movimento persistido ainda para este cliente.</p>
+            <p className="helper">Nenhum movimento persistido ainda para este cliente.</p>
           )}
-        </div>
-      </>
+        </EntitySection>
+
+        <DocumentTimeline
+          title="Linha do relacionamento"
+          entries={[
+            {
+              id: "timeline-origin",
+              title: "Origem do cliente",
+              description: `Captado via ${selectedClientInsight.client.origem}.`
+            },
+            {
+              id: "timeline-last-booking",
+              title: "Ultimo movimento na agenda",
+              description: selectedClientInsight.lastBooking ?
+                `${formatDateTime(selectedClientInsight.lastBooking.startAt)} | ${formatBookingStatus(selectedClientInsight.lastBooking.status)}`
+              : "Nenhuma booking registrada."
+            },
+            {
+              id: "timeline-last-completed",
+              title: "Ultimo atendimento concluido",
+              description: selectedClientInsight.lastCompletedBooking ?
+                `${formatDateTime(selectedClientInsight.lastCompletedBooking.endAt)} | sem retorno ha ${formatDaysSince(selectedClientInsight.lastCompletedBooking.endAt)}`
+              : "Cliente ainda sem atendimento concluido."
+            },
+            {
+              id: "timeline-last-cash-entry",
+              title: "Ultimo movimento financeiro",
+              description: selectedClientInsight.lastCashEntry ?
+                `${formatCashEntryKind(selectedClientInsight.lastCashEntry.kind)} | ${formatCurrency(selectedClientInsight.lastCashEntry.amount)}`
+              : "Nenhum movimento financeiro persistido."
+            }
+          ]}
+        />
+
+        <DocumentImpactPanel
+          sections={[
+            {
+              id: "crm-supported",
+              title: "Leituras suportadas hoje",
+              tone: "success",
+              items: [
+                "Carteira derivada da jornada publica real.",
+                `Janela ativa de retorno: ${resolveClientReturnWindowLabel(clientReturnWindow)}.`,
+                "Receita persistida minima e historico recente de bookings no mesmo detalhe."
+              ]
+            },
+            {
+              id: "crm-gaps",
+              title: "Fora do corte atual",
+              tone: "warning",
+              items: [
+                "Ainda nao existe integracao de WhatsApp, score de risco ou cohort dedicado.",
+                "O shell nao possui playbook automatico de reativacao nem timeline persistida de interacoes."
+              ]
+            }
+          ]}
+        />
+      </div>
     );
   }
 
@@ -6368,7 +6689,9 @@ function formatDaysSince(value: string): string {
   return `${days} dias`;
 }
 
-function resolveClientSegmentTone(segment: Exclude<ClientSegmentFilter, "all">): string {
+function resolveClientSegmentTone(
+  segment: Exclude<ClientSegmentFilter, "all">
+): "neutral" | "success" | "warning" {
   if (segment === "returning") {
     return "success";
   }
