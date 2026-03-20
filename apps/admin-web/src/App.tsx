@@ -259,6 +259,8 @@ interface AdminRouteDefinition {
 
 const API_BASE_STORAGE_KEY = "agendaai.admin.apiBaseUrl";
 const SESSION_STORAGE_KEY = "agendaai.admin.sessionToken";
+const ADMIN_PROFILE_NAME_STORAGE_KEY = "agendaai.admin.profileName";
+const ADMIN_PROFILE_EMAIL_STORAGE_KEY = "agendaai.admin.profileEmail";
 const DEPLOY_ADMIN_API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   DEFAULT_ADMIN_API_BASE_URL;
@@ -616,6 +618,10 @@ export function App() {
     loadStoredValue(API_BASE_STORAGE_KEY, DEPLOY_ADMIN_API_BASE_URL)
   );
   const [sessionToken, setSessionToken] = useState(() => loadStoredValue(SESSION_STORAGE_KEY, ""));
+  const [adminProfile, setAdminProfile] = useState(() => ({
+    name: loadStoredValue(ADMIN_PROFILE_NAME_STORAGE_KEY, ""),
+    email: loadStoredValue(ADMIN_PROFILE_EMAIL_STORAGE_KEY, "")
+  }));
   const [bootstrap, setBootstrap] = useState<AdminBootstrapPayload | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
@@ -697,6 +703,11 @@ export function App() {
   useEffect(() => {
     storeValue(SESSION_STORAGE_KEY, sessionToken);
   }, [sessionToken]);
+
+  useEffect(() => {
+    storeValue(ADMIN_PROFILE_NAME_STORAGE_KEY, adminProfile.name);
+    storeValue(ADMIN_PROFILE_EMAIL_STORAGE_KEY, adminProfile.email);
+  }, [adminProfile]);
 
   useEffect(() => {
     if (!feedback || feedback.tone === "error") {
@@ -920,6 +931,8 @@ export function App() {
 
   const tenant = bootstrap?.session.tenant;
   const publicBookingUrl = tenant ? `${BOOKING_BASE_URL.replace(/\/+$/, "")}/${tenant.slug}` : "";
+  const sidebarProfileName = adminProfile.name || tenant?.nome || "Admin";
+  const sidebarProfileEmail = adminProfile.email || "";
   const services = bootstrap?.services ?? [];
   const professionals = bootstrap?.professionals ?? [];
   const clients = bootstrap?.clients ?? [];
@@ -1227,6 +1240,10 @@ export function App() {
     await runAction(async () => {
       const session = await loginAdmin(apiBaseUrl, loginForm.email, loginForm.password);
       setSessionToken(session.token);
+      setAdminProfile({
+        name: resolveAdminDisplayName(loginForm.email),
+        email: loginForm.email.trim().toLowerCase()
+      });
       setFeedback({ tone: "success", message: "Sessao administrativa aberta." });
     });
   }
@@ -1249,6 +1266,10 @@ export function App() {
 
       const onboarding = await createTenantOnboarding(apiBaseUrl, payload);
       setSessionToken(onboarding.session.token);
+      setAdminProfile({
+        name: onboardingForm.adminNome.trim(),
+        email: onboardingForm.adminEmail.trim().toLowerCase()
+      });
       setFeedback({ tone: "success", message: `Negocio ${onboarding.tenant.nome} criado e autenticado.` });
     });
   }
@@ -4602,7 +4623,6 @@ export function App() {
             {!isSidebarCollapsed ? (
               <div className="admin-sidebar-brand-copy">
                 <strong>AgendaAI</strong>
-                <span>Operacao e recorrencia</span>
               </div>
             ) : null}
           </div>
@@ -4615,19 +4635,6 @@ export function App() {
             {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           </button>
         </div>
-
-        <article className="admin-sidebar-tenant">
-          <div className="admin-sidebar-tenant-avatar">
-            {(tenant?.nome ?? "AG").slice(0, 2).toUpperCase()}
-          </div>
-          {!isSidebarCollapsed ? (
-            <div className="admin-sidebar-tenant-copy">
-              <strong>{tenant?.nome}</strong>
-              <span>/{tenant?.slug}</span>
-              <small>{tenant?.timezone}</small>
-            </div>
-          ) : null}
-        </article>
 
         <nav className="admin-sidebar-nav no-scrollbar">
           {adminNavigationSections.map((section) => (
@@ -4654,7 +4661,6 @@ export function App() {
                     {!isSidebarCollapsed ? (
                       <span className="admin-sidebar-link-copy">
                         <strong>{definition.label}</strong>
-                        <small>{definition.stage === "funcional" ? "funcional" : "parcial"}</small>
                       </span>
                     ) : null}
                   </button>
@@ -4665,9 +4671,31 @@ export function App() {
         </nav>
 
         <div className="admin-sidebar-footer">
-          <a className="admin-sidebar-footer-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
-            {!isSidebarCollapsed ? "Abrir booking publico" : "Booking"}
-          </a>
+          <article className="admin-sidebar-profile-card">
+            <div className="admin-sidebar-profile-avatar">
+              {resolveProfessionalInitials(sidebarProfileName)}
+            </div>
+            {!isSidebarCollapsed ? (
+              <>
+                <div className="admin-sidebar-profile-copy">
+                  <strong>{sidebarProfileName}</strong>
+                  <span>{sidebarProfileEmail || "Sem e-mail visivel"}</span>
+                </div>
+                {publicBookingUrl ? (
+                  <a
+                    aria-label="Abrir booking publico"
+                    className="admin-sidebar-profile-action"
+                    href={publicBookingUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                    title="Abrir booking publico"
+                  >
+                    <LinkIcon className="w-4 h-4" />
+                  </a>
+                ) : null}
+              </>
+            ) : null}
+          </article>
         </div>
       </aside>
 
@@ -5937,6 +5965,21 @@ function resolveUtilizationTone(bookedMinutes: number, totalMinutes: number): st
     return "warning";
   }
   return "info";
+}
+
+function resolveAdminDisplayName(email: string): string {
+  const localPart = email.trim().split("@")[0] ?? "";
+  const cleaned = localPart.replace(/[._-]+/g, " ").trim();
+
+  if (!cleaned) {
+    return "Admin";
+  }
+
+  return cleaned
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 }
 
 function resolveProfessionalInitials(value: string): string {
