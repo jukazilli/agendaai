@@ -139,6 +139,8 @@ a {
 .record-card,
 .entity-card,
 .sidebar-tenant-card {
+  width: 100%;
+  min-width: 0;
   padding: 16px;
 }
 
@@ -185,6 +187,11 @@ a {
 .record-card-actions,
 .record-meta {
   flex-wrap: wrap;
+}
+
+.record-meta {
+  width: 100%;
+  min-width: 0;
 }
 
 .record-card-header {
@@ -355,6 +362,8 @@ a {
 .availability-list,
 .sidebar-nav {
   display: grid;
+  width: 100%;
+  min-width: 0;
   gap: 12px;
   align-content: start;
 }
@@ -1241,6 +1250,8 @@ a {
   position: sticky;
   top: 0;
   z-index: 10;
+  width: 100%;
+  min-width: 0;
   gap: 16px;
   min-height: 76px;
   padding: 18px 28px;
@@ -1301,11 +1312,15 @@ a {
 
 .admin-stage-content {
   display: grid;
+  width: 100%;
+  min-width: 0;
   gap: 20px;
   padding: 26px 28px 32px;
 }
 
 .admin-page-hero {
+  width: 100%;
+  min-width: 0;
   gap: 24px;
   padding: 28px;
   border: 1px solid rgba(148, 163, 184, 0.14);
@@ -1339,7 +1354,16 @@ a {
   gap: 24px;
 }
 
+.admin-content {
+  width: 100%;
+  min-width: 0;
+}
+
 .dashboard-document-view .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.reports-document-view .ag-view-panel {
   background: rgba(255, 255, 255, 0.94);
 }
 
@@ -1359,6 +1383,27 @@ a {
 
 .dashboard-document-actions .dashboard-select {
   min-width: 220px;
+}
+
+.settings-entity-view .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.settings-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.catalog-entity-view .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.catalog-aside-stack,
+.settings-aside-stack {
+  display: grid;
+  gap: 16px;
 }
 
 .dashboard-toolbar {
@@ -2269,6 +2314,10 @@ a {
     justify-content: flex-start;
     grid-auto-flow: row;
   }
+
+  .settings-page-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 768px) {
@@ -2306,6 +2355,12 @@ a {
   .clients-toolbar .dashboard-select {
     min-width: 0;
     width: 100%;
+  }
+
+  .settings-page-actions .button-link,
+  .settings-page-actions .secondary-button {
+    width: 100%;
+    justify-content: center;
   }
 
   .client-record-kpi {
@@ -2370,6 +2425,24 @@ a {
   .professional-empty-state {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .client-record-topline {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .client-record-kpi {
+    min-width: 0;
+    justify-items: start;
+    text-align: left;
+  }
+
+  .client-record-button strong,
+  .client-record-button span,
+  .client-record-button small {
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
 
   .professional-card-actions {

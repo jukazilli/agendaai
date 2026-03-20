@@ -22,7 +22,6 @@ import {
   Rocket,
   Search,
   Settings,
-  Star,
   TrendingUp,
   UserCircle,
   Users,
@@ -280,6 +279,7 @@ const DEPLOY_ADMIN_API_BASE_URL =
   DEFAULT_ADMIN_API_BASE_URL;
 const BOOKING_BASE_URL =
   (import.meta.env.VITE_BOOKING_BASE_URL as string | undefined)?.trim() || "http://127.0.0.1:3000";
+const ADMIN_SHELL_COMPACT_BREAKPOINT = 1100;
 const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
 const professionalAvatarVariants = [
   "is-cobalt",
@@ -711,6 +711,36 @@ export function App() {
     window.addEventListener("hashchange", syncRouteFromHash);
     return () => {
       window.removeEventListener("hashchange", syncRouteFromHash);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let isCompactShell = window.innerWidth <= ADMIN_SHELL_COMPACT_BREAKPOINT;
+    if (isCompactShell) {
+      setIsSidebarOpen(false);
+      setIsSidebarCollapsed(false);
+    }
+
+    const syncShellMode = () => {
+      const nextCompactShell = window.innerWidth <= ADMIN_SHELL_COMPACT_BREAKPOINT;
+      if (nextCompactShell === isCompactShell) {
+        return;
+      }
+
+      isCompactShell = nextCompactShell;
+      setIsSidebarOpen(false);
+      if (nextCompactShell) {
+        setIsSidebarCollapsed(false);
+      }
+    };
+
+    window.addEventListener("resize", syncShellMode);
+    return () => {
+      window.removeEventListener("resize", syncShellMode);
     };
   }, []);
 
@@ -1750,16 +1780,12 @@ export function App() {
 
   function renderSlugPanel(): JSX.Element {
     return (
-      <article className="panel">
+      <EntitySection
+        title="Publicacao e slug"
+        description="Manutencao do perfil publico do negocio e da URL que aponta para o booking real."
+        actions={<ViewBadge tone="success">Funcional</ViewBadge>}
+      >
         <form className="stack-form" onSubmit={handleSaveSlug}>
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Implantacao</p>
-              <h2>Perfil publico do negocio</h2>
-            </div>
-            <span className="helper-chip">Funcional</span>
-          </div>
-
           <div className="form-grid">
             <label className="field">
               <span>Nome</span>
@@ -1792,12 +1818,16 @@ export function App() {
             <button className="primary-button" disabled={isBusy} type="submit">
               Salvar slug
             </button>
-            <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
-              Abrir booking publico
-            </a>
+            {publicBookingUrl ? (
+              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                Abrir booking publico
+              </a>
+            ) : (
+              <span className="helper-chip">Sem slug publicada</span>
+            )}
           </div>
         </form>
-      </article>
+      </EntitySection>
     );
   }
 
@@ -1808,16 +1838,12 @@ export function App() {
       brandingForm.tagline.trim() || "Agendamentos rapidos, claros e prontos para o celular.";
 
     return (
-      <article className="panel">
+      <EntitySection
+        title="Branding minimo"
+        description="Ajustes leves de identidade visual do tenant sem reabrir um fluxo grande de implantacao."
+        actions={<ViewBadge tone="warning">Parcial</ViewBadge>}
+      >
         <form className="stack-form" onSubmit={handleSaveBranding}>
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Branding minimo</p>
-              <h2>Identidade publica do tenant</h2>
-            </div>
-            <span className="helper-chip">Beta</span>
-          </div>
-
           <div className="form-grid">
             <label className="field field-wide">
               <span>Mensagem curta da marca</span>
@@ -1870,22 +1896,18 @@ export function App() {
             </button>
           </div>
         </form>
-      </article>
+      </EntitySection>
     );
   }
 
   function renderPaymentsPanel(): JSX.Element {
     return (
-      <article className="panel">
+      <EntitySection
+        title="Pagamentos e Checkout Pro"
+        description="Configuracao do Mercado Pago por tenant, com credenciais, callbacks e comportamento de checkout."
+        actions={<ViewBadge tone="info">Checkout Pro recomendado</ViewBadge>}
+      >
         <form className="stack-form" onSubmit={handleSavePayments}>
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Pagamentos</p>
-              <h2>Mercado Pago do tenant</h2>
-            </div>
-            <span className="helper-chip">Checkout Pro recomendado</span>
-          </div>
-
           <div className="form-grid">
             <label className="field">
               <span>Status</span>
@@ -2054,30 +2076,16 @@ export function App() {
             Salvar provider
           </button>
         </form>
-      </article>
+      </EntitySection>
     );
   }
 
   function renderCatalogPanel(): JSX.Element {
     return (
-      <article className="panel">
-        <div className="panel-header">
-          <div>
-            <p className="eyebrow">Catalogo</p>
-            <h2>Servicos e politica comercial</h2>
-          </div>
-          <button
-            className="secondary-button"
-            onClick={() => {
-              setSelectedServiceId("");
-              setServiceForm(defaultServiceForm);
-            }}
-            type="button"
-          >
-            Novo servico
-          </button>
-        </div>
-
+      <EntitySection
+        title="Lista e editor de servicos"
+        description="Cadastro real de servicos e de politica comercial sem misturar agenda, equipe ou operacao diaria."
+      >
         <div className="editor-layout">
           <div className="entity-list">
             {services.length ? (
@@ -2272,7 +2280,7 @@ export function App() {
             </div>
           </form>
         </div>
-      </article>
+      </EntitySection>
     );
   }
 
@@ -3465,327 +3473,6 @@ export function App() {
     );
   }
 
-  function renderReportsView(): JSX.Element {
-    return (
-      <section className="view-stack">
-        <article className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="eyebrow">Relatorios</p>
-              <h2>Agenda, receita e retorno por periodo</h2>
-            </div>
-            <span className="status-pill is-warning">Parcial</span>
-          </div>
-
-          <div className="timeline-toolbar">
-            <div className="button-row">
-              <button
-                className={reportsRange === "7d" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setReportsRange("7d")}
-                type="button"
-              >
-                7 dias
-              </button>
-              <button
-                className={reportsRange === "30d" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setReportsRange("30d")}
-                type="button"
-              >
-                30 dias
-              </button>
-              <button
-                className={reportsRange === "all" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setReportsRange("all")}
-                type="button"
-              >
-                Tudo
-              </button>
-            </div>
-
-            <label className="field timeline-date-field">
-              <span>Servico</span>
-              <select
-                onChange={(event) => setReportsServiceFilter(event.target.value)}
-                value={reportsServiceFilter}
-              >
-                <option value="all">Todos os servicos</option>
-                {services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="field timeline-date-field">
-              <span>Profissional</span>
-              <select
-                onChange={(event) => setReportsProfessionalFilter(event.target.value)}
-                value={reportsProfessionalFilter}
-              >
-                <option value="all">Todos os profissionais</option>
-                {professionals.map((professional) => (
-                  <option key={professional.id} value={professional.id}>
-                    {professional.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="stats-strip">
-            <article className="stat-card">
-              <span>Bookings no periodo</span>
-              <strong>{activeReportCurrent.bookingsCount}</strong>
-              <small>
-                {resolveReportComparisonLabel(
-                  activeReportCurrent.bookingsCount,
-                  activeReportPrevious?.bookingsCount ?? 0,
-                  "count",
-                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
-                )}
-              </small>
-            </article>
-            <article className="stat-card">
-              <span>Receita reconhecida</span>
-              <strong>{formatCurrency(activeReportCurrent.recognizedRevenue)}</strong>
-              <small>
-                {resolveReportComparisonLabel(
-                  activeReportCurrent.recognizedRevenue,
-                  activeReportPrevious?.recognizedRevenue ?? 0,
-                  "currency",
-                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
-                )}
-              </small>
-            </article>
-            <article className="stat-card">
-              <span>Entrada online aprovada</span>
-              <strong>{formatCurrency(activeReportCurrent.approvedOnlineRevenue)}</strong>
-              <small>
-                {resolveReportComparisonLabel(
-                  activeReportCurrent.approvedOnlineRevenue,
-                  activeReportPrevious?.approvedOnlineRevenue ?? 0,
-                  "currency",
-                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
-                )}
-              </small>
-            </article>
-            <article className="stat-card">
-              <span>No-show</span>
-              <strong>
-                {formatPercentage(
-                  activeReportCurrent.bookingsCount > 0
-                    ? activeReportCurrent.noShowCount / activeReportCurrent.bookingsCount
-                    : 0
-                )}
-              </strong>
-              <small>
-                {resolveReportComparisonLabel(
-                  activeReportCurrent.bookingsCount > 0
-                    ? activeReportCurrent.noShowCount / activeReportCurrent.bookingsCount
-                    : 0,
-                  activeReportPrevious && activeReportPrevious.bookingsCount > 0
-                    ? activeReportPrevious.noShowCount / activeReportPrevious.bookingsCount
-                    : 0,
-                  "percentage",
-                  reportsReadModel?.comparisonEnabled ?? reportsRange !== "all"
-                )}
-              </small>
-            </article>
-          </div>
-          {isLoadingReportsReadModel ? (
-            <p className="empty-state">Atualizando read model de relatorios...</p>
-          ) : null}
-          {reportsReadModelError ? (
-            <div className="feedback-banner is-error">{reportsReadModelError}</div>
-          ) : null}
-        </article>
-
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Servicos</p>
-                <h2>Receita e agenda por servico</h2>
-              </div>
-              <span className="helper-chip">{resolveDashboardRangeLabel(reportsRange)}</span>
-            </div>
-
-            <div className="records-column">
-              {activeReportServiceSummaries.length ? (
-                activeReportServiceSummaries.map((entry) => (
-                  <article className="record-card" key={entry.id}>
-                    <div className="record-card-header">
-                      <div className="record-stack">
-                        <strong>{entry.label}</strong>
-                        <span>{entry.bookingsCount} booking(s) no periodo</span>
-                      </div>
-                      <span className="status-pill is-success">
-                        {formatCurrency(entry.recognizedRevenue)}
-                      </span>
-                    </div>
-                    <div className="record-meta">
-                      <span>Concluidos {entry.completedCount}</span>
-                      <span className="status-pill is-neutral">
-                        Ticket medio {formatCurrency(entry.averageTicket)}
-                      </span>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">Nenhum servico com dado suficiente neste recorte.</p>
-              )}
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Profissionais</p>
-                <h2>Performance por profissional</h2>
-              </div>
-              <span className="helper-chip">Derivado do runtime</span>
-            </div>
-
-            <div className="records-column">
-              {activeReportProfessionalSummaries.length ? (
-                activeReportProfessionalSummaries.map((entry) => (
-                  <article className="record-card" key={entry.id}>
-                    <div className="record-card-header">
-                      <div className="record-stack">
-                        <strong>{entry.label}</strong>
-                        <span>{entry.bookingsCount} booking(s) no periodo</span>
-                      </div>
-                      <span className="status-pill is-success">
-                        {formatCurrency(entry.recognizedRevenue)}
-                      </span>
-                    </div>
-                    <div className="record-meta">
-                      <span>Concluidos {entry.completedCount}</span>
-                      <span className="status-pill is-neutral">
-                        Ticket medio {formatCurrency(entry.averageTicket)}
-                      </span>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">Nenhum profissional com dado suficiente neste recorte.</p>
-              )}
-            </div>
-          </article>
-        </section>
-
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Retorno</p>
-                <h2>Clientes sem retorno no shell atual</h2>
-              </div>
-              <span className="helper-chip">{resolveClientReturnWindowLabel(clientReturnWindow)}</span>
-            </div>
-
-            <div className="stats-strip">
-              <article className="stat-card">
-                <span>Com retorno</span>
-                <strong>{activeClientRecurrence.returningCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Sem retorno</span>
-                <strong>{activeClientRecurrence.inactiveCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Nunca concluiu</span>
-                <strong>{activeClientRecurrence.neverCompletedCount}</strong>
-              </article>
-              <article className="stat-card">
-                <span>Recorrencia media</span>
-                <strong>
-                  {activeClientRecurrence.averageRecurrenceDays === null
-                    ? "n/d"
-                    : `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`}
-                </strong>
-              </article>
-            </div>
-
-            <div className="records-column">
-              {activeClientRecurrence.returnBuckets.length ? (
-                activeClientRecurrence.returnBuckets.map((bucket) => (
-                  <article className="list-card" key={bucket.id}>
-                    <strong>{bucket.label}</strong>
-                    <p>{bucket.clientsCount} cliente(s) neste bucket de retorno.</p>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">Buckets de retorno ainda nao disponiveis neste recorte.</p>
-              )}
-            </div>
-
-            <div className="records-column">
-              {activeClientRecurrence.inactiveClients.length ? (
-                activeClientRecurrence.inactiveClients.map((entry) => (
-                  <article className="record-card" key={entry.clientId}>
-                    <div className="record-card-header">
-                      <div className="record-stack">
-                        <strong>{entry.nome}</strong>
-                        <span>{entry.email}</span>
-                      </div>
-                      <span className="status-pill is-warning">
-                        {formatClientSegment("inactive", activeClientRecurrence.window)}
-                      </span>
-                    </div>
-                    <div className="record-meta">
-                      <span>
-                        Ultimo atendimento {entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "nunca"}
-                      </span>
-                      <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
-                      <span>
-                        Recorrencia media{" "}
-                        {entry.averageRecurrenceDays === null
-                          ? "n/d"
-                          : `${Math.round(entry.averageRecurrenceDays)} dias`}
-                      </span>
-                    </div>
-                  </article>
-                ))
-              ) : (
-                <p className="empty-state">
-                  Nenhum cliente sem retorno identificado na janela de{" "}
-                  {resolveClientReturnWindowLabel(activeClientRecurrence.window)}.
-                </p>
-              )}
-            </div>
-          </article>
-
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Lacunas</p>
-                <h2>O que ainda nao existe neste modulo</h2>
-              </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
-
-            <div className="records-column">
-              <div className="list-card">
-                <strong>Comparativo historico (funcional)</strong>
-                <p>Ja existe para o mesmo periodo imediatamente anterior, desde que o filtro nao esteja em `Tudo`.</p>
-              </div>
-              <div className="list-card">
-                <strong>Recorrencia basica (funcional)</strong>
-                <p>O modulo agora recebe buckets de retorno e media simples entre atendimentos concluidos a partir de um read model do `api-rest`.</p>
-              </div>
-              <div className="list-card">
-                <strong>Financeiro persistido minimo (funcional)</strong>
-                <p>Receita reconhecida e entrada online agora podem ser lidas tambem por `cash entries`; conciliacao contabil completa continua fora do corte.</p>
-              </div>
-            </div>
-          </article>
-        </section>
-      </section>
-    );
-  }
-
   function renderAgendaView(): JSX.Element {
     return (
       <section className="view-stack">
@@ -4701,36 +4388,639 @@ export function App() {
   }
 
   function renderCatalogView(): JSX.Element {
+    const selectedService = services.find((service) => service.id === selectedServiceId);
+    const isCreatingService = !selectedServiceId;
+    const acceptedMethodsLabel = serviceForm.acceptedMethods.length
+      ? serviceForm.acceptedMethods.join(" | ")
+      : "Sem meio explicito";
+    const chargingModeLabel =
+      serviceForm.collectionMode === "none" ? "Reserva imediata" : serviceForm.collectionMode;
+    const checkoutModeLabel =
+      serviceForm.collectionMode === "none" ? "Sem checkout" : serviceForm.checkoutMode;
+    const servicesWithSignal = services.filter((service) => service.exigeSinal).length;
+    const immediateServices = services.filter((service) => !service.exigeSinal).length;
+
     return (
-      <section className="view-stack">
-        <section className="workspace-grid">
-          {renderCatalogPanel()}
+      <EntityViewLayout
+        className="catalog-entity-view"
+        eyebrow="Catalogo"
+        title={isCreatingService ? "Novo servico" : selectedService?.nome ?? "Editar servico"}
+        subtitle={
+          isCreatingService ?
+            "Cadastre um novo servico e defina a politica comercial antes de publica-lo na jornada do cliente."
+          : "Entity view do servico com identidade, cobranca e meios aceitos ligados ao runtime real."
+        }
+        statusBadge={
+          isCreatingService ? (
+            <ViewBadge tone="info">Novo cadastro</ViewBadge>
+          ) : (
+            <ViewBadge tone={selectedService?.status === "active" ? "success" : "warning"}>
+              {selectedService?.status ?? serviceForm.status}
+            </ViewBadge>
+          )
+        }
+        pageActions={
+          <button
+            className="secondary-button"
+            onClick={() => {
+              setSelectedServiceId("");
+              setServiceForm(defaultServiceForm);
+            }}
+            type="button"
+          >
+            Novo servico
+          </button>
+        }
+        identityCard={
+          <EntityIdentityCard
+            title="Identidade comercial"
+            description="Resumo do servico selecionado ou do cadastro em andamento."
+            fields={[
+              {
+                id: "service-name",
+                label: "Servico",
+                value: serviceForm.nome || selectedService?.nome || "Novo servico"
+              },
+              {
+                id: "service-status",
+                label: "Status",
+                value: selectedService?.status ?? serviceForm.status
+              },
+              {
+                id: "service-duration",
+                label: "Duracao",
+                value: `${serviceForm.duracaoMin || selectedService?.duracaoMin || 0} min`
+              },
+              {
+                id: "service-price",
+                label: "Preco base",
+                value: formatCurrency(Number(serviceForm.precoBase || selectedService?.precoBase || 0))
+              },
+              {
+                id: "service-collection",
+                label: "Cobranca",
+                value: chargingModeLabel,
+                helper: checkoutModeLabel
+              },
+              {
+                id: "service-methods",
+                label: "Meios aceitos",
+                value: acceptedMethodsLabel,
+                helper: "Meios usados quando o servico exige pagamento antecipado."
+              }
+            ]}
+          />
+        }
+        sections={
+          <>
+            {renderCatalogPanel()}
 
-          <aside className="panel aside-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Escopo</p>
-                <h3>Mapa do que entra aqui</h3>
+            <EntitySection
+              title="Politica comercial atual"
+              description="Leitura rapida do mix atual do catalogo publicado."
+            >
+              <div className="dashboard-mini-grid">
+                <div className="dashboard-mini-card">
+                  <strong>{services.length}</strong>
+                  <span>Servicos no catalogo</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{servicesWithSignal}</strong>
+                  <span>Com sinal antecipado</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{immediateServices}</strong>
+                  <span>Reserva imediata</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{professionals.length}</strong>
+                  <span>Profissionais para vinculo operacional</span>
+                </div>
               </div>
+            </EntitySection>
+          </>
+        }
+        aside={
+          <div className="catalog-aside-stack">
+            <EntityAsideSummary
+              title="Escopo funcional desta rota"
+              description="O que o runtime atual realmente permite manter aqui."
+              items={[
+                {
+                  id: "catalog-services",
+                  label: "Servicos e preco",
+                  description: "Ja ligados ao runtime com status, duracao, preco e politica de pagamento.",
+                  active: true
+                },
+                {
+                  id: "catalog-policies",
+                  label: "Politica de cobranca",
+                  description: "Sinal, checkout e meios aceitos fazem parte do payload real do servico.",
+                  active: true
+                },
+                {
+                  id: "catalog-publication",
+                  label: "Publicacao implicita",
+                  description: "A publicacao acontece pela slug e pelos servicos ativos vinculados a profissionais.",
+                  active: true
+                }
+              ]}
+            />
+
+            <EntityAsideSummary
+              title="Fora do corte atual"
+              description="Itens sugeridos pela referencia, mas sem entidade ou contrato proprio no AgendaAI de hoje."
+              items={[
+                {
+                  id: "catalog-products",
+                  label: "Produtos, kits e combos",
+                  description: "Ainda nao existem contratos dedicados para essas entidades."
+                },
+                {
+                  id: "catalog-addons",
+                  label: "Add-ons e bundles",
+                  description: "O catalogo atual opera apenas servicos unitarios."
+                },
+                {
+                  id: "catalog-publication-flow",
+                  label: "Fluxo editorial de publicacao",
+                  description: "Ainda nao existe workflow separado de rascunho, publicacao e revisao."
+                }
+              ]}
+            />
+          </div>
+        }
+      />
+    );
+  }
+
+  function renderReportsViewV2(): JSX.Element {
+    const selectedReportService =
+      reportsServiceFilter === "all"
+        ? null
+        : services.find((service) => service.id === reportsServiceFilter) ?? null;
+    const selectedReportProfessional =
+      reportsProfessionalFilter === "all"
+        ? null
+        : professionals.find((professional) => professional.id === reportsProfessionalFilter) ?? null;
+    const reportsComparisonEnabled = reportsReadModel?.comparisonEnabled ?? reportsRange !== "all";
+    const currentNoShowRate =
+      activeReportCurrent.bookingsCount > 0
+        ? activeReportCurrent.noShowCount / activeReportCurrent.bookingsCount
+        : 0;
+    const previousNoShowRate =
+      activeReportPrevious && activeReportPrevious.bookingsCount > 0
+        ? activeReportPrevious.noShowCount / activeReportPrevious.bookingsCount
+        : 0;
+    const recurrenceAverageLabel =
+      activeClientRecurrence.averageRecurrenceDays === null
+        ? "n/d"
+        : `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`;
+    const reportsSourceLabel = reportsReadModel ? "Read model do backend" : "Fallback local";
+    const reportsSourceHelper = reportsReadModelError
+      ? `Leitura dedicada indisponivel; fallback local ativo. ${reportsReadModelError}`
+      : isLoadingReportsReadModel
+        ? "Atualizando o read model dedicado sem interromper a leitura."
+        : reportsReadModel
+          ? "Metricas e buckets vieram do endpoint dedicado de reporting."
+          : "Sem read model carregado nesta sessao.";
+
+    return (
+      <DocumentViewLayout
+        className="reports-document-view"
+        eyebrow="Leitura comparativa"
+        title={tenant?.nome ?? "Tenant nao carregado"}
+        subtitle="Relatorios essenciais do tenant com recorte por periodo, servico, profissional e retorno."
+        statusBadge={
+          <ViewBadge tone="warning">
+            {reportsComparisonEnabled ? "Comparativo parcial ativo" : "Sem comparativo no historico total"}
+          </ViewBadge>
+        }
+        pageActions={
+          <div className="dashboard-document-actions">
+            <div className="mode-switch">
+              <button
+                className={reportsRange === "7d" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setReportsRange("7d")}
+                type="button"
+              >
+                7 dias
+              </button>
+              <button
+                className={reportsRange === "30d" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setReportsRange("30d")}
+                type="button"
+              >
+                30 dias
+              </button>
+              <button
+                className={reportsRange === "all" ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setReportsRange("all")}
+                type="button"
+              >
+                Tudo
+              </button>
+            </div>
+            <label className="dashboard-select">
+              <span>Servico</span>
+              <select onChange={(event) => setReportsServiceFilter(event.target.value)} value={reportsServiceFilter}>
+                <option value="all">Todos os servicos</option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dashboard-select">
+              <span>Profissional</span>
+              <select
+                onChange={(event) => setReportsProfessionalFilter(event.target.value)}
+                value={reportsProfessionalFilter}
+              >
+                <option value="all">Todos os profissionais</option>
+                {professionals.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dashboard-select">
+              <span>Janela de retorno</span>
+              <select
+                onChange={(event) => setClientReturnWindow(event.target.value as ClientReturnWindow)}
+                value={clientReturnWindow}
+              >
+                <option value="30d">30 dias</option>
+                <option value="60d">60 dias</option>
+                <option value="90d">90 dias</option>
+              </select>
+            </label>
+          </div>
+        }
+        header={
+          <DocumentHeader
+            fields={[
+              { id: "range", label: "Periodo", value: resolveDashboardRangeLabel(reportsRange) },
+              { id: "service", label: "Servico", value: selectedReportService?.nome ?? "Todos os servicos" },
+              {
+                id: "professional",
+                label: "Profissional",
+                value: selectedReportProfessional?.nome ?? "Todos os profissionais"
+              },
+              {
+                id: "window",
+                label: "Janela de retorno",
+                value: resolveClientReturnWindowLabel(activeClientRecurrence.window)
+              },
+              {
+                id: "comparison",
+                label: "Comparativo",
+                value: reportsComparisonEnabled ? "Periodo anterior" : "Indisponivel"
+              },
+              { id: "source", label: "Fonte da leitura", value: reportsSourceLabel }
+            ]}
+          />
+        }
+        summary={
+          <DocumentSummaryCards
+            metrics={[
+              {
+                id: "bookings",
+                label: "Bookings no periodo",
+                value: activeReportCurrent.bookingsCount,
+                helper: resolveReportComparisonLabel(
+                  activeReportCurrent.bookingsCount,
+                  activeReportPrevious?.bookingsCount ?? 0,
+                  "count",
+                  reportsComparisonEnabled
+                ),
+                tone: "info"
+              },
+              {
+                id: "recognized",
+                label: "Receita reconhecida",
+                value: formatCurrency(activeReportCurrent.recognizedRevenue),
+                helper: resolveReportComparisonLabel(
+                  activeReportCurrent.recognizedRevenue,
+                  activeReportPrevious?.recognizedRevenue ?? 0,
+                  "currency",
+                  reportsComparisonEnabled
+                ),
+                tone: "success"
+              },
+              {
+                id: "online",
+                label: "Entrada online aprovada",
+                value: formatCurrency(activeReportCurrent.approvedOnlineRevenue),
+                helper: resolveReportComparisonLabel(
+                  activeReportCurrent.approvedOnlineRevenue,
+                  activeReportPrevious?.approvedOnlineRevenue ?? 0,
+                  "currency",
+                  reportsComparisonEnabled
+                ),
+                tone: "info"
+              },
+              {
+                id: "ticket",
+                label: "Ticket medio",
+                value: formatCurrency(activeReportCurrent.averageTicket),
+                helper: `${activeReportCurrent.completedCount} atendimento(s) concluidos.`,
+                tone: "success"
+              },
+              {
+                id: "clients",
+                label: "Clientes unicos",
+                value: activeReportCurrent.uniqueClients,
+                helper: "Base distinta atendida no recorte.",
+                tone: "info"
+              },
+              {
+                id: "no-show",
+                label: "Taxa de no-show",
+                value: formatPercentage(currentNoShowRate),
+                helper: resolveReportComparisonLabel(
+                  currentNoShowRate,
+                  previousNoShowRate,
+                  "percentage",
+                  reportsComparisonEnabled
+                ),
+                tone: "danger"
+              }
+            ]}
+          />
+        }
+        tabs={
+          <DocumentTabs
+            tabs={[
+              { id: "overview", label: "Receita e agenda", active: true },
+              { id: "groups", label: "Servicos e equipe" },
+              { id: "retention", label: "Retorno e lacunas" }
+            ]}
+          />
+        }
+        items={
+          <>
+            {isLoadingReportsReadModel ? (
+              <div className="feedback-banner is-info">Atualizando read model de relatorios...</div>
+            ) : null}
+            {reportsReadModelError ? (
+              <div className="feedback-banner is-error">{reportsReadModelError}</div>
+            ) : null}
+
+            <div className="workspace-grid">
+              <EntitySection
+                title="Receita e agenda por servico"
+                description="Agrupamento por servico com bookings, concluidos, clientes unicos e ticket."
+              >
+                <div className="records-column">
+                  {activeReportServiceSummaries.length ? (
+                    activeReportServiceSummaries.map((entry) => (
+                      <article className="record-card" key={entry.id}>
+                        <div className="record-card-header">
+                          <div className="record-stack">
+                            <strong>{entry.label}</strong>
+                            <span>{entry.bookingsCount} booking(s) no periodo</span>
+                          </div>
+                          <span className="status-pill is-success">{formatCurrency(entry.recognizedRevenue)}</span>
+                        </div>
+                        <div className="record-meta">
+                          <span>Concluidos {entry.completedCount}</span>
+                          <span>Clientes unicos {entry.uniqueClients}</span>
+                          <span className="status-pill is-neutral">Ticket {formatCurrency(entry.averageTicket)}</span>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">Nenhum servico com dado suficiente neste recorte.</p>
+                  )}
+                </div>
+              </EntitySection>
+
+              <EntitySection
+                title="Performance por profissional"
+                description="Leitura da equipe com o mesmo recorte aplicado ao modulo."
+              >
+                <div className="records-column">
+                  {activeReportProfessionalSummaries.length ? (
+                    activeReportProfessionalSummaries.map((entry) => (
+                      <article className="record-card" key={entry.id}>
+                        <div className="record-card-header">
+                          <div className="record-stack">
+                            <strong>{entry.label}</strong>
+                            <span>{entry.bookingsCount} booking(s) no periodo</span>
+                          </div>
+                          <span className="status-pill is-success">{formatCurrency(entry.recognizedRevenue)}</span>
+                        </div>
+                        <div className="record-meta">
+                          <span>Concluidos {entry.completedCount}</span>
+                          <span>Clientes unicos {entry.uniqueClients}</span>
+                          <span className="status-pill is-neutral">Ticket {formatCurrency(entry.averageTicket)}</span>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">Nenhum profissional com dado suficiente neste recorte.</p>
+                  )}
+                </div>
+              </EntitySection>
             </div>
 
-            <div className="records-column">
-              <div className="list-card">
-                <strong>Servicos e preco</strong>
-                <p>Ja ligados ao runtime com status, duracao, preco e politica de pagamento.</p>
+            <EntitySection
+              title="Retorno da base real"
+              description={`Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`}
+              actions={
+                <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
+                  Abrir clientes
+                </button>
+              }
+            >
+              <div className="dashboard-retention-preview">
+                <DocumentSummaryCards
+                  metrics={[
+                    {
+                      id: "returning",
+                      label: "Com retorno",
+                      value: activeClientRecurrence.returningCount,
+                      helper: "Clientes com ultimo concluido dentro da janela.",
+                      tone: "success"
+                    },
+                    {
+                      id: "inactive",
+                      label: "Sem retorno",
+                      value: activeClientRecurrence.inactiveCount,
+                      helper: `Nao voltaram em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
+                      tone: "warning"
+                    },
+                    {
+                      id: "never",
+                      label: "Nunca concluiu",
+                      value: activeClientRecurrence.neverCompletedCount,
+                      helper: "Entraram na base sem atendimento concluido."
+                    },
+                    {
+                      id: "recurrence",
+                      label: "Recorrencia media",
+                      value: recurrenceAverageLabel,
+                      helper: "Media simples entre atendimentos concluidos.",
+                      tone: "info"
+                    }
+                  ]}
+                />
+
+                {activeClientRecurrence.returnBuckets.length ? (
+                  <div className="dashboard-mini-grid">
+                    {activeClientRecurrence.returnBuckets.map((bucket) => (
+                      <div className="dashboard-mini-card" key={bucket.id}>
+                        <strong>{bucket.label}</strong>
+                        <span>{bucket.clientsCount} cliente(s) neste bucket.</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">Buckets de retorno ainda nao disponiveis neste recorte.</p>
+                )}
+
+                <div className="records-column">
+                  {activeClientRecurrence.inactiveClients.length ? (
+                    activeClientRecurrence.inactiveClients.map((entry) => (
+                      <article className="record-card" key={entry.clientId}>
+                        <div className="record-card-header">
+                          <div className="record-stack">
+                            <strong>{entry.nome}</strong>
+                            <span>{entry.email || "Sem e-mail visivel"}</span>
+                          </div>
+                          <span className="status-pill is-warning">
+                            {formatClientSegment("inactive", activeClientRecurrence.window)}
+                          </span>
+                        </div>
+                        <div className="record-meta">
+                          <span>
+                            Ultimo atendimento {entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "nunca"}
+                          </span>
+                          <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
+                          <span>
+                            Recorrencia media{" "}
+                            {entry.averageRecurrenceDays === null
+                              ? "n/d"
+                              : `${Math.round(entry.averageRecurrenceDays)} dias`}
+                          </span>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">
+                      Nenhum cliente sem retorno identificado na janela de{" "}
+                      {resolveClientReturnWindowLabel(activeClientRecurrence.window)}.
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="list-card">
-                <strong>Produtos, kits, combos e add-ons (nao funcional)</strong>
-                <p>Esses itens fazem parte do desvio beta maior, mas ainda nao existem nos contratos do AgendaAI.</p>
-              </div>
-              <div className="list-card">
-                <strong>Publicacao de catalogo</strong>
-                <p>Hoje a publicacao acontece implicitamente pela `slug` e pelos servicos ativos vinculados a profissionais.</p>
-              </div>
-            </div>
-          </aside>
-        </section>
-      </section>
+            </EntitySection>
+          </>
+        }
+        aside={
+          <div className="dashboard-aside-stack">
+            <EntityAsideSummary
+              title="Leitura deste recorte"
+              description="Contexto aplicado antes da interpretacao dos indicadores."
+              items={[
+                {
+                  id: "range-context",
+                  label: "Periodo",
+                  value: resolveDashboardRangeLabel(reportsRange),
+                  description: "Base principal da comparacao de agenda e receita.",
+                  active: true
+                },
+                {
+                  id: "service-context",
+                  label: "Servico",
+                  value: selectedReportService?.nome ?? "Todos",
+                  description: "Refina o agrupamento sem criar contrato paralelo.",
+                  active: reportsServiceFilter !== "all"
+                },
+                {
+                  id: "professional-context",
+                  label: "Profissional",
+                  value: selectedReportProfessional?.nome ?? "Todos",
+                  description: "Mantem a visao coerente com a agenda operacional.",
+                  active: reportsProfessionalFilter !== "all"
+                },
+                {
+                  id: "window-context",
+                  label: "Janela de retorno",
+                  value: resolveClientReturnWindowLabel(activeClientRecurrence.window),
+                  description: "Usada pelo read model para buckets e clientes inativos."
+                }
+              ]}
+            />
+
+            <EntityAsideSummary
+              title="Capacidade do modulo hoje"
+              description="Estado atual da fonte e das leituras realmente existentes."
+              items={[
+                {
+                  id: "source-state",
+                  label: "Fonte da leitura",
+                  value: reportsSourceLabel,
+                  description: reportsSourceHelper,
+                  active: Boolean(reportsReadModel)
+                },
+                {
+                  id: "comparison-state",
+                  label: "Comparativo historico",
+                  value: reportsComparisonEnabled ? "Ativo" : "Indisponivel",
+                  description:
+                    reportsComparisonEnabled
+                      ? "Compara contra o mesmo recorte imediatamente anterior."
+                      : "No historico total, o shell nao promete comparacao consolidada.",
+                  active: reportsComparisonEnabled
+                },
+                {
+                  id: "buckets-state",
+                  label: "Buckets de retorno",
+                  value: activeClientRecurrence.returnBuckets.length,
+                  description: "Faixas simples geradas pelo read model atual.",
+                  active: activeClientRecurrence.returnBuckets.length > 0
+                },
+                {
+                  id: "financial-state",
+                  label: "Base financeira minima",
+                  value: formatCurrency(activeReportCurrent.recognizedRevenue),
+                  description: "Receita reconhecida e entrada online ja leem `cash entries` minimas."
+                }
+              ]}
+            />
+          </div>
+        }
+        impactPanel={
+          <DocumentImpactPanel
+            sections={[
+              {
+                id: "reports-supported",
+                title: "Sustentado hoje pelo runtime",
+                tone: "success",
+                items: [
+                  "Comparativo contra periodo anterior quando o recorte permite.",
+                  "Agrupamentos por servico e profissional sustentados pelo mesmo payload do modulo.",
+                  "Buckets de retorno, clientes inativos e financeiro minimo apoiados pelo read model atual."
+                ]
+              },
+              {
+                id: "reports-gaps",
+                title: "O que ainda continua parcial",
+                tone: "warning",
+                items: [
+                  "Cohort, score de risco e previsao de reativacao ainda nao existem neste modulo.",
+                  "Exportacao e conciliacao contabil completa continuam fora do corte.",
+                  "O modulo informa o estado atual do negocio, mas nao substitui um data mart analitico dedicado."
+                ]
+              }
+            ]}
+          />
+        }
+      />
     );
   }
 
@@ -5061,93 +5351,161 @@ export function App() {
   }
 
   function renderSettingsView(): JSX.Element {
+    const paymentStatusTone =
+      paymentForm.status === "active"
+        ? "success"
+        : paymentForm.status === "draft"
+          ? "warning"
+          : "neutral";
+
     return (
-      <section className="settings-shell-v2">
-        <aside className="settings-nav-card">
-          <button className="settings-nav-item is-active" type="button">
-            <Settings className="w-5 h-5" />
-            <span>Perfil do Negocio</span>
-          </button>
-          <button className="settings-nav-item" type="button">
-            <CreditCard className="w-5 h-5" />
-            <span>Pagamentos</span>
-          </button>
-          <button className="settings-nav-item" type="button">
-            <LinkIcon className="w-5 h-5" />
-            <span>Webhooks e API</span>
-          </button>
-          <button className="settings-nav-item" type="button">
-            <Star className="w-5 h-5" />
-            <span>Assinatura AgendaAI</span>
-          </button>
-        </aside>
+      <EntityViewLayout
+        className="settings-entity-view"
+        eyebrow="Configuracoes do tenant"
+        title={tenant?.nome ?? "Tenant nao carregado"}
+        subtitle="Area de manutencao continua do negocio, separando publicacao, branding, pagamentos e ambiente administrativo sem misturar operacao diaria."
+        statusBadge={<ViewBadge tone="success">Funcional</ViewBadge>}
+        pageActions={
+          <div className="settings-page-actions">
+            {publicBookingUrl ? (
+              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                Abrir booking publico
+              </a>
+            ) : (
+              <span className="helper-chip">Sem slug publicada</span>
+            )}
+          </div>
+        }
+        identityCard={
+          <EntityIdentityCard
+            title="Identidade e publicacao"
+            description="Resumo rapido do tenant e do estado atual de publicacao e cobranca."
+            fields={[
+              {
+                id: "tenant-name",
+                label: "Negocio",
+                value: tenant?.nome ?? "-"
+              },
+              {
+                id: "tenant-status",
+                label: "Status",
+                value: tenant?.status ?? "-"
+              },
+              {
+                id: "tenant-slug",
+                label: "Slug",
+                value: tenant?.slug ? `/${tenant.slug}` : "Nao publicada"
+              },
+              {
+                id: "tenant-timezone",
+                label: "Timezone",
+                value: tenant?.timezone ?? "-"
+              },
+              {
+                id: "payment-status",
+                label: "Pagamento",
+                value: <ViewBadge tone={paymentStatusTone}>{paymentForm.status}</ViewBadge>,
+                helper: paymentForm.checkoutMode
+              },
+              {
+                id: "booking-url",
+                label: "Booking publico",
+                value: publicBookingUrl || "Sem URL publicada",
+                helper: "URL usada pela jornada publica do cliente final."
+              }
+            ]}
+          />
+        }
+        sections={
+          <>
+            {renderSlugPanel()}
+            {renderBrandingPanel()}
+            {renderPaymentsPanel()}
 
-        <div className="settings-content-stack">
-          {renderSlugPanel()}
-          {renderBrandingPanel()}
-          {renderPaymentsPanel()}
-
-          <article className="dashboard-surface">
-            <div className="dashboard-surface-header">
-              <div>
-                <h3>Ambiente administrativo</h3>
-                <p>Parametros de operacao do tenant publicados no runtime atual.</p>
-              </div>
-              <span className="helper-chip">Suporte operacional</span>
-            </div>
-
-            <div className="dashboard-mini-grid">
-              <div className="dashboard-mini-card">
-                <strong>API base</strong>
-                <span>{resolveAdminApiBaseUrl(apiBaseUrl)}</span>
-              </div>
-              <div className="dashboard-mini-card">
-                <strong>Tenant slug</strong>
-                <span>/{tenant?.slug ?? "-"}</span>
-              </div>
-              <div className="dashboard-mini-card">
-                <strong>Timezone</strong>
-                <span>{tenant?.timezone ?? "-"}</span>
-              </div>
-              <div className="dashboard-mini-card">
-                <strong>Publicacao</strong>
-                <span>{publicBookingUrl || "Sem slug publicada"}</span>
-              </div>
-            </div>
-          </article>
-
-          <article className="dashboard-surface">
-            <div className="dashboard-surface-header">
-              <div>
-                <h3>Itens fora do corte</h3>
-                <p>A referencia visual sugere modulos maiores do que o runtime atual suporta.</p>
-              </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
-
-            <div className="dashboard-feed">
-              <article className="dashboard-feed-item">
-                <div className="dashboard-feed-main">
-                  <strong>Assinatura AgendaAI (nao funcional)</strong>
-                  <span>Billing do proprio SaaS ainda nao existe no runtime do projeto.</span>
+            <EntitySection
+              title="Ambiente administrativo"
+              description="Parametros de operacao e publicacao expostos no runtime atual."
+              actions={<ViewBadge tone="info">Suporte operacional</ViewBadge>}
+            >
+              <div className="dashboard-mini-grid">
+                <div className="dashboard-mini-card">
+                  <strong>API base</strong>
+                  <span>{resolveAdminApiBaseUrl(apiBaseUrl)}</span>
                 </div>
-              </article>
-              <article className="dashboard-feed-item">
-                <div className="dashboard-feed-main">
-                  <strong>Webhooks e observabilidade avancada (nao funcional)</strong>
-                  <span>Hoje o owner edita URLs e credenciais; ainda nao existe painel de eventos ou health check de integracoes.</span>
+                <div className="dashboard-mini-card">
+                  <strong>Tenant slug</strong>
+                  <span>/{tenant?.slug ?? "-"}</span>
                 </div>
-              </article>
-              <article className="dashboard-feed-item">
-                <div className="dashboard-feed-main">
-                  <strong>Homologacao Mercado Pago</strong>
-                  <span>Os campos ja existem, mas a conexao real ainda depende das credenciais e de `notification_url` publica.</span>
+                <div className="dashboard-mini-card">
+                  <strong>Timezone</strong>
+                  <span>{tenant?.timezone ?? "-"}</span>
                 </div>
-              </article>
-            </div>
-          </article>
-        </div>
-      </section>
+                <div className="dashboard-mini-card">
+                  <strong>Publicacao</strong>
+                  <span>{publicBookingUrl || "Sem slug publicada"}</span>
+                </div>
+              </div>
+            </EntitySection>
+          </>
+        }
+        aside={
+          <div className="settings-aside-stack">
+            <EntityAsideSummary
+              title="Taxonomia desta area"
+              description="O que esta organizado aqui hoje e tem manutencao continua no runtime."
+              items={[
+                {
+                  id: "settings-profile",
+                  label: "Publicacao e slug",
+                  description: "Nome, slug e URL publica do tenant.",
+                  active: true
+                },
+                {
+                  id: "settings-branding",
+                  label: "Branding minimo",
+                  description: "Mensagem curta da marca e cor de destaque.",
+                  active: true
+                },
+                {
+                  id: "settings-payments",
+                  label: "Pagamentos",
+                  description: "Mercado Pago, callbacks e modo de checkout.",
+                  value: paymentForm.status,
+                  active: true
+                },
+                {
+                  id: "settings-runtime",
+                  label: "Ambiente administrativo",
+                  description: "API base, timezone e publicacao do tenant.",
+                  active: true
+                }
+              ]}
+            />
+
+            <EntityAsideSummary
+              title="Fora do corte atual"
+              description="Itens sugeridos pela referencia visual, mas ainda sem lastro completo no runtime."
+              items={[
+                {
+                  id: "settings-subscription",
+                  label: "Assinatura AgendaAI",
+                  description: "Billing do proprio SaaS ainda nao existe no projeto."
+                },
+                {
+                  id: "settings-webhooks",
+                  label: "Webhooks e observabilidade avancada",
+                  description: "Hoje o owner edita URLs e credenciais, mas ainda nao existe painel de eventos nem health check."
+                },
+                {
+                  id: "settings-profile-wide",
+                  label: "Perfil amplo do negocio",
+                  description: "O runtime atual ainda nao possui um update amplo de tenant alem de slug e branding minimo."
+                }
+              ]}
+            />
+          </div>
+        }
+      />
     );
   }
 
@@ -5156,7 +5514,7 @@ export function App() {
       case "dashboard":
         return renderDashboardView();
       case "relatorios":
-        return renderReportsView();
+        return renderReportsViewV2();
       case "operacional":
         return renderOperationalView();
       case "agenda":

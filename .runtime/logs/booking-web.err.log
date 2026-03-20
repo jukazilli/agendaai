@@ -1910,3 +1910,7 @@ Require stack:
   requireStack: [Array],
   page: '/favicon.ico'
 }
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found

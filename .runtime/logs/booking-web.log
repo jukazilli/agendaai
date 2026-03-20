@@ -72,3 +72,4 @@
  GET /demo-studio-20260317 500 in 635ms
  GET /demo-studio-20260317 500 in 285ms
  GET /favicon.ico 500 in 64ms
+ ✓ Compiled in 1564ms (915 modules)
