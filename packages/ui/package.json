@@ -13,6 +13,14 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": ["dist"],
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean && node ./scripts/copy-assets.mjs",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",

@@ -1925,10 +1925,26 @@ a {
   color: #475569;
 }
 
-.professional-workspace-surface {
-  display: grid;
-  gap: 20px;
-  padding: 24px 26px;
+.professional-entity-view,
+.agenda-master-detail {
+  margin-top: 4px;
+}
+
+.professional-entity-view .ag-view-title {
+  font-size: clamp(1.4rem, 2vw, 1.9rem);
+}
+
+.professional-entity-view .ag-view-panel,
+.agenda-master-detail .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.agenda-booking-document {
+  gap: 18px;
+}
+
+.agenda-booking-document .ag-view-title {
+  font-size: 1.3rem;
 }
 
 .professional-editor-grid {
@@ -2238,10 +2254,6 @@ a {
 
   .professionals-card-grid {
     grid-template-columns: 1fr;
-  }
-
-  .professional-workspace-surface {
-    padding: 20px 18px;
   }
 
   .settings-nav-card {

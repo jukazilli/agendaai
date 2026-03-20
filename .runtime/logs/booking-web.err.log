@@ -250,3 +250,1663 @@ Require stack:
 [TypeError: Cannot read properties of undefined (reading '/_app')]
  ⨯ [TypeError: Cannot read properties of undefined (reading '/_app')]
 [TypeError: Cannot read properties of undefined (reading '/_app')]
+ ⚠ ./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+ ⚠ ./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+ ⚠ ./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+ ⚠ ./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+ ⚠ ./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+ ⚠ ./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentViewLayout' is not exported from '@agendaai/ui' (imported as 'DocumentViewLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTabs' is not exported from '@agendaai/ui' (imported as 'DocumentTabs').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentTimeline' is not exported from '@agendaai/ui' (imported as 'DocumentTimeline').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'MasterDetailLayout' is not exported from '@agendaai/ui' (imported as 'MasterDetailLayout').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'ViewBadge' is not exported from '@agendaai/ui' (imported as 'ViewBadge').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentHeader' is not exported from '@agendaai/ui' (imported as 'DocumentHeader').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentSummaryCards' is not exported from '@agendaai/ui' (imported as 'DocumentSummaryCards').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'EntitySection' is not exported from '@agendaai/ui' (imported as 'EntitySection').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+
+./app/[slug]/booking-flow.tsx
+Attempted import error: 'DocumentImpactPanel' is not exported from '@agendaai/ui' (imported as 'DocumentImpactPanel').
+
+Import trace for requested module:
+./app/[slug]/booking-flow.tsx
+ ⨯ ../../packages/ui/dist/foundations.css
+Error: ENOENT: no such file or directory, open 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+Import trace for requested module:
+../../packages/ui/dist/foundations.css
+./app/layout.tsx
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ../../packages/ui/dist/foundations.css
+Error: ENOENT: no such file or directory, open 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+Import trace for requested module:
+../../packages/ui/dist/foundations.css
+./app/layout.tsx
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ ../../packages/ui/dist/foundations.css
+Module not found: Can't resolve 'C:\projetos\agendaai\packages\ui\dist\foundations.css'
+
+https://nextjs.org/docs/messages/module-not-found
+ ⨯ Error: Could not find the module "C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\next-devtools\userspace\app\segment-explorer-node.js#SegmentViewNode" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>) {
+  digest: '2000815718'
+}
+ ⨯ Error: Could not find the module "C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\next-devtools\userspace\app\segment-explorer-node.js#SegmentViewNode" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>)
+    at stringify (<anonymous>) {
+  digest: '2351567052'
+}
+ ⨯ Error: Could not find the module "C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\next-devtools\userspace\app\segment-explorer-node.js#SegmentViewNode" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>)
+    at stringify (<anonymous>) {
+  digest: '2351567052'
+}
+ ⨯ Error: Could not find the module "C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\next-devtools\userspace\app\segment-explorer-node.js#SegmentViewNode" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>)
+    at stringify (<anonymous>) {
+  digest: '2351567052'
+}
+ ⨯ Error: Could not find the module "C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\next-devtools\userspace\app\segment-explorer-node.js#SegmentViewNode" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>) {
+  digest: '2000815718'
+}
+ ⨯ Error: Could not find the module "C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\next-devtools\userspace\app\segment-explorer-node.js#SegmentViewNode" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>) {
+  digest: '2000815718'
+}
+ ⨯ [TypeError: __webpack_modules__[moduleId] is not a function] {
+  digest: '4239485544'
+}
+ ⨯ Error: Could not find the module "C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\next-devtools\userspace\app\segment-explorer-node.js#SegmentViewNode" in the React Client Manifest. This is probably a bug in the React Server Components bundler.
+    at stringify (<anonymous>) {
+  digest: '2000815718'
+}
+[TypeError: __webpack_modules__[moduleId] is not a function]
+ ⨯ [TypeError: __webpack_modules__[moduleId] is not a function]
+ ⨯ [TypeError: __webpack_modules__[moduleId] is not a function] {
+  page: '/'
+}
+ ⨯ Error: Cannot find module './759.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:321)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:366) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+[TypeError: __webpack_modules__[moduleId] is not a function] {
+  page: '/'
+}
+ ⨯ Error: Cannot find module './759.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:321)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:366) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+[Error: ENOENT: no such file or directory, open 'C:\projetos\agendaai\apps\booking-web\.next\fallback-build-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\projetos\\agendaai\\apps\\booking-web\\.next\\fallback-build-manifest.json'
+}
+ ⨯ Error: Cannot find module './625.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10027)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10076) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/demo-studio-20260317'
+}
+ ⨯ Error: Cannot find module './759.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:321)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:366) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+Error: Cannot find module './625.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10027)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10076) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/demo-studio-20260317'
+}
+ ⨯ Error: Cannot find module './759.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:321)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:366) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+[Error: ENOENT: no such file or directory, open 'C:\projetos\agendaai\apps\booking-web\.next\fallback-build-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\projetos\\agendaai\\apps\\booking-web\\.next\\fallback-build-manifest.json'
+}
+ ⨯ Error: Cannot find module './625.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10027)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10076) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/favicon.ico'
+}
+ ⨯ Error: Cannot find module './625.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10027)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10076) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/demo-studio-20260317'
+}
+ ⨯ Error: Cannot find module './759.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:321)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:366) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+Error: Cannot find module './625.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10027)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10076) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/demo-studio-20260317'
+}
+ ⨯ Error: Cannot find module './759.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:321)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\pages\_document.js:1:366) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array]
+}
+[Error: ENOENT: no such file or directory, open 'C:\projetos\agendaai\apps\booking-web\.next\fallback-build-manifest.json'] {
+  errno: -4058,
+  code: 'ENOENT',
+  syscall: 'open',
+  path: 'C:\\projetos\\agendaai\\apps\\booking-web\\.next\\fallback-build-manifest.json'
+}
+ ⨯ Error: Cannot find module './625.js'
+Require stack:
+- C:\projetos\agendaai\apps\booking-web\.next\server\webpack-runtime.js
+- C:\projetos\agendaai\apps\booking-web\.next\server\app\page.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\require.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\load-components.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\utils.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\options.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\swc\index.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\build\next-config-ts\transpile-config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\config.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\next.js
+- C:\projetos\agendaai\node_modules\.pnpm\next@15.5.13_react-dom@19.2.4_react@19.2.4__react@19.2.4\node_modules\next\dist\server\lib\start-server.js
+    at <unknown> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10027)
+    at Object.<anonymous> (C:\projetos\agendaai\apps\booking-web\.next\server\app\[slug]\page.js:2:10076) {
+  code: 'MODULE_NOT_FOUND',
+  requireStack: [Array],
+  page: '/favicon.ico'
+}

@@ -4,6 +4,21 @@ import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
 
 import type { Booking, Client, Professional, Service } from "@agendaai/contracts";
+import {
+  DocumentHeader,
+  DocumentImpactPanel,
+  DocumentSummaryCards,
+  DocumentTabs,
+  DocumentTimeline,
+  DocumentViewLayout,
+  EntitySection,
+  MasterDetailLayout,
+  ViewBadge
+} from "@agendaai/ui";
+import type {
+  DocumentImpactSection,
+  DocumentSummaryMetric
+} from "@agendaai/ui";
 
 import type {
   PublicAvailabilitySlot,
@@ -102,6 +117,78 @@ export function BookingFlow({
       label: "Dados",
       complete: Boolean(form.nome && form.telefone && form.email),
       available: Boolean(selectedService && selectedProfessional && selectedSlot)
+    }
+  ];
+  const currentStepDefinition =
+    progressSteps.find((item) => item.step === currentStep) ?? progressSteps[0];
+  const bookingSummaryFields = [
+    {
+      id: "service",
+      label: "Servico",
+      value: selectedService?.nome ?? "Escolha um servico para comecar"
+    },
+    {
+      id: "professional",
+      label: "Profissional",
+      value: selectedProfessional?.nome ?? "Selecione quem vai atender"
+    },
+    {
+      id: "schedule",
+      label: "Horario",
+      value: selectedSlot
+        ? `${formatDateLabel(selectedSlot.startAt)} - ${selectedSlot.startTime}`
+        : "Defina data e horario para seguir"
+    },
+    {
+      id: "payment",
+      label: "Cobranca",
+      value: selectedService
+        ? requiresPayment
+          ? "Pagamento online antes da confirmacao"
+          : "Confirmacao imediata sem sinal"
+        : "A regra aparece ao escolher o servico"
+    }
+  ];
+  const bookingSummaryMetrics: DocumentSummaryMetric[] = [
+    {
+      id: "step",
+      label: "Etapa atual",
+      value: currentStepDefinition.label,
+      helper: `Passo ${currentStepDefinition.id} da jornada guiada.`
+    },
+    {
+      id: "duration",
+      label: "Duracao",
+      value: selectedService ? `${selectedService.duracaoMin} min` : "--",
+      helper: "Tempo previsto para o atendimento."
+    },
+    {
+      id: "price",
+      label: "Valor",
+      value: selectedService ? formatCurrency(selectedService.precoBase) : "--",
+      helper: "Preco base do servico escolhido.",
+      tone: selectedService ? "success" : undefined
+    },
+    {
+      id: "client",
+      label: "Cliente",
+      value: form.nome || "Seus dados entram na etapa final",
+      helper: form.email || "Nome, telefone e e-mail sao solicitados no fechamento."
+    }
+  ];
+  const bookingImpactSections: DocumentImpactSection[] = [
+    {
+      id: "next-step",
+      title: "O que falta para confirmar",
+      tone: selectedSlot ? "success" : "warning",
+      items: [
+        isStepComplete(currentStep, selectedService, selectedProfessional, selectedSlot, form)
+          ? "A etapa atual ja esta consistente. Voce pode seguir para o proximo passo."
+          : getStepValidationMessage(currentStep),
+        requiresPayment
+          ? "Este servico exige checkout online antes da confirmacao final."
+          : "Servicos sem sinal entram direto na agenda apos a confirmacao."
+      ]
     }
   ];
 
@@ -426,49 +513,173 @@ export function BookingFlow({
     }
   }
 
+  function resetBookingExperience() {
+    clearPaymentQueryParams();
+    setReceipt(null);
+    setPaymentStatus(null);
+    setPaymentContext(null);
+    setSelectedSlotStartAt("");
+    setSubmitError(null);
+    setCurrentStep(1);
+  }
+
+  function reopenBookingAfterPayment() {
+    clearPaymentQueryParams();
+    setPaymentStatus(null);
+    setSubmitError(null);
+    setCurrentStep(4);
+  }
+
   if (receipt) {
     return (
       <main className="booking-page" style={buildTenantThemeStyle(receipt.tenant)}>
-        <section className="confirmation-shell">
-          <p className="eyebrow">reserva confirmada</p>
-          <h1>{receipt.tenant.nome}</h1>
-          <p className="description">
-            {receipt.client.nome}, seu horario foi confirmado com {receipt.professional.nome}.
-          </p>
-
-          <div className="confirmation-grid">
-            <article className="summary-card">
-              <span>servico</span>
-              <strong>{receipt.service.nome}</strong>
-            </article>
-            <article className="summary-card">
-              <span>horario</span>
-              <strong>
-                {formatDateLabel(receipt.booking.startAt)} - {sliceTime(receipt.booking.startAt)}
-              </strong>
-            </article>
-            <article className="summary-card">
-              <span>profissional</span>
-              <strong>{receipt.professional.nome}</strong>
-            </article>
-          </div>
-
-          <button
-            className="primary-button"
-            type="button"
-            onClick={() => {
-              clearPaymentQueryParams();
-              setReceipt(null);
-              setPaymentStatus(null);
-              setPaymentContext(null);
-              setSelectedSlotStartAt("");
-              setSubmitError(null);
-              setCurrentStep(1);
-            }}
-          >
-            Agendar outro horario
-          </button>
-        </section>
+        <div className="booking-document-shell">
+          <DocumentViewLayout
+            eyebrow="reserva confirmada"
+            title={receipt.tenant.nome}
+            subtitle={`${receipt.client.nome}, seu horario foi confirmado com ${receipt.professional.nome}.`}
+            documentNumber={shortDocumentId(receipt.booking.id)}
+            statusBadge={<ViewBadge tone="success">Confirmada</ViewBadge>}
+            pageActions={
+              <button className="primary-button" onClick={resetBookingExperience} type="button">
+                Agendar outro horario
+              </button>
+            }
+            header={
+              <DocumentHeader
+                fields={[
+                  {
+                    id: "service",
+                    label: "Servico",
+                    value: receipt.service.nome
+                  },
+                  {
+                    id: "schedule",
+                    label: "Horario",
+                    value: `${formatDateLabel(receipt.booking.startAt)} - ${sliceTime(receipt.booking.startAt)}`
+                  },
+                  {
+                    id: "professional",
+                    label: "Profissional",
+                    value: receipt.professional.nome
+                  },
+                  {
+                    id: "client",
+                    label: "Cliente",
+                    value: receipt.client.nome
+                  }
+                ]}
+              />
+            }
+            summary={
+              <DocumentSummaryCards
+                metrics={[
+                  {
+                    id: "value",
+                    label: "Valor",
+                    value: formatCurrency(receipt.service.precoBase),
+                    helper: "Preco base confirmado na reserva.",
+                    tone: "success"
+                  },
+                  {
+                    id: "duration",
+                    label: "Duracao",
+                    value: `${receipt.service.duracaoMin} min`,
+                    helper: "Tempo previsto do atendimento."
+                  },
+                  {
+                    id: "payment",
+                    label: "Pagamento",
+                    value: receipt.service.exigeSinal ? "Com sinal" : "Sem sinal",
+                    helper: receipt.service.exigeSinal
+                      ? "O servico foi fechado com pagamento previo."
+                      : "Reserva entrou sem etapa de checkout."
+                  }
+                ]}
+              />
+            }
+            tabs={
+              <DocumentTabs
+                tabs={[
+                  { id: "reservation", label: "Reserva", active: true },
+                  { id: "client", label: "Cliente" },
+                  { id: "follow-up", label: "Proximos passos" }
+                ]}
+              />
+            }
+            items={
+              <EntitySection
+                title="Resumo operacional"
+                description="A reserva ja entrou na agenda do tenant com os dados escolhidos no fluxo."
+              >
+                <div className="confirmation-grid">
+                  <article className="summary-card">
+                    <span>servico</span>
+                    <strong>{receipt.service.nome}</strong>
+                  </article>
+                  <article className="summary-card">
+                    <span>horario</span>
+                    <strong>
+                      {formatDateLabel(receipt.booking.startAt)} - {sliceTime(receipt.booking.startAt)}
+                    </strong>
+                  </article>
+                  <article className="summary-card">
+                    <span>profissional</span>
+                    <strong>{receipt.professional.nome}</strong>
+                  </article>
+                </div>
+              </EntitySection>
+            }
+            timeline={
+              <DocumentTimeline
+                title="Linha da reserva"
+                entries={[
+                  {
+                    id: "created",
+                    title: "Reserva confirmada",
+                    description: `${receipt.client.nome} finalizou o agendamento publico.`
+                  },
+                  {
+                    id: "scheduled",
+                    title: "Horario reservado",
+                    description: `${formatDateLabel(receipt.booking.startAt)} - ${sliceTime(receipt.booking.startAt)}`
+                  },
+                  {
+                    id: "service",
+                    title: "Servico vinculado",
+                    description: `${receipt.service.nome} com ${receipt.professional.nome}.`
+                  }
+                ]}
+              />
+            }
+            impactPanel={
+              <DocumentImpactPanel
+                sections={[
+                  {
+                    id: "confirmation-impact",
+                    title: "O que ja aconteceu",
+                    tone: "success",
+                    items: [
+                      "A reserva foi persistida na agenda.",
+                      receipt.service.exigeSinal
+                        ? "O fluxo passou pela etapa de checkout antes da confirmacao."
+                        : "Nao houve bloqueio de pagamento nesta jornada."
+                    ]
+                  },
+                  {
+                    id: "follow-up-impact",
+                    title: "Proximo passo esperado",
+                    tone: "default",
+                    items: [
+                      "Comparecer no horario combinado.",
+                      "O admin pode operar, concluir ou reagendar essa booking no backoffice."
+                    ]
+                  }
+                ]}
+              />
+            }
+          />
+        </div>
       </main>
     );
   }
@@ -478,71 +689,177 @@ export function BookingFlow({
       paymentContext ??
       readStoredCheckoutContext(paymentStatus.item.id) ??
       buildFallbackCheckoutContext(paymentStatus.booking, initialCatalog);
+    const paymentTone = isApprovedPaymentStatus(paymentStatus.item.status)
+      ? "success"
+      : isFailedPaymentStatus(paymentStatus.item.status)
+        ? "danger"
+        : "warning";
+    const paymentLabel = isApprovedPaymentStatus(paymentStatus.item.status)
+      ? "pagamento aprovado"
+      : isFailedPaymentStatus(paymentStatus.item.status)
+        ? "pagamento nao concluido"
+        : "aguardando confirmacao";
 
     return (
       <main
         className="booking-page"
         style={buildTenantThemeStyle(currentContext?.tenant ?? initialCatalog.tenant)}
       >
-        <section className="confirmation-shell">
-          <p className="eyebrow">
-            {isApprovedPaymentStatus(paymentStatus.item.status) ?
-              "pagamento aprovado"
-            : isFailedPaymentStatus(paymentStatus.item.status) ?
-              "pagamento nao concluido"
-            : "aguardando confirmacao"}
-          </p>
-          <h1>{currentContext?.tenant.nome ?? initialCatalog.tenant.nome}</h1>
-          <p className="description">
-            {describePaymentStatus(paymentStatus.item.status, currentContext?.service.nome)}
-          </p>
-
-          <div className="confirmation-grid">
-            <article className="summary-card">
-              <span>servico</span>
-              <strong>{currentContext?.service.nome ?? "Servico"}</strong>
-            </article>
-            <article className="summary-card">
-              <span>horario</span>
-              <strong>
-                {formatDateLabel(paymentStatus.booking.startAt)} - {sliceTime(paymentStatus.booking.startAt)}
-              </strong>
-            </article>
-            <article className="summary-card">
-              <span>profissional</span>
-              <strong>{currentContext?.professional.nome ?? "Profissional"}</strong>
-            </article>
-          </div>
-
-          {submitError ? <p className="error-banner">{submitError}</p> : null}
-
-          <div className="confirmation-actions">
-            {!isApprovedPaymentStatus(paymentStatus.item.status) ? (
-              <button
-                className="primary-button"
-                disabled={isSyncingPayment}
-                type="button"
-                onClick={() =>
-                  void syncPaymentStatus(paymentStatus.item.id, paymentStatus.item.paymentId)
-                }
+        <div className="booking-document-shell">
+          <DocumentViewLayout
+            eyebrow={paymentLabel}
+            title={currentContext?.tenant.nome ?? initialCatalog.tenant.nome}
+            subtitle={describePaymentStatus(paymentStatus.item.status, currentContext?.service.nome)}
+            documentNumber={shortDocumentId(paymentStatus.item.id)}
+            statusBadge={<ViewBadge tone={paymentTone}>{formatPaymentStatusLabel(paymentStatus.item.status)}</ViewBadge>}
+            pageActions={
+              <div className="confirmation-actions">
+                {!isApprovedPaymentStatus(paymentStatus.item.status) ? (
+                  <button
+                    className="primary-button"
+                    disabled={isSyncingPayment}
+                    type="button"
+                    onClick={() =>
+                      void syncPaymentStatus(paymentStatus.item.id, paymentStatus.item.paymentId)
+                    }
+                  >
+                    {isSyncingPayment ? "Atualizando..." : "Atualizar status"}
+                  </button>
+                ) : null}
+                <button className="secondary-button" onClick={reopenBookingAfterPayment} type="button">
+                  {isFailedPaymentStatus(paymentStatus.item.status) ? "Tentar novamente" : "Voltar para agenda"}
+                </button>
+              </div>
+            }
+            header={
+              <DocumentHeader
+                fields={[
+                  {
+                    id: "service",
+                    label: "Servico",
+                    value: currentContext?.service.nome ?? "Servico"
+                  },
+                  {
+                    id: "schedule",
+                    label: "Horario",
+                    value: `${formatDateLabel(paymentStatus.booking.startAt)} - ${sliceTime(paymentStatus.booking.startAt)}`
+                  },
+                  {
+                    id: "professional",
+                    label: "Profissional",
+                    value: currentContext?.professional.nome ?? "Profissional"
+                  },
+                  {
+                    id: "payment",
+                    label: "Status do pagamento",
+                    value: formatPaymentStatusLabel(paymentStatus.item.status)
+                  }
+                ]}
+              />
+            }
+            summary={
+              <DocumentSummaryCards
+                metrics={[
+                  {
+                    id: "payment-status",
+                    label: "Pagamento",
+                    value: formatPaymentStatusLabel(paymentStatus.item.status),
+                    helper: paymentStatus.item.paymentId
+                      ? `MP ${paymentStatus.item.paymentId}`
+                      : "Sem identificador definitivo do gateway.",
+                    tone: paymentTone
+                  },
+                  {
+                    id: "service-value",
+                    label: "Valor esperado",
+                    value: currentContext?.service
+                      ? formatCurrency(currentContext.service.precoBase)
+                      : "--",
+                    helper: "Valor base vinculado ao servico selecionado."
+                  },
+                  {
+                    id: "checkout-kind",
+                    label: "Fluxo",
+                    value: "Checkout Pro",
+                    helper: "Retorno consultado pelo payment intent real."
+                  }
+                ]}
+              />
+            }
+            tabs={
+              <DocumentTabs
+                tabs={[
+                  { id: "payment", label: "Pagamento", active: true },
+                  { id: "booking", label: "Reserva" },
+                  { id: "sync", label: "Sincronizacao" }
+                ]}
+              />
+            }
+            items={
+              <EntitySection
+                title="Resumo do retorno"
+                description="Leitura documental do checkout vinculada a booking criada no runtime real."
               >
-                {isSyncingPayment ? "Atualizando..." : "Atualizar status"}
-              </button>
-            ) : null}
-            <button
-              className="secondary-button"
-              type="button"
-              onClick={() => {
-                clearPaymentQueryParams();
-                setPaymentStatus(null);
-                setSubmitError(null);
-                setCurrentStep(4);
-              }}
-            >
-              {isFailedPaymentStatus(paymentStatus.item.status) ? "Tentar novamente" : "Voltar para agenda"}
-            </button>
-          </div>
-        </section>
+                <div className="confirmation-grid">
+                  <article className="summary-card">
+                    <span>servico</span>
+                    <strong>{currentContext?.service.nome ?? "Servico"}</strong>
+                  </article>
+                  <article className="summary-card">
+                    <span>horario</span>
+                    <strong>
+                      {formatDateLabel(paymentStatus.booking.startAt)} - {sliceTime(paymentStatus.booking.startAt)}
+                    </strong>
+                  </article>
+                  <article className="summary-card">
+                    <span>profissional</span>
+                    <strong>{currentContext?.professional.nome ?? "Profissional"}</strong>
+                  </article>
+                </div>
+                {submitError ? <p className="error-banner">{submitError}</p> : null}
+              </EntitySection>
+            }
+            timeline={
+              <DocumentTimeline
+                title="Linha do checkout"
+                entries={[
+                  {
+                    id: "checkout-created",
+                    title: "Payment intent criado",
+                    description: `Documento ${shortDocumentId(paymentStatus.item.id)} preparado para o servico selecionado.`
+                  },
+                  {
+                    id: "booking-pending",
+                    title: "Booking vinculada",
+                    description: `${formatDateLabel(paymentStatus.booking.startAt)} - ${sliceTime(paymentStatus.booking.startAt)}`
+                  },
+                  {
+                    id: "payment-current",
+                    title: "Status atual",
+                    description: describePaymentStatus(paymentStatus.item.status, currentContext?.service.nome)
+                  }
+                ]}
+              />
+            }
+            impactPanel={
+              <DocumentImpactPanel
+                sections={[
+                  {
+                    id: "payment-read",
+                    title: "Leitura do gateway",
+                    tone: paymentTone === "danger" ? "danger" : paymentTone === "success" ? "success" : "warning",
+                    items: [
+                      describePaymentStatus(paymentStatus.item.status, currentContext?.service.nome),
+                      isApprovedPaymentStatus(paymentStatus.item.status)
+                        ? "O booking pode ser tratada como confirmada no admin."
+                        : "Use a acao de atualizar status para consultar novamente o retorno do gateway."
+                    ]
+                  }
+                ]}
+              />
+            }
+          />
+        </div>
       </main>
     );
   }
@@ -587,226 +904,259 @@ export function BookingFlow({
       </section>
 
       <form className="booking-shell" onSubmit={handleSubmit}>
-        {currentStep === 1 ? (
-          <section className="section-card step-card">
-            <div className="section-heading">
-              <span>01</span>
-              <div>
-                <h2>Escolha o servico</h2>
-                <p>Comece pelo tempo e pelo tipo de atendimento.</p>
+        <MasterDetailLayout
+          className="booking-master-detail-layout"
+          detailClassName="booking-summary-panel"
+          detailDescription="A leitura lateral acompanha a selecao atual sem mudar o fluxo real da API."
+          detailTitle="Resumo da reserva"
+          master={
+            <>
+              {currentStep === 1 ? (
+                <section className="section-card step-card">
+                  <div className="section-heading">
+                    <span>01</span>
+                    <div>
+                      <h2>Escolha o servico</h2>
+                      <p>Comece pelo tempo e pelo tipo de atendimento.</p>
+                    </div>
+                  </div>
+
+                  <div className="service-list">
+                    {initialCatalog.services.map((service) => (
+                      <button
+                        className={service.id === selectedServiceId ? "service-card is-active" : "service-card"}
+                        key={service.id}
+                        onClick={() => setSelectedServiceId(service.id)}
+                        type="button"
+                      >
+                        <strong>{service.nome}</strong>
+                        <span>{service.duracaoMin} min</span>
+                        <span>{formatCurrency(service.precoBase)}</span>
+                        {service.exigeSinal ? <small>Requer sinal</small> : <small>Reserva imediata</small>}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {currentStep === 2 ? (
+                <section className="section-card step-card">
+                  <div className="section-heading">
+                    <span>02</span>
+                    <div>
+                      <h2>Escolha quem atende</h2>
+                      <p>Mostramos apenas profissionais compativeis com o servico selecionado.</p>
+                    </div>
+                  </div>
+
+                  <div className="professional-list">
+                    {professionals.map((professional) => (
+                      <button
+                        className={
+                          professional.id === selectedProfessionalId
+                            ? "professional-card is-active"
+                            : "professional-card"
+                        }
+                        key={professional.id}
+                        onClick={() => setSelectedProfessionalId(professional.id)}
+                        type="button"
+                      >
+                        <strong>{professional.nome}</strong>
+                        <span>{professional.especialidades.length} especialidades ativas</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {currentStep === 3 ? (
+                <section className="section-card step-card">
+                  <div className="section-heading">
+                    <span>03</span>
+                    <div>
+                      <h2>Escolha o horario</h2>
+                      <p>Atualizamos a disponibilidade em tempo real para o profissional selecionado.</p>
+                    </div>
+                  </div>
+
+                  <label className="field">
+                    <span>Data</span>
+                    <input
+                      min={initialDate}
+                      type="date"
+                      value={selectedDate}
+                      onChange={(event) => setSelectedDate(event.target.value)}
+                    />
+                  </label>
+
+                  {loadingSlots ? <p className="helper">Carregando horarios...</p> : null}
+                  {slotError ? <p className="error-banner">{slotError}</p> : null}
+                  {!loadingSlots && !slotError && slots.length === 0 ? (
+                    <p className="empty-state">
+                      Nenhum horario disponivel para esta combinacao. Tente outra data ou outro profissional.
+                    </p>
+                  ) : null}
+
+                  <div className="slot-grid">
+                    {slots.map((slot) => (
+                      <button
+                        className={slot.startAt === selectedSlotStartAt ? "slot-button is-active" : "slot-button"}
+                        key={slot.startAt}
+                        onClick={() => setSelectedSlotStartAt(slot.startAt)}
+                        type="button"
+                      >
+                        {slot.startTime}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
+
+              {currentStep === 4 ? (
+                <section className="section-card step-card">
+                  <div className="section-heading">
+                    <span>04</span>
+                    <div>
+                      <h2>Dados para confirmacao</h2>
+                      <p>Preencha o minimo necessario para fechar sua reserva.</p>
+                    </div>
+                  </div>
+
+                  <div className="field-grid">
+                    <label className="field">
+                      <span>Nome</span>
+                      <input
+                        required
+                        autoComplete="name"
+                        type="text"
+                        value={form.nome}
+                        onChange={(event) => setForm({ ...form, nome: event.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Telefone</span>
+                      <input
+                        required
+                        autoComplete="tel"
+                        inputMode="tel"
+                        type="tel"
+                        value={form.telefone}
+                        onChange={(event) => setForm({ ...form, telefone: event.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>E-mail</span>
+                      <input
+                        required
+                        autoComplete="email"
+                        inputMode="email"
+                        type="email"
+                        value={form.email}
+                        onChange={(event) => setForm({ ...form, email: event.target.value })}
+                      />
+                    </label>
+                    <label className="field">
+                      <span>Como nos encontrou</span>
+                      <select
+                        value={form.origem}
+                        onChange={(event) => setForm({ ...form, origem: event.target.value })}
+                      >
+                        <option value="instagram">Instagram</option>
+                        <option value="google">Google</option>
+                        <option value="indicacao">Indicacao</option>
+                        <option value="whatsapp">WhatsApp</option>
+                      </select>
+                    </label>
+                  </div>
+                </section>
+              ) : null}
+
+              {submitError ? <p className="error-banner">{submitError}</p> : null}
+
+              <div className="step-actions">
+                {currentStep > 1 ? (
+                  <button className="secondary-button" onClick={handlePreviousStep} type="button">
+                    Voltar
+                  </button>
+                ) : (
+                  <div aria-hidden="true" className="step-actions-spacer" />
+                )}
+
+                {currentStep < 4 ? (
+                  <button className="primary-button" onClick={handleNextStep} type="button">
+                    Avancar
+                  </button>
+                ) : (
+                  <button
+                    className="primary-button"
+                    disabled={
+                      isSubmitting ||
+                      !selectedService ||
+                      !selectedProfessional ||
+                      !selectedSlot ||
+                      isSyncingPayment
+                    }
+                    type="submit"
+                  >
+                    {isSubmitting
+                      ? requiresPayment
+                        ? "Abrindo checkout..."
+                        : "Confirmando..."
+                      : requiresPayment
+                        ? getCheckoutCallToAction(selectedService)
+                        : "Confirmar horario"}
+                  </button>
+                )}
               </div>
-            </div>
-
-            <div className="service-list">
-              {initialCatalog.services.map((service) => (
-                <button
-                  className={service.id === selectedServiceId ? "service-card is-active" : "service-card"}
-                  key={service.id}
-                  onClick={() => setSelectedServiceId(service.id)}
-                  type="button"
-                >
-                  <strong>{service.nome}</strong>
-                  <span>{service.duracaoMin} min</span>
-                  <span>{formatCurrency(service.precoBase)}</span>
-                  {service.exigeSinal ? <small>Requer sinal</small> : <small>Reserva imediata</small>}
-                </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {currentStep === 2 ? (
-          <section className="section-card step-card">
-            <div className="section-heading">
-              <span>02</span>
-              <div>
-                <h2>Escolha quem atende</h2>
-                <p>Mostramos apenas profissionais compativeis com o servico selecionado.</p>
+            </>
+          }
+          masterClassName="booking-master-host"
+          masterDescription="A coluna principal preserva a jornada guiada e os contratos publicos ja existentes."
+          masterTitle={`Passo ${currentStepDefinition.id} - ${currentStepDefinition.label}`}
+          detail={
+            <div className="booking-summary-stack">
+              <div className="booking-summary-status">
+                <ViewBadge tone={isStepComplete(currentStep, selectedService, selectedProfessional, selectedSlot, form) ? "success" : "warning"}>
+                  {isStepComplete(currentStep, selectedService, selectedProfessional, selectedSlot, form)
+                    ? "Etapa pronta"
+                    : "Etapa em aberto"}
+                </ViewBadge>
               </div>
+              <DocumentHeader fields={bookingSummaryFields} />
+              <DocumentSummaryCards metrics={bookingSummaryMetrics} />
+              <EntitySection
+                title="Leitura imediata"
+                description="O resumo operacional acompanha a etapa atual e evita espalhar informacao em telas separadas."
+              >
+                <div className="inline-summary">
+                  <div>
+                    <p className="eyebrow">resumo</p>
+                    <h3>{selectedService?.nome ?? "Escolha um servico"}</h3>
+                    <p>{buildSummaryScheduleLabel(selectedProfessional?.nome, selectedSlot)}</p>
+                    <p className="summary-meta">
+                      {selectedService
+                        ? `${selectedService.duracaoMin} min - ${formatCurrency(selectedService.precoBase)}`
+                        : "Selecione um servico para ver o resumo."}
+                    </p>
+                  </div>
+
+                  {requiresPayment ? (
+                    <p className="summary-note">
+                      Este servico exige pagamento online antes da confirmacao final da reserva.
+                    </p>
+                  ) : (
+                    <p className="summary-note">
+                      Servicos sem sinal obrigatorio sao confirmados imediatamente no fluxo online.
+                    </p>
+                  )}
+                </div>
+              </EntitySection>
+              <DocumentImpactPanel title="Orientacao da etapa" sections={bookingImpactSections} />
             </div>
-
-            <div className="professional-list">
-              {professionals.map((professional) => (
-                <button
-                  className={
-                    professional.id === selectedProfessionalId
-                      ? "professional-card is-active"
-                      : "professional-card"
-                  }
-                  key={professional.id}
-                  onClick={() => setSelectedProfessionalId(professional.id)}
-                  type="button"
-                >
-                  <strong>{professional.nome}</strong>
-                  <span>{professional.especialidades.length} especialidades ativas</span>
-                </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {currentStep === 3 ? (
-          <section className="section-card step-card">
-            <div className="section-heading">
-              <span>03</span>
-              <div>
-                <h2>Escolha o horario</h2>
-                <p>Atualizamos a disponibilidade em tempo real para o profissional selecionado.</p>
-              </div>
-            </div>
-
-            <label className="field">
-              <span>Data</span>
-              <input
-                min={initialDate}
-                type="date"
-                value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
-              />
-            </label>
-
-            {loadingSlots ? <p className="helper">Carregando horarios...</p> : null}
-            {slotError ? <p className="error-banner">{slotError}</p> : null}
-            {!loadingSlots && !slotError && slots.length === 0 ? (
-              <p className="empty-state">
-                Nenhum horario disponivel para esta combinacao. Tente outra data ou outro profissional.
-              </p>
-            ) : null}
-
-            <div className="slot-grid">
-              {slots.map((slot) => (
-                <button
-                  className={slot.startAt === selectedSlotStartAt ? "slot-button is-active" : "slot-button"}
-                  key={slot.startAt}
-                  onClick={() => setSelectedSlotStartAt(slot.startAt)}
-                  type="button"
-                >
-                  {slot.startTime}
-                </button>
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {currentStep === 4 ? (
-          <section className="section-card step-card">
-            <div className="section-heading">
-              <span>04</span>
-              <div>
-                <h2>Dados para confirmacao</h2>
-                <p>Preencha o minimo necessario para fechar sua reserva.</p>
-              </div>
-            </div>
-
-            <div className="field-grid">
-              <label className="field">
-                <span>Nome</span>
-                <input
-                  required
-                  autoComplete="name"
-                  type="text"
-                  value={form.nome}
-                  onChange={(event) => setForm({ ...form, nome: event.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Telefone</span>
-                <input
-                  required
-                  autoComplete="tel"
-                  inputMode="tel"
-                  type="tel"
-                  value={form.telefone}
-                  onChange={(event) => setForm({ ...form, telefone: event.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>E-mail</span>
-                <input
-                  required
-                  autoComplete="email"
-                  inputMode="email"
-                  type="email"
-                  value={form.email}
-                  onChange={(event) => setForm({ ...form, email: event.target.value })}
-                />
-              </label>
-              <label className="field">
-                <span>Como nos encontrou</span>
-                <select
-                  value={form.origem}
-                  onChange={(event) => setForm({ ...form, origem: event.target.value })}
-                >
-                  <option value="instagram">Instagram</option>
-                  <option value="google">Google</option>
-                  <option value="indicacao">Indicacao</option>
-                  <option value="whatsapp">WhatsApp</option>
-                </select>
-              </label>
-            </div>
-
-            <aside className="inline-summary">
-              <div>
-                <p className="eyebrow">resumo</p>
-                <h3>{selectedService?.nome ?? "Escolha um servico"}</h3>
-                <p>{buildSummaryScheduleLabel(selectedProfessional?.nome, selectedSlot)}</p>
-                <p className="summary-meta">
-                  {selectedService
-                    ? `${selectedService.duracaoMin} min - ${formatCurrency(selectedService.precoBase)}`
-                    : "Selecione um servico para ver o resumo."}
-                </p>
-              </div>
-
-              {requiresPayment ? (
-                <p className="summary-note">
-                  Este servico exige pagamento online antes da confirmacao final da reserva.
-                </p>
-              ) : (
-                <p className="summary-note">
-                  Servicos sem sinal obrigatorio sao confirmados imediatamente no fluxo online.
-                </p>
-              )}
-            </aside>
-          </section>
-        ) : null}
-
-        {submitError ? <p className="error-banner">{submitError}</p> : null}
-
-        <div className="step-actions">
-          {currentStep > 1 ? (
-            <button className="secondary-button" onClick={handlePreviousStep} type="button">
-              Voltar
-            </button>
-          ) : (
-            <div aria-hidden="true" className="step-actions-spacer" />
-          )}
-
-          {currentStep < 4 ? (
-            <button className="primary-button" onClick={handleNextStep} type="button">
-              Avancar
-            </button>
-          ) : (
-            <button
-              className="primary-button"
-              disabled={
-                isSubmitting ||
-                !selectedService ||
-                !selectedProfessional ||
-                !selectedSlot ||
-                isSyncingPayment
-              }
-              type="submit"
-            >
-              {isSubmitting
-                ? requiresPayment
-                  ? "Abrindo checkout..."
-                  : "Confirmando..."
-                : requiresPayment
-                  ? getCheckoutCallToAction(selectedService)
-                  : "Confirmar horario"}
-            </button>
-          )}
-        </div>
+          }
+          subtitle="Entity-free master-detail: a etapa segue no fluxo principal enquanto o resumo fica consolidado ao lado."
+          title="Jornada guiada de agendamento"
+        />
       </form>
     </main>
   );
@@ -917,6 +1267,9 @@ function buildTenantThemeStyle(
 
   const rgb = hexToRgbTriplet(accentColor);
   return {
+    ["--ag-color-brand-primary" as const]: accentColor,
+    ["--ag-color-brand-primary-rgb" as const]: rgb,
+    ["--ag-color-status-info" as const]: accentColor,
     ["--tenant-accent" as const]: accentColor,
     ["--tenant-accent-strong" as const]: accentColor,
     ["--tenant-accent-soft" as const]: `rgba(${rgb}, 0.12)`,
@@ -966,6 +1319,22 @@ function describePaymentStatus(status: string, serviceName?: string): string {
   }
 
   return `Estamos aguardando a confirmacao do pagamento de ${serviceName ?? "sua reserva"}.`;
+}
+
+function formatPaymentStatusLabel(status: string): string {
+  if (isApprovedPaymentStatus(status)) {
+    return "Aprovado";
+  }
+
+  if (isFailedPaymentStatus(status)) {
+    return "Nao concluido";
+  }
+
+  return "Pendente";
+}
+
+function shortDocumentId(value: string): string {
+  return value.slice(-8).toUpperCase();
 }
 
 function persistCheckoutContext(paymentIntentId: string, context: StoredCheckoutContext): void {

@@ -68,18 +68,53 @@ button {
 }
 
 .booking-shell {
-  width: min(100%, 720px);
+  width: min(100%, 1120px);
   margin: 0 auto;
+  display: grid;
+  gap: 20px;
+}
+
+.booking-document-shell {
+  width: min(100%, 1120px);
+  margin: 0 auto;
+}
+
+.booking-master-detail-layout {
+  width: 100%;
+}
+
+.booking-master-host {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.booking-master-host > .ag-view-panel-header {
+  margin-bottom: 14px;
+}
+
+.booking-summary-panel {
+  align-self: start;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.booking-summary-stack {
   display: grid;
   gap: 16px;
 }
 
+.booking-summary-status {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .progress-strip {
-  width: min(100%, 720px);
+  width: min(100%, 1120px);
   margin: 0 auto 16px;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .progress-pill {
@@ -509,5 +544,10 @@ h3 {
   .confirmation-actions .secondary-button {
     width: 100%;
     min-width: 0;
+  }
+
+  .booking-summary-panel {
+    position: sticky;
+    top: 24px;
   }
 }

@@ -75,6 +75,20 @@ import {
   updateTenantBranding,
   updateTenantSlug
 } from "./lib/admin-api";
+import {
+  DocumentHeader,
+  DocumentImpactPanel,
+  DocumentSummaryCards,
+  DocumentTabs,
+  DocumentTimeline,
+  DocumentViewLayout,
+  EntityAsideSummary,
+  EntityIdentityCard,
+  EntitySection,
+  EntityViewLayout,
+  MasterDetailLayout,
+  ViewBadge
+} from "@agendaai/ui";
 
 type AuthMode = "login" | "onboarding";
 type AdminRoute =
@@ -2240,103 +2254,214 @@ export function App() {
       : professionalForm.especialidades
           .map((serviceId) => services.find((service) => service.id === serviceId)?.nome)
           .filter((value): value is string => Boolean(value));
+    const availabilitySummary = selectedProfessionalId ?
+      resolveAvailabilitySummary(weeklyAvailabilityByProfessional[selectedProfessionalId] ?? [])
+    : "Sem horarios configurados";
+    const formId = "professional-profile-form";
+    const linkedServicesLabel = linkedServiceNames.length ?
+      linkedServiceNames.join(" | ")
+    : "Sem especialidades vinculadas ainda.";
+    const linkedServicesPreview = linkedServiceNames.length ?
+      linkedServiceNames.slice(0, 2).join(" | ")
+    : "Sem especialidades ainda";
 
     return (
-      <article className="dashboard-surface professional-workspace-surface" id="professionals-workspace">
-        <div className="dashboard-surface-header">
-          <div>
-            <p className="eyebrow">Equipe</p>
-            <h3>{isCreatingProfessional ? "Novo profissional" : selectedProfessional?.nome ?? "Editar profissional"}</h3>
-            <p>
-              {isCreatingProfessional ?
-                "Cadastre o profissional e vincule os servicos que ele pode atender."
-              : "Ajuste nome, status e servicos vinculados sem sair da rota de equipe."}
-            </p>
-          </div>
-          {selectedProfessional && !isCreatingProfessional ? (
-            <span className={`status-pill is-${resolveProfessionalStatusTone(selectedProfessional.status)}`}>
+      <EntityViewLayout
+        className="professional-entity-view"
+        eyebrow="Equipe"
+        title={isCreatingProfessional ? "Novo profissional" : selectedProfessional?.nome ?? "Editar profissional"}
+        subtitle={
+          isCreatingProfessional ?
+            "Cadastre o profissional e vincule os servicos que ele pode atender."
+          : "Entity view do profissional com identidade, servicos vinculados e atalhos para agenda e disponibilidade."
+        }
+        statusBadge={
+          selectedProfessional && !isCreatingProfessional ? (
+            <ViewBadge tone={resolveProfessionalStatusTone(selectedProfessional.status) as "success" | "warning" | "neutral"}>
               {formatProfessionalStatus(selectedProfessional.status)}
-            </span>
+            </ViewBadge>
           ) : (
-            <span className="helper-chip">Novo cadastro</span>
-          )}
-        </div>
+            <ViewBadge tone="info">Novo cadastro</ViewBadge>
+          )
+        }
+        pageActions={
+          !isCreatingProfessional && selectedProfessionalId ? (
+            <div className="button-row">
+              <button
+                className="secondary-button"
+                onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                type="button"
+              >
+                Ver agenda
+              </button>
+              <button
+                className="secondary-button"
+                onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
+                type="button"
+              >
+                Horarios
+              </button>
+            </div>
+          ) : undefined
+        }
+        identityCard={
+          <EntityIdentityCard
+            title="Identidade operacional"
+            description="Bloco base da entidade profissional conectado aos contratos reais do admin."
+            fields={[
+              {
+                id: "professional-name",
+                label: "Nome",
+                value: professionalForm.nome || selectedProfessional?.nome || "Novo profissional"
+              },
+              {
+                id: "professional-status",
+                label: "Status",
+                value: selectedProfessional && !isCreatingProfessional ?
+                    formatProfessionalStatus(selectedProfessional.status)
+                  : "Ativo ao criar"
+              },
+              {
+                id: "professional-services",
+                label: "Servicos",
+                value: `${linkedServiceNames.length} vinculado(s)`
+              },
+              {
+                id: "professional-availability",
+                label: "Disponibilidade",
+                value: availabilitySummary
+              }
+            ]}
+          />
+        }
+        sections={
+          <form className="professional-editor-form" id={formId} onSubmit={handleSaveProfessional}>
+            <EntitySection
+              title="Cadastro base"
+              description="Nome e status da entidade sem sair da tela de equipe."
+            >
+              <div className="professional-editor-grid">
+                <label className="field">
+                  <span>Nome</span>
+                  <input
+                    required
+                    type="text"
+                    value={professionalForm.nome}
+                    onChange={(event) =>
+                      setProfessionalForm({ ...professionalForm, nome: event.target.value })
+                    }
+                  />
+                </label>
 
-        <form className="professional-editor-form" onSubmit={handleSaveProfessional}>
-          <div className="professional-editor-grid">
-            <label className="field">
-              <span>Nome</span>
-              <input
-                required
-                type="text"
-                value={professionalForm.nome}
-                onChange={(event) =>
-                  setProfessionalForm({ ...professionalForm, nome: event.target.value })
-                }
-              />
-            </label>
-
-            {isCreatingProfessional ? (
-              <div className="professional-editor-note">
-                <strong>Status inicial</strong>
-                <p>Novos profissionais entram como ativos e podem ter o status ajustado depois.</p>
+                {isCreatingProfessional ? (
+                  <div className="professional-editor-note">
+                    <strong>Status inicial</strong>
+                    <p>Novos profissionais entram como ativos e podem ter o status ajustado depois.</p>
+                  </div>
+                ) : (
+                  <label className="field">
+                    <span>Status</span>
+                    <input
+                      required
+                      type="text"
+                      value={professionalForm.status}
+                      onChange={(event) =>
+                        setProfessionalForm({ ...professionalForm, status: event.target.value })
+                      }
+                    />
+                  </label>
+                )}
               </div>
-            ) : (
-              <label className="field">
-                <span>Status</span>
-                <input
-                  required
-                  type="text"
-                  value={professionalForm.status}
-                  onChange={(event) =>
-                    setProfessionalForm({ ...professionalForm, status: event.target.value })
-                  }
-                />
-              </label>
-            )}
+            </EntitySection>
 
-            <fieldset className="professional-services-fieldset">
-              <legend>Servicos vinculados</legend>
-              {services.length ? (
-                <div className="professional-services-grid">
-                  {services.map((service) => (
-                    <label className="professional-service-option" key={service.id}>
-                      <input
-                        checked={professionalForm.especialidades.includes(service.id)}
-                        type="checkbox"
-                        onChange={() =>
-                          setProfessionalForm({
-                            ...professionalForm,
-                            especialidades: toggleArrayValue(
-                              professionalForm.especialidades,
-                              service.id
-                            )
-                          })
-                        }
-                      />
-                      <div>
-                        <strong>{service.nome}</strong>
-                        <span>
-                          {formatMinutesAsHours(service.duracaoMin)} • {formatCurrency(service.precoBase)}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
-              )}
-            </fieldset>
-          </div>
-
+            <EntitySection
+              title="Servicos vinculados"
+              description="Vincule apenas os servicos que este profissional realmente pode atender."
+            >
+              <fieldset className="professional-services-fieldset">
+                <legend>Servicos vinculados</legend>
+                {services.length ? (
+                  <div className="professional-services-grid">
+                    {services.map((service) => (
+                      <label className="professional-service-option" key={service.id}>
+                        <input
+                          checked={professionalForm.especialidades.includes(service.id)}
+                          type="checkbox"
+                          onChange={() =>
+                            setProfessionalForm({
+                              ...professionalForm,
+                              especialidades: toggleArrayValue(
+                                professionalForm.especialidades,
+                                service.id
+                              )
+                            })
+                          }
+                        />
+                        <div>
+                          <strong>{service.nome}</strong>
+                          <span>
+                            {formatMinutesAsHours(service.duracaoMin)} | {formatCurrency(service.precoBase)}
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
+                )}
+              </fieldset>
+            </EntitySection>
+          </form>
+        }
+        aside={
+          <EntityAsideSummary
+            title="Resumo lateral"
+            description="Atalhos e leitura lateral do profissional dentro da equipe."
+            items={[
+              {
+                id: "professional-aside-services",
+                label: "Especialidades ativas",
+                value: `${linkedServiceNames.length}`,
+                description: linkedServicesLabel,
+                active: true
+              },
+              {
+                id: "professional-aside-availability",
+                label: "Disponibilidade semanal",
+                value: availabilitySummary,
+                description: "A janela semanal alimenta slots publicos e agenda interna.",
+                action: !isCreatingProfessional && selectedProfessionalId ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
+                    type="button"
+                  >
+                    Editar horarios
+                  </button>
+                ) : undefined
+              },
+              {
+                id: "professional-aside-agenda",
+                label: "Agenda filtrada",
+                description: "Abre a agenda administrativa ja filtrada para este profissional.",
+                action: !isCreatingProfessional && selectedProfessionalId ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                    type="button"
+                  >
+                    Ver agenda
+                  </button>
+                ) : undefined
+              }
+            ]}
+          />
+        }
+        footerActions={
           <div className="professional-editor-footer">
             <div className="professional-editor-summary">
               <span>{linkedServiceNames.length} servico(s) vinculado(s)</span>
-              <span>
-                {linkedServiceNames.length ?
-                  linkedServiceNames.slice(0, 2).join(" • ")
-                : "Sem especialidades ainda"}
-              </span>
+              <span>{linkedServicesPreview}</span>
             </div>
             <div className="button-row">
               {!isCreatingProfessional && selectedProfessionalId ? (
@@ -2348,86 +2473,179 @@ export function App() {
                   Horarios
                 </button>
               ) : null}
-              <button className="primary-button" disabled={isBusy} type="submit">
+              <button className="primary-button" disabled={isBusy} form={formId} type="submit">
                 {isCreatingProfessional ? "Criar profissional" : "Salvar profissional"}
               </button>
             </div>
           </div>
-        </form>
-      </article>
+        }
+      />
     );
+
   }
 
   function renderProfessionalAvailabilityWorkspace(): JSX.Element {
     const selectedProfessional = professionals.find((professional) => professional.id === selectedProfessionalId);
+    const availabilitySummary = resolveAvailabilitySummary(weeklyAvailabilityByProfessional[selectedProfessionalId] ?? []);
+    const linkedServiceNames = selectedProfessional ?
+      resolveProfessionalServiceNames(selectedProfessional, services)
+    : [];
+    const formId = "professional-availability-form";
+    const linkedServicesLabel = linkedServiceNames.length ?
+      linkedServiceNames.join(" | ")
+    : "Sem servicos vinculados";
 
     return (
-      <article className="dashboard-surface professional-workspace-surface" id="professionals-workspace">
-        <div className="dashboard-surface-header">
-          <div>
-            <p className="eyebrow">Disponibilidade</p>
-            <h3>{selectedProfessional ? `Horarios de ${selectedProfessional.nome}` : "Agenda semanal"}</h3>
-            <p>Configure a janela semanal que alimenta slots, booking publico e agenda interna.</p>
+      <EntityViewLayout
+        className="professional-entity-view"
+        eyebrow="Disponibilidade"
+        title={selectedProfessional ? `Horarios de ${selectedProfessional.nome}` : "Agenda semanal"}
+        subtitle="Configure a janela semanal que alimenta slots, booking publico e agenda interna."
+        statusBadge={<ViewBadge tone="info">{availabilitySummary}</ViewBadge>}
+        pageActions={
+          <div className="button-row">
+            <button
+              className="secondary-button"
+              onClick={() => setProfessionalWorkspaceMode("profile")}
+              type="button"
+            >
+              Voltar ao cadastro
+            </button>
+            {selectedProfessionalId ? (
+              <button
+                className="secondary-button"
+                onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                type="button"
+              >
+                Ver agenda
+              </button>
+            ) : null}
           </div>
-          <span className="helper-chip">
-            {resolveAvailabilitySummary(weeklyAvailabilityByProfessional[selectedProfessionalId] ?? [])}
-          </span>
-        </div>
+        }
+        identityCard={
+          <EntityIdentityCard
+            title="Identidade da disponibilidade"
+            description="Leitura base da entidade antes de editar a disponibilidade semanal."
+            fields={[
+              {
+                id: "availability-professional-name",
+                label: "Profissional",
+                value: selectedProfessional?.nome ?? "Nao selecionado"
+              },
+              {
+                id: "availability-professional-status",
+                label: "Status",
+                value: selectedProfessional ? formatProfessionalStatus(selectedProfessional.status) : "Nao definido"
+              },
+              {
+                id: "availability-services",
+                label: "Servicos",
+                value: linkedServicesLabel
+              },
+              {
+                id: "availability-summary",
+                label: "Janela atual",
+                value: availabilitySummary
+              }
+            ]}
+          />
+        }
+        sections={
+          <form className="professional-availability-form" id={formId} onSubmit={handleSaveAvailability}>
+            <EntitySection
+              title="Janela semanal"
+              description="Cada linha altera a disponibilidade semanal persistida para o profissional selecionado."
+            >
+              <div className="professional-availability-grid">
+                {availabilityDays.map((day) => (
+                  <div className="professional-availability-row" key={day.weekday}>
+                    <label className="professional-availability-day">
+                      <input
+                        checked={day.enabled}
+                        type="checkbox"
+                        onChange={(event) =>
+                          setAvailabilityDays((current) =>
+                            current.map((item) =>
+                              item.weekday === day.weekday
+                                ? { ...item, enabled: event.target.checked }
+                                : item
+                            )
+                          )
+                        }
+                      />
+                      <span>{weekdayLabels[day.weekday]}</span>
+                    </label>
 
-        <form className="professional-availability-form" onSubmit={handleSaveAvailability}>
-          <div className="professional-availability-grid">
-            {availabilityDays.map((day) => (
-              <div className="professional-availability-row" key={day.weekday}>
-                <label className="professional-availability-day">
-                  <input
-                    checked={day.enabled}
-                    type="checkbox"
-                    onChange={(event) =>
-                      setAvailabilityDays((current) =>
-                        current.map((item) =>
-                          item.weekday === day.weekday
-                            ? { ...item, enabled: event.target.checked }
-                            : item
+                    <input
+                      disabled={!day.enabled}
+                      type="time"
+                      value={day.startTime}
+                      onChange={(event) =>
+                        setAvailabilityDays((current) =>
+                          current.map((item) =>
+                            item.weekday === day.weekday
+                              ? { ...item, startTime: event.target.value }
+                              : item
+                          )
                         )
-                      )
-                    }
-                  />
-                  <span>{weekdayLabels[day.weekday]}</span>
-                </label>
+                      }
+                    />
 
-                <input
-                  disabled={!day.enabled}
-                  type="time"
-                  value={day.startTime}
-                  onChange={(event) =>
-                    setAvailabilityDays((current) =>
-                      current.map((item) =>
-                        item.weekday === day.weekday
-                          ? { ...item, startTime: event.target.value }
-                          : item
-                      )
-                    )
-                  }
-                />
-
-                <input
-                  disabled={!day.enabled}
-                  type="time"
-                  value={day.endTime}
-                  onChange={(event) =>
-                    setAvailabilityDays((current) =>
-                      current.map((item) =>
-                        item.weekday === day.weekday
-                          ? { ...item, endTime: event.target.value }
-                          : item
-                      )
-                    )
-                  }
-                />
+                    <input
+                      disabled={!day.enabled}
+                      type="time"
+                      value={day.endTime}
+                      onChange={(event) =>
+                        setAvailabilityDays((current) =>
+                          current.map((item) =>
+                            item.weekday === day.weekday
+                              ? { ...item, endTime: event.target.value }
+                              : item
+                          )
+                        )
+                      }
+                    />
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-
+            </EntitySection>
+          </form>
+        }
+        aside={
+          <EntityAsideSummary
+            title="Resumo lateral"
+            description="Contexto rapido da agenda derivada desta janela semanal."
+            items={[
+              {
+                id: "availability-aside-summary",
+                label: "Resumo semanal",
+                value: availabilitySummary,
+                description: "Esse resumo e recalculado a partir das regras reais persistidas.",
+                active: true
+              },
+              {
+                id: "availability-aside-limitations",
+                label: "Limites do corte",
+                description: "Calendario de excecoes por data e bloqueios pontuais continuam fora desta fase."
+              },
+              {
+                id: "availability-aside-agenda",
+                label: "Agenda do profissional",
+                description: "Use a agenda filtrada para validar o impacto operacional das regras atuais.",
+                action: selectedProfessionalId ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                    type="button"
+                  >
+                    Abrir agenda
+                  </button>
+                ) : undefined
+              }
+            ]}
+          />
+        }
+        footerActions={
           <div className="professional-editor-footer">
             <div className="professional-editor-summary">
               <span>Base semanal real do profissional selecionado</span>
@@ -2444,15 +2662,17 @@ export function App() {
               <button
                 className="primary-button"
                 disabled={isBusy || !selectedProfessionalId}
+                form={formId}
                 type="submit"
               >
                 Salvar horarios
               </button>
             </div>
           </div>
-        </form>
-      </article>
+        }
+      />
     );
+
   }
 
   function renderProfessionalsPanel(): JSX.Element {
@@ -2580,7 +2800,7 @@ export function App() {
               Hoje
             </button>
             <button className="secondary-button" onClick={() => handleAgendaDateShift(1)} type="button">
-              Amanhã
+              Amanha
             </button>
           </div>
         </section>
@@ -2705,7 +2925,7 @@ export function App() {
                         <div className="operational-row-heading">
                           <strong>{resolveClientName(booking.clientId, clients)}</strong>
                           <span>
-                            {service?.nome ?? "Servico"} • Prof: <b>{professional?.nome ?? "Profissional"}</b>
+                            {service?.nome ?? "Servico"}  |  Prof: <b>{professional?.nome ?? "Profissional"}</b>
                           </span>
                         </div>
                         <div className="operational-row-statuses">
@@ -2958,7 +3178,7 @@ export function App() {
                   <article className="dashboard-feed-item" key={entry.booking.id}>
                     <div className="dashboard-feed-main">
                       <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
-                      <span>{entry.client?.nome ?? "Cliente"} • {entry.professional?.nome ?? "Profissional"}</span>
+                      <span>{entry.client?.nome ?? "Cliente"}  |  {entry.professional?.nome ?? "Profissional"}</span>
                     </div>
                     <div className="dashboard-feed-meta">
                       <span>{formatCurrency(entry.recognizedAmount)}</span>
@@ -3417,7 +3637,7 @@ export function App() {
               </div>
               <div className="list-card">
                 <strong>Reagendamento visual (nao funcional)</strong>
-                <p>A API atual aceita mutacao de booking, mas o shell ainda nao expõe UX de mover horario em calendario.</p>
+                <p>A API atual aceita mutacao de booking, mas o shell ainda nao expoe UX de mover horario em calendario.</p>
               </div>
               <div className="list-card">
                 <strong>Capacidade e horas ociosas (nao funcional)</strong>
@@ -3752,12 +3972,402 @@ export function App() {
     );
   }
 
-  function renderAgendaViewV2(): JSX.Element {
+  function renderAgendaDayMasterDetail(): JSX.Element {
     const selectedService = services.find((item) => item.id === selectedAgendaBooking?.serviceId);
     const selectedProfessional = professionals.find(
       (item) => item.id === selectedAgendaBooking?.professionalId
     );
     const selectedClient = clients.find((item) => item.id === selectedAgendaBooking?.clientId);
+
+    return (
+      <MasterDetailLayout
+        className="agenda-master-detail"
+        eyebrow="Operacao diaria"
+        title="Timeline e detalhe da booking"
+        subtitle="Selecione um item da agenda para abrir o detalhe documental e reagendar por slot real."
+        masterTitle="Atendimentos do dia"
+        masterDescription={`Recorte de ${formatAgendaDayLabel(agendaDate)} com leitura operacional em tempo real.`}
+        master={
+          filteredDayAgendaBookings.length ? (
+            <div className="records-column">
+              {filteredDayAgendaBookings.map((booking) => {
+                const service = services.find((item) => item.id === booking.serviceId);
+                const professional = professionals.find((item) => item.id === booking.professionalId);
+                const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+
+                return (
+                  <button
+                    className={
+                      booking.id === selectedAgendaBooking?.id ?
+                        "entity-card timeline-card is-active"
+                      : "entity-card timeline-card"
+                    }
+                    key={booking.id}
+                    onClick={() => handleAgendaBookingSelection(booking)}
+                    type="button"
+                  >
+                    <div className="timeline-card-header">
+                      <strong className="timeline-card-time">
+                        {formatTimeRange(booking.startAt, booking.endAt)}
+                      </strong>
+                      <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                        {formatBookingStatus(booking.status)}
+                      </span>
+                    </div>
+                    <div className="record-stack">
+                      <strong>{service?.nome ?? "Servico"}</strong>
+                      <span>{resolveClientName(booking.clientId, clients)}</span>
+                    </div>
+                    <div className="record-meta">
+                      <span>{professional?.nome ?? "Profissional nao encontrado"}</span>
+                      {paymentIntent ? (
+                        <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
+                          Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="empty-state">
+              Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)} neste recorte.
+            </p>
+          )
+        }
+        detailTitle={selectedAgendaBooking ? "Document view da booking" : "Nenhuma booking selecionada"}
+        detailDescription={
+          selectedAgendaBooking ?
+            "Leitura documental da booking com status, pagamento vinculado e reagendamento por slot real."
+          : "Selecione uma booking do dia para abrir o detalhe e reagendar."
+        }
+        detail={
+          selectedAgendaBooking ? (
+            <DocumentViewLayout
+              className="agenda-booking-document"
+              eyebrow="Booking selecionada"
+              title={selectedService?.nome ?? "Servico nao encontrado"}
+              subtitle={`${selectedClient?.nome ?? "Cliente"} com ${selectedProfessional?.nome ?? "profissional nao encontrado"}`}
+              documentNumber={selectedAgendaBooking.id.slice(-8).toUpperCase()}
+              statusBadge={
+                <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
+                  {formatBookingStatus(selectedAgendaBooking.status)}
+                </ViewBadge>
+              }
+              header={
+                <DocumentHeader
+                  fields={[
+                    {
+                      id: "schedule",
+                      label: "Horario",
+                      value: formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)
+                    },
+                    {
+                      id: "date",
+                      label: "Data",
+                      value: formatAgendaDayLabel(extractDatePart(selectedAgendaBooking.startAt))
+                    },
+                    {
+                      id: "client",
+                      label: "Cliente",
+                      value: selectedClient?.nome ?? "Cliente nao encontrado"
+                    },
+                    {
+                      id: "professional",
+                      label: "Profissional",
+                      value: selectedProfessional?.nome ?? "Profissional nao encontrado"
+                    }
+                  ]}
+                />
+              }
+              summary={
+                <DocumentSummaryCards
+                  metrics={[
+                    {
+                      id: "service-value",
+                      label: "Valor bruto",
+                      value: selectedService ? formatCurrency(selectedService.precoBase) : "--",
+                      helper: "Preco base derivado do catalogo ativo.",
+                      tone: "success"
+                    },
+                    {
+                      id: "service-duration",
+                      label: "Duracao",
+                      value: selectedService ? formatMinutesAsHours(selectedService.duracaoMin) : "--",
+                      helper: "Tempo previsto para a agenda."
+                    },
+                    {
+                      id: "payment-status",
+                      label: "Pagamento",
+                      value: selectedAgendaPaymentIntent ?
+                        formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
+                      : "Sem payment intent",
+                      helper: selectedAgendaPaymentIntent?.paymentId ?
+                        `MP ${selectedAgendaPaymentIntent.paymentId}`
+                      : "Nao existe pagamento vinculado para esta booking.",
+                      tone: selectedAgendaPaymentIntent ?
+                        (resolvePaymentIntentTone(selectedAgendaPaymentIntent.status) as "info" | "success" | "warning" | "danger")
+                      : undefined
+                    },
+                    {
+                      id: "client-phone",
+                      label: "Contato",
+                      value: selectedClient?.telefone || "Sem telefone",
+                      helper: selectedClient?.email ?? "Sem e-mail visivel"
+                    }
+                  ]}
+                />
+              }
+              tabs={
+                <DocumentTabs
+                  tabs={[
+                    { id: "schedule", label: "Agenda", active: true },
+                    { id: "payment", label: "Pagamento" },
+                    { id: "gaps", label: "Lacunas" }
+                  ]}
+                />
+              }
+              items={
+                <>
+                  <EntitySection
+                    title="Reagendar"
+                    description="Escolha uma nova data e selecione um slot real da agenda do profissional."
+                  >
+                    <div className="records-column">
+                      <div className="field">
+                        <label htmlFor="reschedule-date">Nova data</label>
+                        <input
+                          id="reschedule-date"
+                          onChange={(event) => setRescheduleDate(event.target.value)}
+                          type="date"
+                          value={rescheduleDate}
+                        />
+                      </div>
+
+                      {isLoadingAgendaSlots ? (
+                        <p className="helper">Carregando slots disponiveis...</p>
+                      ) : agendaSlots.length ? (
+                        <div className="slot-grid">
+                          {agendaSlots.map((slot) => (
+                            <button
+                              className={
+                                slot.startAt === selectedAgendaSlotStartAt ?
+                                  "secondary-button is-active"
+                                : "secondary-button"
+                              }
+                              key={slot.startAt}
+                              onClick={() => setSelectedAgendaSlotStartAt(slot.startAt)}
+                              type="button"
+                            >
+                              {slot.startTime}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="helper">Nenhum slot disponivel para esta data.</p>
+                      )}
+
+                      <div className="button-row">
+                        <button
+                          className="primary-button"
+                          disabled={
+                            isBusy ||
+                            isLoadingAgendaSlots ||
+                            !selectedAgendaSlotStartAt ||
+                            selectedAgendaSlotStartAt === selectedAgendaBooking.startAt
+                          }
+                          onClick={() => void handleRescheduleBooking()}
+                          type="button"
+                        >
+                          Salvar novo horario
+                        </button>
+                      </div>
+                    </div>
+                  </EntitySection>
+
+                  <EntitySection
+                    title="Contexto atual"
+                    description="Leitura operacional minima da booking selecionada."
+                  >
+                    <div className="record-meta">
+                      <span className={`status-pill is-${resolveBookingStatusTone(selectedAgendaBooking.status)}`}>
+                        {formatBookingStatus(selectedAgendaBooking.status)}
+                      </span>
+                      <span className="status-pill is-neutral">
+                        {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}
+                      </span>
+                      {selectedAgendaPaymentIntent ? (
+                        <span className={`status-pill is-${resolvePaymentIntentTone(selectedAgendaPaymentIntent.status)}`}>
+                          Pagamento {formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)}
+                        </span>
+                      ) : null}
+                    </div>
+                  </EntitySection>
+                </>
+              }
+              timeline={
+                <DocumentTimeline
+                  title="Linha operacional"
+                  entries={[
+                    {
+                      id: "timeline-booking",
+                      title: "Horario reservado",
+                      description: `${formatAgendaDayLabel(extractDatePart(selectedAgendaBooking.startAt))}  |  ${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}`
+                    },
+                    {
+                      id: "timeline-status",
+                      title: "Status atual",
+                      description: formatBookingStatus(selectedAgendaBooking.status)
+                    },
+                    {
+                      id: "timeline-payment",
+                      title: "Pagamento vinculado",
+                      description: selectedAgendaPaymentIntent ?
+                        formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
+                      : "Sem payment intent nesta booking."
+                    }
+                  ]}
+                />
+              }
+              impactPanel={
+                <DocumentImpactPanel
+                  sections={[
+                    {
+                      id: "agenda-impact",
+                      title: "Impacto operacional",
+                      tone: "success",
+                      items: [
+                        "O reagendamento usa slots reais da disponibilidade do profissional.",
+                        "A agenda administrativa continua refletindo o status atual da booking."
+                      ]
+                    },
+                    {
+                      id: "agenda-gap",
+                      title: "Lacunas desta tela",
+                      tone: "warning",
+                      items: [
+                        "Drag-and-drop, bloqueios por excecao e alertas preditivos continuam sem contrato dedicado.",
+                        "Nao existe timeline persistida de eventos da booking neste corte."
+                      ]
+                    }
+                  ]}
+                />
+              }
+            />
+          ) : undefined
+        }
+        emptyDetail={<p className="empty-state">Selecione uma booking do dia para abrir o detalhe e reagendar.</p>}
+      />
+    );
+  }
+
+  function renderAgendaViewV2(): JSX.Element {
+
+    if (isAgendaDayMode(agendaViewMode)) {
+      return (
+        <section className="view-stack">
+          <article className="panel">
+            <div className="panel-header">
+              <div>
+                <p className="eyebrow">Agenda / calendario</p>
+                <h2>Agenda diaria, semanal e mensal</h2>
+              </div>
+              <span className="status-pill is-warning">Parcial</span>
+            </div>
+
+            <p className="helper">
+              O shell agora opera a linha do dia com selecao de booking e reagendamento por slot real, alem de uma grade semanal de capacidade por profissional e uma visao mensal navegavel. Drag-and-drop continua fora do corte.
+            </p>
+
+            <div className="timeline-toolbar">
+              <div className="button-row">
+                <button
+                  className={agendaViewMode === "day" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setAgendaViewMode("day")}
+                  type="button"
+                >
+                  Dia
+                </button>
+                <button
+                  className={agendaViewMode === "week" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setAgendaViewMode("week")}
+                  type="button"
+                >
+                  Semana
+                </button>
+                <button
+                  className={agendaViewMode === "month" ? "secondary-button is-active" : "secondary-button"}
+                  onClick={() => setAgendaViewMode("month")}
+                  type="button"
+                >
+                  Mes
+                </button>
+              </div>
+
+              <div className="button-row">
+                <button
+                  className="secondary-button"
+                  onClick={() => handleAgendaDateShift(-1)}
+                  type="button"
+                >
+                  Dia anterior
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
+                  type="button"
+                >
+                  Hoje
+                </button>
+                <button
+                  className="secondary-button"
+                  onClick={() => handleAgendaDateShift(1)}
+                  type="button"
+                >
+                  Proximo dia
+                </button>
+              </div>
+
+              <div className="field timeline-date-field">
+                <label htmlFor="agenda-date">Data da agenda</label>
+                <input
+                  id="agenda-date"
+                  onChange={(event) => setAgendaDate(event.target.value)}
+                  type="date"
+                  value={agendaDate}
+                />
+              </div>
+
+              <div className="field timeline-date-field">
+                <label htmlFor="agenda-professional-filter">Profissional</label>
+                <select
+                  id="agenda-professional-filter"
+                  onChange={(event) => setAgendaProfessionalFilter(event.target.value)}
+                  value={agendaProfessionalFilter}
+                >
+                  <option value="all">Todos os profissionais</option>
+                  {professionals.map((professional) => (
+                    <option key={professional.id} value={professional.id}>
+                      {professional.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="record-meta">
+              <span className="status-pill is-neutral">{formatAgendaDayLabel(agendaDate)}</span>
+              <span className="status-pill is-info">{agendaDaySummary.total} booking(s) no dia</span>
+              <span className="status-pill is-info">Em aberto {agendaDaySummary.open}</span>
+              <span className="status-pill is-success">Confirmadas {agendaDaySummary.confirmed}</span>
+            </div>
+          </article>
+
+          {renderAgendaDayMasterDetail()}
+        </section>
+      );
+    }
 
     return (
       <section className="view-stack">
@@ -3805,33 +4415,21 @@ export function App() {
                 onClick={() => handleAgendaDateShift(-1)}
                 type="button"
               >
-                {agendaViewMode === "week"
-                  ? "Semana anterior"
-                  : agendaViewMode === "month"
-                    ? "Mes anterior"
-                    : "Dia anterior"}
+                {agendaViewMode === "week" ? "Semana anterior" : "Mes anterior"}
               </button>
               <button
                 className="secondary-button"
                 onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
                 type="button"
               >
-                {agendaViewMode === "week"
-                  ? "Esta semana"
-                  : agendaViewMode === "month"
-                    ? "Este mes"
-                    : "Hoje"}
+                {agendaViewMode === "week" ? "Esta semana" : "Este mes"}
               </button>
               <button
                 className="secondary-button"
                 onClick={() => handleAgendaDateShift(1)}
                 type="button"
               >
-                {agendaViewMode === "week"
-                  ? "Proxima semana"
-                  : agendaViewMode === "month"
-                    ? "Proximo mes"
-                    : "Proximo dia"}
+                {agendaViewMode === "week" ? "Proxima semana" : "Proximo mes"}
               </button>
             </div>
 
@@ -3862,14 +4460,7 @@ export function App() {
             </div>
           </div>
 
-          {agendaViewMode === "day" ? (
-            <div className="record-meta">
-              <span className="status-pill is-neutral">{formatAgendaDayLabel(agendaDate)}</span>
-              <span className="status-pill is-info">{agendaDaySummary.total} booking(s) no dia</span>
-              <span className="status-pill is-info">Em aberto {agendaDaySummary.open}</span>
-              <span className="status-pill is-success">Confirmadas {agendaDaySummary.confirmed}</span>
-            </div>
-          ) : agendaViewMode === "week" ? (
+          {agendaViewMode === "week" ? (
             <div className="record-meta">
               <span className="status-pill is-neutral">{formatAgendaWeekLabel(agendaWeekDates)}</span>
               <span className="status-pill is-info">
@@ -3892,163 +4483,7 @@ export function App() {
           )}
         </article>
 
-        {agendaViewMode === "day" ? (
-          <section className="agenda-board">
-          <article className="panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Timeline</p>
-                <h3>Atendimentos do dia</h3>
-              </div>
-            </div>
-
-            {filteredDayAgendaBookings.length ? (
-              <div className="records-column">
-                {filteredDayAgendaBookings.map((booking) => {
-                  const service = services.find((item) => item.id === booking.serviceId);
-                  const professional = professionals.find((item) => item.id === booking.professionalId);
-                  const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-
-                  return (
-                    <button
-                      className={
-                        booking.id === selectedAgendaBooking?.id ?
-                          "entity-card timeline-card is-active"
-                        : "entity-card timeline-card"
-                      }
-                      key={booking.id}
-                      onClick={() => handleAgendaBookingSelection(booking)}
-                      type="button"
-                    >
-                      <div className="timeline-card-header">
-                        <strong className="timeline-card-time">
-                          {formatTimeRange(booking.startAt, booking.endAt)}
-                        </strong>
-                        <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
-                          {formatBookingStatus(booking.status)}
-                        </span>
-                      </div>
-                      <div className="record-stack">
-                        <strong>{service?.nome ?? "Servico"}</strong>
-                        <span>{resolveClientName(booking.clientId, clients)}</span>
-                      </div>
-                      <div className="record-meta">
-                        <span>{professional?.nome ?? "Profissional nao encontrado"}</span>
-                        {paymentIntent ? (
-                          <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
-                            Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
-                          </span>
-                        ) : null}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="empty-state">Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)} neste recorte.</p>
-            )}
-          </article>
-
-          <aside className="panel aside-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Booking selecionada</p>
-                <h3>Detalhe e reagendamento</h3>
-              </div>
-            </div>
-
-            {selectedAgendaBooking ? (
-              <div className="records-column">
-                <div className="list-card">
-                  <strong>{selectedService?.nome ?? "Servico nao encontrado"}</strong>
-                  <p>
-                    {selectedClient?.nome ?? "Cliente"} com {selectedProfessional?.nome ?? "profissional nao encontrado"}
-                  </p>
-                  <div className="record-meta">
-                    <span className={`status-pill is-${resolveBookingStatusTone(selectedAgendaBooking.status)}`}>
-                      {formatBookingStatus(selectedAgendaBooking.status)}
-                    </span>
-                    <span className="status-pill is-neutral">
-                      {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}
-                    </span>
-                  </div>
-                  {selectedAgendaPaymentIntent ? (
-                    <div className="record-meta">
-                      <span className={`status-pill is-${resolvePaymentIntentTone(selectedAgendaPaymentIntent.status)}`}>
-                        Pagamento {formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)}
-                      </span>
-                      {selectedAgendaPaymentIntent.paymentId ? (
-                        <span className="status-pill is-neutral">MP {selectedAgendaPaymentIntent.paymentId}</span>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="list-card">
-                  <strong>Reagendar</strong>
-                  <p>Escolha uma nova data e selecione um slot real da agenda do profissional.</p>
-
-                  <div className="field">
-                    <label htmlFor="reschedule-date">Nova data</label>
-                    <input
-                      id="reschedule-date"
-                      onChange={(event) => setRescheduleDate(event.target.value)}
-                      type="date"
-                      value={rescheduleDate}
-                    />
-                  </div>
-
-                  {isLoadingAgendaSlots ? (
-                    <p className="helper">Carregando slots disponiveis...</p>
-                  ) : agendaSlots.length ? (
-                    <div className="slot-grid">
-                      {agendaSlots.map((slot) => (
-                        <button
-                          className={
-                            slot.startAt === selectedAgendaSlotStartAt ?
-                              "secondary-button is-active"
-                            : "secondary-button"
-                          }
-                          key={slot.startAt}
-                          onClick={() => setSelectedAgendaSlotStartAt(slot.startAt)}
-                          type="button"
-                        >
-                          {slot.startTime}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="helper">Nenhum slot disponivel para esta data.</p>
-                  )}
-
-                  <div className="button-row">
-                    <button
-                      className="primary-button"
-                      disabled={
-                        isBusy ||
-                        isLoadingAgendaSlots ||
-                        !selectedAgendaSlotStartAt ||
-                        selectedAgendaSlotStartAt === selectedAgendaBooking.startAt
-                      }
-                      onClick={() => void handleRescheduleBooking()}
-                      type="button"
-                    >
-                      Salvar novo horario
-                    </button>
-                  </div>
-                </div>
-
-                <div className="list-card">
-                  <strong>Lacunas desta tela</strong>
-                  <p>Drag-and-drop, bloqueios por excecao e alertas preditivos continuam sem contrato dedicado.</p>
-                </div>
-              </div>
-            ) : (
-              <p className="empty-state">Selecione uma booking do dia para abrir o detalhe e reagendar.</p>
-            )}
-          </aside>
-          </section>
-        ) : agendaViewMode === "week" ? (
+        {agendaViewMode === "week" ? (
           renderAgendaWeekView()
         ) : (
           renderAgendaMonthView()
@@ -4179,7 +4614,7 @@ export function App() {
                 <strong>{selectedClientInsight?.client.nome ?? "Selecione um cliente"}</strong>
                 <p>
                   {selectedClientInsight ?
-                    `${selectedClientInsight.client.email} • ${selectedClientInsight.client.telefone || "Sem telefone"}`
+                    `${selectedClientInsight.client.email}  |  ${selectedClientInsight.client.telefone || "Sem telefone"}`
                   : "Clique em um cliente da carteira para abrir o detalhe operacional."}
                 </p>
               </div>
@@ -4234,7 +4669,7 @@ export function App() {
         <div className="list-card">
           <strong>Contexto atual</strong>
           <p>
-            Origem {selectedClientInsight.client.origem} • ultimo movimento{" "}
+            Origem {selectedClientInsight.client.origem}  |  ultimo movimento{" "}
             {selectedClientInsight.lastBooking
               ? formatDateTime(selectedClientInsight.lastBooking.startAt)
               : "sem booking"}
@@ -5746,6 +6181,10 @@ function extractDatePart(value: string): string {
   return value.slice(0, 10);
 }
 
+function isAgendaDayMode(mode: AgendaViewMode): boolean {
+  return mode === "day";
+}
+
 function formatDateInputValue(value: Date): string {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, "0");
@@ -6013,10 +6452,10 @@ function resolveProfessionalSummaryLine(serviceNames: readonly string[]): string
   }
 
   if (serviceNames.length <= 2) {
-    return serviceNames.join(" • ");
+    return serviceNames.join("  |  ");
   }
 
-  return `${serviceNames.slice(0, 2).join(" • ")} +${serviceNames.length - 2}`;
+  return `${serviceNames.slice(0, 2).join("  |  ")} +${serviceNames.length - 2}`;
 }
 
 function resolveProfessionalStatusTone(status: string): string {
@@ -6030,7 +6469,7 @@ function resolveProfessionalStatusTone(status: string): string {
     normalized === "inactive" ||
     normalized === "inativo" ||
     normalized.includes("ferias") ||
-    normalized.includes("férias")
+    normalized.includes("ferias")
   ) {
     return "warning";
   }
@@ -6053,7 +6492,7 @@ function formatProfessionalStatus(status: string): string {
   if (normalized === "inativo") {
     return "Inativo";
   }
-  if (normalized.includes("ferias") || normalized.includes("férias")) {
+  if (normalized.includes("ferias") || normalized.includes("ferias")) {
     return "Ferias";
   }
 

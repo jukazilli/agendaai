@@ -55,3 +55,20 @@
  ✓ Compiled in 400ms (896 modules)
  ✓ Compiled in 340ms (910 modules)
  ✓ Compiled in 477ms (896 modules)
+ ✓ Compiled in 2.8s (896 modules)
+ ✓ Compiled in 595ms (913 modules)
+ ✓ Compiled in 442ms (899 modules)
+ ✓ Compiled in 465ms (899 modules)
+ ✓ Compiled in 352ms (899 modules)
+ ✓ Compiled in 379ms (915 modules)
+ ✓ Compiled in 650ms (901 modules)
+ ✓ Compiled in 2.4s (915 modules)
+ ✓ Compiled in 519ms (915 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 11.4s (574 modules)
+ GET /demo-studio-20260317 500 in 2378ms
+ GET /demo-studio-20260317 500 in 333ms
+ GET /favicon.ico 500 in 165ms
+ GET /demo-studio-20260317 500 in 635ms
+ GET /demo-studio-20260317 500 in 285ms
+ GET /favicon.ico 500 in 64ms

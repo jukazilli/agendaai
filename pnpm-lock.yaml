@@ -57,6 +57,9 @@ importers:
       '@agendaai/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@agendaai/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
       next:
         specifier: ^15.2.0
         version: 15.5.13(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -94,7 +97,21 @@ importers:
 
   packages/domain: {}
 
-  packages/ui: {}
+  packages/ui:
+    dependencies:
+      react:
+        specifier: ^19.0.0
+        version: 19.2.4
+      react-dom:
+        specifier: ^19.0.0
+        version: 19.2.4(react@19.2.4)
+    devDependencies:
+      '@types/react':
+        specifier: ^19.0.10
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: ^19.0.4
+        version: 19.2.3(@types/react@19.2.14)
 
   services/api-rest:
     dependencies:
