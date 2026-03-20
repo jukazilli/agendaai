@@ -28,6 +28,7 @@ No chrome global do shell:
 - alertas, contexto e atalhos globais podem viver em disclosure ou sheet, sem competir com o conteudo principal da rota;
 - o topo nao deve repetir desnecessariamente o mesmo contexto que ja aparece no corpo da tela.
 - rotas autenticadas que ja usam `entity view`, `document view` ou `master-detail` nao devem receber um segundo hero legado do shell acima do conteudo.
+- estados vazios, blocos de contexto e frentes em evolucao devem usar linguagem de produto e apoio secundario, nunca competir com o detalhe principal da entidade.
 
 ## 4. Inventario canonico de telas
 
@@ -101,6 +102,7 @@ No chrome global do shell:
 
 - deve nascer como leitura derivada do booking real;
 - detalhe denso pode evoluir depois sem bloquear a listagem inicial.
+- o detalhe deve priorizar historico, receita e relacionamento, deixando evolucoes do CRM em paineis secundarios e sem microcopy tecnicista.
 
 ### Configuracoes
 

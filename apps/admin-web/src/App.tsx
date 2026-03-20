@@ -2091,13 +2091,13 @@ export function App() {
             </div>
 
             <div className="record-meta client-record-emphasis">
-              <span>Leitura derivada de booking real</span>
+              <span>Base formada pela agenda</span>
               {entry.lastCashEntry ? (
                 <span>
                   Ultimo movimento financeiro {formatDateTime(entry.lastCashEntry.occurredAt)}
                 </span>
               ) : (
-                <span>Nenhum movimento financeiro persistido</span>
+                <span>Nenhum movimento financeiro visivel</span>
               )}
             </div>
           </button>
@@ -3866,7 +3866,7 @@ export function App() {
                         <div className="record-card-header">
                           <div className="record-stack">
                             <strong>{entry.nome}</strong>
-                            <span>{entry.email || "Sem e-mail visivel"}</span>
+                            <span>{entry.email || "Sem e-mail cadastrado"}</span>
                           </div>
                           <span className="status-pill is-warning">
                             {formatClientSegment("inactive", activeClientRecurrence.window)}
@@ -4752,7 +4752,7 @@ export function App() {
                 id: "client-phone",
                 label: "Contato",
                 value: selectedClient?.telefone || "Sem telefone",
-                helper: selectedClient?.email ?? "Sem e-mail visivel"
+                helper: selectedClient?.email ?? "Sem e-mail cadastrado"
               }
             ]}
           />
@@ -5229,7 +5229,7 @@ export function App() {
         subtitle={
           isCreatingService ?
             "Cadastre um novo servico e defina a politica comercial antes de publica-lo na jornada do cliente."
-          : "Entity view do servico com identidade, cobranca e meios aceitos ligados ao runtime real."
+          : "Resumo do servico com cobranca e meios de pagamento configurados para o booking."
         }
         statusBadge={
           isCreatingService ? (
@@ -5324,48 +5324,48 @@ export function App() {
         aside={
           <div className="catalog-aside-stack">
             <EntityAsideSummary
-              title="Escopo funcional desta rota"
-              description="O que o runtime atual realmente permite manter aqui."
+              title="O que voce controla aqui"
+              description="Oferta publicada e regras comerciais dos servicos."
               items={[
                 {
                   id: "catalog-services",
-                  label: "Servicos e preco",
-                  description: "Ja ligados ao runtime com status, duracao, preco e politica de pagamento.",
+                  label: "Servicos e precificacao",
+                  description: "Nome, duracao, status e preco base de cada servico.",
                   active: true
                 },
                 {
                   id: "catalog-policies",
-                  label: "Politica de cobranca",
-                  description: "Sinal, checkout e meios aceitos fazem parte do payload real do servico.",
+                  label: "Cobranca antecipada",
+                  description: "Sinal, checkout e meios aceitos por servico.",
                   active: true
                 },
                 {
                   id: "catalog-publication",
-                  label: "Publicacao implicita",
-                  description: "A publicacao acontece pela slug e pelos servicos ativos vinculados a profissionais.",
+                  label: "Publicacao do booking",
+                  description: "Servicos ativos e profissionais vinculados definem o que pode ser reservado.",
                   active: true
                 }
               ]}
             />
 
             <EntityAsideSummary
-              title="Fora do corte atual"
-              description="Itens sugeridos pela referencia, mas sem entidade ou contrato proprio no AgendaAI de hoje."
+              title="Em evolucao"
+              description="Frentes comerciais que ainda nao aparecem como entidade propria no catalogo."
               items={[
                 {
                   id: "catalog-products",
                   label: "Produtos, kits e combos",
-                  description: "Ainda nao existem contratos dedicados para essas entidades."
+                  description: "Ainda nao ha uma operacao separada para venda de itens fisicos ou pacotes."
                 },
                 {
                   id: "catalog-addons",
                   label: "Add-ons e bundles",
-                  description: "O catalogo atual opera apenas servicos unitarios."
+                  description: "Hoje o catalogo trabalha com servicos unitarios, sem combinacoes prontas."
                 },
                 {
                   id: "catalog-publication-flow",
-                  label: "Fluxo editorial de publicacao",
-                  description: "Ainda nao existe workflow separado de rascunho, publicacao e revisao."
+                  label: "Fluxo editorial",
+                  description: "Rascunho, revisao e publicacao separada ainda nao fazem parte desta tela."
                 }
               ]}
             />
@@ -5836,7 +5836,7 @@ export function App() {
                           <div className="record-card-header">
                             <div className="record-stack">
                               <strong>{entry.nome}</strong>
-                              <span>{entry.email || "Sem e-mail visivel"}</span>
+                              <span>{entry.email || "Sem e-mail cadastrado"}</span>
                             </div>
                             <span className="status-pill is-warning">
                               {formatClientSegment("inactive", activeClientRecurrence.window)}
@@ -6109,7 +6109,7 @@ export function App() {
         className="clients-master-detail"
         eyebrow="Clientes e CRM"
         title="Carteira e retorno da base real"
-        subtitle="Lista derivada do booking publico, com leitura operacional do cliente sem misturar cohort, mensagens e automacoes fora do corte."
+        subtitle="Carteira formada pelos agendamentos, com leitura de retorno, historico e receita para a operacao."
         toolbar={
           <div className="clients-toolbar">
             <label className="dashboard-select">
@@ -6161,7 +6161,7 @@ export function App() {
         master={
           <>
             <div className="record-meta">
-              <span className="helper-chip">Leitura derivada de booking</span>
+              <span className="helper-chip">Base formada por agendamentos</span>
               <span className="status-pill is-neutral">
                 {clientInsights.length} cliente(s) na base total
               </span>
@@ -6196,7 +6196,7 @@ export function App() {
                   value: formatCurrency(
                     clientInsights.reduce((total, entry) => total + entry.recognizedRevenue, 0)
                   ),
-                  helper: "Soma da receita persistida minima por cliente.",
+                  helper: "Soma da receita registrada por cliente.",
                   tone: "info"
                 }
               ]}
@@ -6210,7 +6210,7 @@ export function App() {
         detailTitle={selectedClientInsight ? selectedClientInsight.client.nome : "Nenhum cliente selecionado"}
         detailDescription={
           selectedClientInsight ?
-            `${formatClientSegment(resolveClientSegment(selectedClientInsight, clientReturnWindow), clientReturnWindow)} com historico essencial, receita persistida minima e lacunas explicitas do CRM atual.`
+            `${formatClientSegment(resolveClientSegment(selectedClientInsight, clientReturnWindow), clientReturnWindow)} com historico recente, receita registrada e contexto de relacionamento para a operacao.`
           : "Selecione um cliente da carteira para abrir o detalhe operacional."
         }
         detail={selectedClientInsight ? renderSelectedClientDetail() : undefined}
@@ -6309,7 +6309,7 @@ export function App() {
           tabs={[
             { id: "history", label: "Historico", active: true },
             { id: "finance", label: "Financeiro" },
-            { id: "gaps", label: "Lacunas" }
+            { id: "gaps", label: "Relacionamento" }
           ]}
         />
 
@@ -6335,13 +6335,13 @@ export function App() {
               ))}
             </div>
           ) : (
-            <p className="helper">Nenhuma booking encontrada para este cliente.</p>
+            <p className="helper">Este cliente ainda nao possui agendamentos visiveis neste recorte.</p>
           )}
         </EntitySection>
 
         <EntitySection
-          title="Movimentos financeiros persistidos"
-          description="Persistencia minima de receita reconhecida e reflexos online ja vinculados ao cliente."
+          title="Movimentos financeiros"
+          description="Recebimentos e registros financeiros ja associados a este cliente."
         >
           {selectedClientCashEntries.length ? (
             <div className="records-column detail-list">
@@ -6362,7 +6362,7 @@ export function App() {
               ))}
             </div>
           ) : (
-            <p className="helper">Nenhum movimento persistido ainda para este cliente.</p>
+            <p className="helper">Ainda nao ha movimentos financeiros visiveis para este cliente.</p>
           )}
         </EntitySection>
 
@@ -6402,21 +6402,21 @@ export function App() {
           sections={[
             {
               id: "crm-supported",
-              title: "Leituras suportadas hoje",
+              title: "Disponivel hoje",
               tone: "success",
               items: [
-                "Carteira derivada da jornada publica real.",
+                "Carteira formada a partir da jornada real de bookings.",
                 `Janela ativa de retorno: ${resolveClientReturnWindowLabel(clientReturnWindow)}.`,
-                "Receita persistida minima e historico recente de bookings no mesmo detalhe."
+                "Historico recente de agenda e receita no mesmo detalhe."
               ]
             },
             {
               id: "crm-gaps",
-              title: "Fora do corte atual",
+              title: "Em evolucao",
               tone: "warning",
               items: [
-                "Ainda nao existe integracao de WhatsApp, score de risco ou cohort dedicado.",
-                "O shell nao possui playbook automatico de reativacao nem timeline persistida de interacoes."
+                "Automacoes de reativacao e alertas de risco ainda nao aparecem nesta carteira.",
+                "Interacoes por WhatsApp e timeline completa de contato ainda ficam fora desta tela."
               ]
             }
           ]}
@@ -6499,7 +6499,7 @@ export function App() {
 
             <EntitySection
               title="Ambiente administrativo"
-              description="Parametros de operacao e publicacao expostos no runtime atual."
+              description="Dados operacionais e de publicacao disponiveis hoje para o tenant."
               actions={<ViewBadge tone="info">Suporte operacional</ViewBadge>}
             >
               <div className="dashboard-mini-grid">
@@ -6526,55 +6526,55 @@ export function App() {
         aside={
           <div className="settings-aside-stack">
             <EntityAsideSummary
-              title="Taxonomia desta area"
-              description="O que esta organizado aqui hoje e tem manutencao continua no runtime."
+              title="Nesta area"
+              description="Dados permanentes do tenant e configuracao da operacao publicada."
               items={[
                 {
                   id: "settings-profile",
-                  label: "Publicacao e slug",
-                  description: "Nome, slug e URL publica do tenant.",
+                  label: "Identidade publica",
+                  description: "Nome do negocio, slug e URL publica do booking.",
                   active: true
                 },
                 {
                   id: "settings-branding",
                   label: "Branding minimo",
-                  description: "Mensagem curta da marca e cor de destaque.",
+                  description: "Mensagem curta da marca e cor de destaque do tenant.",
                   active: true
                 },
                 {
                   id: "settings-payments",
                   label: "Pagamentos",
-                  description: "Mercado Pago, callbacks e modo de checkout.",
+                  description: "Mercado Pago, callbacks e modo de checkout publicado.",
                   value: paymentForm.status,
                   active: true
                 },
                 {
                   id: "settings-runtime",
-                  label: "Ambiente administrativo",
-                  description: "API base, timezone e publicacao do tenant.",
+                  label: "Ambiente do tenant",
+                  description: "API base, timezone e estado atual de publicacao.",
                   active: true
                 }
               ]}
             />
 
             <EntityAsideSummary
-              title="Fora do corte atual"
-              description="Itens sugeridos pela referencia visual, mas ainda sem lastro completo no runtime."
+              title="Em evolucao"
+              description="Temas administrativos que ainda nao viraram uma area dedicada."
               items={[
                 {
                   id: "settings-subscription",
-                  label: "Assinatura AgendaAI",
-                  description: "Billing do proprio SaaS ainda nao existe no projeto."
+                  label: "Assinatura do SaaS",
+                  description: "Cobranca da propria plataforma ainda nao fica disponivel aqui."
                 },
                 {
                   id: "settings-webhooks",
-                  label: "Webhooks e observabilidade avancada",
-                  description: "Hoje o owner edita URLs e credenciais, mas ainda nao existe painel de eventos nem health check."
+                  label: "Eventos e observabilidade",
+                  description: "URLs e credenciais existem, mas ainda nao ha painel de eventos ou health check."
                 },
                 {
                   id: "settings-profile-wide",
-                  label: "Perfil amplo do negocio",
-                  description: "O runtime atual ainda nao possui um update amplo de tenant alem de slug e branding minimo."
+                  label: "Perfil ampliado do negocio",
+                  description: "Campos mais amplos do tenant ainda nao ficam centralizados nesta tela."
                 }
               ]}
             />
@@ -6870,7 +6870,7 @@ export function App() {
               <>
                 <div className="admin-sidebar-profile-copy">
                   <strong>{sidebarProfileName}</strong>
-                  <span>{sidebarProfileEmail || "Sem e-mail visivel"}</span>
+                  <span>{sidebarProfileEmail || "Sem e-mail cadastrado"}</span>
                 </div>
                 {publicBookingUrl ? (
                   <a
