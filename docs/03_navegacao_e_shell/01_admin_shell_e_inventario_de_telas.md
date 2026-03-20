@@ -27,6 +27,7 @@ No chrome global do shell:
 - busca rapida deve abrir uma rota real ligada a clientes ou carteira;
 - alertas, contexto e atalhos globais podem viver em disclosure ou sheet, sem competir com o conteudo principal da rota;
 - o topo nao deve repetir desnecessariamente o mesmo contexto que ja aparece no corpo da tela.
+- rotas autenticadas que ja usam `entity view`, `document view` ou `master-detail` nao devem receber um segundo hero legado do shell acima do conteudo.
 
 ## 4. Inventario canonico de telas
 

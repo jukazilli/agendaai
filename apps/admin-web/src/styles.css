@@ -836,7 +836,6 @@ a {
 .admin-topbar,
 .admin-topbar-main,
 .admin-topbar-actions,
-.admin-page-hero,
 .dashboard-surface-header,
 .dashboard-progress-copy,
 .dashboard-feed-item,
@@ -848,7 +847,6 @@ a {
 
 .admin-sidebar-brand,
 .admin-topbar,
-.admin-page-hero,
 .dashboard-surface-header,
 .dashboard-progress-copy,
 .dashboard-feed-item {
@@ -898,7 +896,6 @@ a {
 .dashboard-feed,
 .dashboard-feed-main,
 .admin-topbar-title,
-.admin-page-hero-copy,
 .settings-content-stack {
   display: flex;
   flex-direction: column;
@@ -1132,8 +1129,7 @@ a {
 }
 
 .admin-topbar-main,
-.admin-topbar-actions,
-.admin-page-hero {
+.admin-topbar-actions {
   gap: 14px;
 }
 
@@ -1512,37 +1508,6 @@ a {
 
 .dashboard-action-card.is-muted {
   cursor: default;
-}
-
-.admin-page-hero {
-  width: 100%;
-  min-width: 0;
-  gap: 24px;
-  padding: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 30px;
-  background:
-    radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 32%),
-    rgba(255, 255, 255, 0.88);
-  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.08);
-}
-
-.admin-page-hero-copy {
-  gap: 8px;
-  min-width: 0;
-}
-
-.admin-page-hero-copy .description {
-  margin: 0;
-  max-width: 860px;
-}
-
-.admin-page-hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
 }
 
 .dashboard-view-v2 {
@@ -2631,23 +2596,13 @@ a {
     display: inline-flex;
   }
 
-  .admin-page-hero,
   .admin-stage-content {
     padding-left: 18px;
     padding-right: 18px;
   }
 
-  .admin-page-hero {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
   .professionals-card-grid {
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  }
-
-  .admin-page-hero-actions {
-    justify-content: flex-start;
   }
 
 .dashboard-document-actions,
@@ -2684,7 +2639,6 @@ a {
     padding: 16px 14px 24px;
   }
 
-  .admin-page-hero,
   .dashboard-surface,
   .dashboard-metric-card,
   .operational-record-card,
@@ -2768,10 +2722,6 @@ a {
 
   .admin-topbar-search-copy small {
     display: none;
-  }
-
-  .admin-page-hero h1 {
-    font-size: clamp(1.8rem, 10vw, 2.8rem);
   }
 
   .dashboard-metric-grid,

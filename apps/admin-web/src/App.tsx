@@ -4081,6 +4081,12 @@ export function App() {
             <button className="secondary-button" onClick={() => navigateTo("configuracoes")} type="button">
               Abrir configuracoes
             </button>
+            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+              Atualizar painel
+            </button>
+            <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
+              Sair
+            </button>
           </div>
         </aside>
       </>
@@ -6603,12 +6609,6 @@ export function App() {
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
   const showTopbarEyebrow = currentRoute !== "profissionais" && currentRoute !== "dashboard";
-  const showPageHero =
-    currentRoute !== "profissionais" &&
-    currentRoute !== "dashboard" &&
-    currentRoute !== "operacional" &&
-    currentRoute !== "agenda" &&
-    currentRoute !== "relatorios";
 
   if (!sessionToken) {
     return (
@@ -6946,24 +6946,6 @@ export function App() {
         </header>
 
         <section className={currentRoute === "profissionais" ? "admin-stage-content is-professionals-route" : "admin-stage-content"}>
-          {showPageHero ? (
-            <section className="admin-page-hero">
-              <div className="admin-page-hero-copy">
-                <p className="eyebrow">{currentRouteDefinition.eyebrow}</p>
-                <h1>{currentRouteDefinition.title}</h1>
-                <p className="description">{currentRouteDefinition.description}</p>
-              </div>
-              <div className="admin-page-hero-actions">
-                <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
-                  Atualizar
-                </button>
-                <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
-                  Sair
-                </button>
-              </div>
-            </section>
-          ) : null}
-
           <section className="admin-content">
           {feedback ? <div className={`feedback-banner is-${feedback.tone}`}>{feedback.message}</div> : null}
           {bootError ? <div className="feedback-banner is-error">{bootError}</div> : null}
