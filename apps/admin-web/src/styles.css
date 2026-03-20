@@ -995,10 +995,6 @@ a {
 .dashboard-progress-copy,
 .dashboard-feed-item,
 .dashboard-action-card,
-.operational-row-main,
-.operational-row-heading,
-.operational-row-statuses,
-.operational-row-side,
 .settings-nav-item {
   display: flex;
   align-items: center;
@@ -1009,8 +1005,7 @@ a {
 .admin-page-hero,
 .dashboard-surface-header,
 .dashboard-progress-copy,
-.dashboard-feed-item,
-.operational-row-side {
+.dashboard-feed-item {
   justify-content: space-between;
 }
 
@@ -1263,9 +1258,7 @@ a {
 
 .admin-topbar-main,
 .admin-topbar-actions,
-.admin-page-hero,
-.operational-row-heading,
-.operational-row-statuses {
+.admin-page-hero {
   gap: 14px;
 }
 
@@ -1607,8 +1600,7 @@ a {
   gap: 12px;
 }
 
-.dashboard-view-v2,
-.operational-view-v2 {
+.dashboard-view-v2 {
   gap: 24px;
 }
 
@@ -1618,6 +1610,10 @@ a {
 }
 
 .dashboard-document-view .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.operational-document-view .ag-view-panel {
   background: rgba(255, 255, 255, 0.94);
 }
 
@@ -1632,13 +1628,15 @@ a {
   gap: 16px;
 }
 
-.dashboard-tabbar {
+.dashboard-tabbar,
+.operational-tabbar {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-.dashboard-tab-button {
+.dashboard-tab-button,
+.operational-tab-button {
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -1656,11 +1654,20 @@ a {
     box-shadow 160ms ease;
 }
 
-.dashboard-tab-button span {
+.dashboard-tab-button span,
+.operational-tab-button span {
   font-weight: 600;
 }
 
-.dashboard-tab-button.is-active {
+.operational-tab-button small {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: inherit;
+  opacity: 0.72;
+}
+
+.dashboard-tab-button.is-active,
+.operational-tab-button.is-active {
   border-color: rgba(79, 70, 229, 0.18);
   background: rgba(238, 242, 255, 0.92);
   color: #4338ca;
@@ -1674,7 +1681,19 @@ a {
   gap: 12px;
 }
 
+.operational-document-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .dashboard-document-actions .dashboard-select {
+  min-width: 220px;
+}
+
+.operational-document-actions .dashboard-select {
   min-width: 220px;
 }
 
@@ -1699,18 +1718,6 @@ a {
   gap: 16px;
 }
 
-.dashboard-toolbar {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-
-.dashboard-toolbar h2 {
-  margin-bottom: 8px;
-}
-
 .dashboard-select {
   min-width: 220px;
   display: grid;
@@ -1733,8 +1740,7 @@ a {
   background: rgba(255, 255, 255, 0.88);
 }
 
-.dashboard-metric-grid,
-.operational-metric-grid {
+.dashboard-metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
@@ -1765,9 +1771,7 @@ a {
 .dashboard-mini-card span,
 .dashboard-action-card span,
 .dashboard-surface-header p,
-.dashboard-tip-card p,
-.operational-row-heading span,
-.operational-row-price span {
+.dashboard-tip-card p {
   margin: 0;
   color: var(--ag-color-text-muted);
   line-height: 1.6;
@@ -2039,83 +2043,58 @@ a {
 }
 
 .operational-day-switch,
-.operational-legend,
-.operational-row-actions,
 .settings-nav-card {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
 
-.operational-list-surface {
+.operational-section-stack {
   gap: 18px;
 }
 
-.operational-list {
-  display: grid;
-  gap: 14px;
-}
-
-.operational-row {
-  display: grid;
-  gap: 16px;
-  padding: 18px 20px;
+.operational-record-card {
   border: 1px solid rgba(148, 163, 184, 0.14);
-  border-radius: 22px;
   background: rgba(255, 255, 255, 0.94);
-  transition:
-    transform 160ms ease,
-    box-shadow 160ms ease,
-    background 160ms ease;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.05);
 }
 
-.operational-row:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(15, 23, 42, 0.06);
-}
-
-.operational-row.is-muted {
+.operational-record-card.is-muted {
   opacity: 0.72;
 }
 
-.operational-row.is-danger {
-  background: rgba(255, 241, 242, 0.9);
+.operational-record-card.is-danger {
+  border-color: rgba(244, 63, 94, 0.16);
+  background: rgba(255, 241, 242, 0.94);
 }
 
-.operational-row-main,
-.operational-row-side {
-  gap: 16px;
-}
-
-.operational-row-time {
-  min-width: 76px;
-  font-family: var(--ag-font-display);
-  font-size: 1.35rem;
-  font-weight: 600;
-  letter-spacing: -0.04em;
-  color: var(--ag-color-text-primary);
-}
-
-.operational-row-copy {
-  display: grid;
+.operational-record-heading,
+.operational-record-badges,
+.operational-record-actions {
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
+}
+
+.operational-record-heading {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.operational-record-copy {
   min-width: 0;
 }
 
-.operational-row-heading {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+.operational-record-badges {
+  justify-content: flex-end;
 }
 
-.operational-row-price {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  text-align: right;
+.operational-record-meta {
+  justify-content: space-between;
 }
 
-.operational-row-actions {
+.operational-record-actions {
   justify-content: flex-end;
 }
 
@@ -2593,22 +2572,13 @@ a {
     justify-content: flex-start;
   }
 
-  .operational-row-side {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .operational-row-price {
-    text-align: left;
-  }
-
-  .operational-row-actions {
-    justify-content: flex-start;
-  }
-
   .dashboard-document-actions,
+  .operational-document-actions,
   .clients-toolbar {
     justify-content: flex-start;
+  }
+
+  .dashboard-document-actions {
     grid-auto-flow: row;
   }
 
@@ -2633,7 +2603,7 @@ a {
   .admin-page-hero,
   .dashboard-surface,
   .dashboard-metric-card,
-  .operational-row,
+  .operational-record-card,
   .settings-nav-card,
   .professional-card,
   .professional-empty-state {
@@ -2657,6 +2627,7 @@ a {
   }
 
   .dashboard-document-actions .dashboard-select,
+  .operational-document-actions .dashboard-select,
   .clients-toolbar .dashboard-select {
     min-width: 0;
     width: 100%;
@@ -2706,9 +2677,7 @@ a {
   }
 
   .dashboard-metric-grid,
-  .operational-metric-grid,
   .dashboard-mini-grid,
-  .operational-row-main,
   .dashboard-feed-item {
     grid-template-columns: 1fr;
   }
@@ -2717,8 +2686,7 @@ a {
     display: grid;
   }
 
-  .dashboard-feed-item,
-  .operational-row-main {
+  .dashboard-feed-item {
     align-items: flex-start;
   }
 
@@ -2727,13 +2695,15 @@ a {
     text-align: left;
   }
 
-  .operational-row-time {
-    min-width: 0;
+  .operational-record-heading,
+  .operational-record-meta,
+  .operational-record-actions,
+  .operational-record-badges {
+    justify-content: flex-start;
   }
 
-  .operational-row-main {
-    display: grid;
-    gap: 12px;
+  .operational-record-heading {
+    flex-direction: column;
   }
 
   .professionals-header,

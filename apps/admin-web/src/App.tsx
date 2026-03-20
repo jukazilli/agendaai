@@ -17,7 +17,6 @@ import {
   Link as LinkIcon,
   ListTodo,
   Menu,
-  MessageCircle,
   Plus,
   Rocket,
   Search,
@@ -106,6 +105,7 @@ type BookingFilter = "today" | "open" | "all";
 type AgendaViewMode = "day" | "week" | "month";
 type DashboardRange = "7d" | "30d" | "all";
 type DashboardWorkspaceTab = "executive" | "agenda" | "radar" | "clients" | "shortcuts";
+type OperationalWorkspaceTab = "overview" | "pending" | "confirmed" | "completed" | "noshow";
 type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
@@ -669,6 +669,8 @@ export function App() {
   const [bookingFilter, setBookingFilter] = useState<BookingFilter>("today");
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
   const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("executive");
+  const [operationalWorkspaceTab, setOperationalWorkspaceTab] =
+    useState<OperationalWorkspaceTab>("overview");
   const [isShellContextOpen, setIsShellContextOpen] = useState(false);
   const [isCounterBookingModalOpen, setIsCounterBookingModalOpen] = useState(false);
   const [counterBookingStep, setCounterBookingStep] = useState<CounterBookingStep>("service");
@@ -3109,214 +3111,414 @@ export function App() {
   }
 
   function renderOperationalView(): JSX.Element {
-    return (
-      <section className="view-stack operational-view-v2">
-        <section className="dashboard-toolbar">
-          <div>
-            <h2>Operacao de Hoje</h2>
-            <p className="helper">{formatAgendaDayLabel(agendaDate)}</p>
-          </div>
-          <div className="operational-day-switch">
-            <button className="secondary-button" onClick={() => handleAgendaDateShift(-1)} type="button">
-              Ontem
-            </button>
-            <button
-              className={agendaDate === formatDateInputValue(new Date()) ? "secondary-button is-active" : "secondary-button"}
-              onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
-              type="button"
-            >
-              Hoje
-            </button>
-            <button className="secondary-button" onClick={() => handleAgendaDateShift(1)} type="button">
-              Amanha
-            </button>
-          </div>
-        </section>
+    const isTodayView = agendaDate === formatDateInputValue(new Date());
+    const pendingDayBookings = filteredDayAgendaBookings.filter((booking) => isPendingBookingStatus(booking.status));
+    const confirmedDayBookings = filteredDayAgendaBookings.filter((booking) => booking.status === "confirmado");
+    const completedDayBookings = filteredDayAgendaBookings.filter((booking) => booking.status === "concluido");
+    const noShowDayBookings = filteredDayAgendaBookings.filter((booking) => booking.status === "faltou");
+    const openDayBookings = filteredDayAgendaBookings.filter((booking) => isOpenBookingStatus(booking.status));
+    const dayProjectedRevenue = filteredDayAgendaBookings.reduce(
+      (total, booking) => total + (services.find((service) => service.id === booking.serviceId)?.precoBase ?? 0),
+      0
+    );
+    const dayRecognizedRevenue = completedDayBookings.reduce(
+      (total, booking) => total + resolveRecognizedRevenueAmount(booking, services, cashEntries),
+      0
+    );
+    const dayApprovedOnlineRevenue = completedDayBookings.reduce((total, booking) => {
+      const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+      return total + resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries);
+    }, 0);
+    const nextOperationalBooking = openDayBookings[0] ?? filteredDayAgendaBookings[0];
+    const operationalFilterLabel =
+      agendaProfessionalFilter === "all"
+        ? "Equipe inteira"
+        : resolveProfessionalName(agendaProfessionalFilter, professionals);
+    const operationalTabs: ReadonlyArray<{
+      readonly id: OperationalWorkspaceTab;
+      readonly label: string;
+      readonly icon: LucideIcon;
+      readonly count: number;
+    }> = [
+      { id: "overview", label: "Resumo do dia", icon: ListTodo, count: filteredDayAgendaBookings.length },
+      { id: "pending", label: "Pendencias", icon: AlertCircle, count: pendingDayBookings.length },
+      { id: "confirmed", label: "Confirmados", icon: CheckCircle, count: confirmedDayBookings.length },
+      { id: "completed", label: "Concluidos", icon: Check, count: completedDayBookings.length },
+      { id: "noshow", label: "No-show", icon: XCircle, count: noShowDayBookings.length }
+    ];
 
-        <section className="dashboard-metric-grid operational-metric-grid">
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>Agendados</p>
-              <strong>{filteredDayAgendaBookings.length}</strong>
-              <span>No recorte diario selecionado</span>
-            </div>
-          </article>
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>Finalizados</p>
-              <strong>{filteredDayAgendaBookings.filter((booking) => booking.status === "concluido").length}</strong>
-              <span>Atendimentos concluidos</span>
-            </div>
-          </article>
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>No-Shows</p>
-              <strong>{filteredDayAgendaBookings.filter((booking) => booking.status === "faltou").length}</strong>
-              <span>Clientes ausentes</span>
-            </div>
-          </article>
-          <article className="dashboard-metric-card">
-            <div className="dashboard-metric-copy">
-              <p>Previsao Faturar</p>
-              <strong>
-                {formatCurrency(
-                  filteredDayAgendaBookings.reduce(
-                    (total, booking) =>
-                      total +
-                      (services.find((service) => service.id === booking.serviceId)?.precoBase ?? 0),
-                    0
-                  )
-                )}
-              </strong>
-              <span>Valor bruto das bookings do dia</span>
-            </div>
-          </article>
-        </section>
+    const renderOperationalStatusBadge = (booking: Booking): JSX.Element => {
+      if (booking.status === "concluido") {
+        return (
+          <span className="status-pill is-success">
+            <Check className="w-3 h-3" />
+            Concluido
+          </span>
+        );
+      }
+      if (booking.status === "faltou") {
+        return (
+          <span className="status-pill is-danger">
+            <XCircle className="w-3 h-3" />
+            No-show
+          </span>
+        );
+      }
+      if (booking.status === "confirmado") {
+        return (
+          <span className="status-pill is-info">
+            <CheckCircle className="w-3 h-3" />
+            Confirmado
+          </span>
+        );
+      }
+      return (
+        <span className="status-pill is-warning">
+          <Clock className="w-3 h-3" />
+          {formatBookingStatus(booking.status)}
+        </span>
+      );
+    };
 
-        <section className="dashboard-surface operational-list-surface">
-          <div className="dashboard-surface-header">
-            <div>
-              <h3>Lista de Atendimentos</h3>
-              <p>Timeline operacional com status, cliente, profissional e acoes reais do runtime.</p>
-            </div>
-            <div className="operational-legend">
-              <span className="status-pill is-warning">
-                <Clock className="w-3 h-3" />
-                Pendente
-              </span>
-              <span className="status-pill is-info">
-                <CheckCircle className="w-3 h-3" />
-                Confirmado
-              </span>
-              <span className="status-pill is-success">
-                <Check className="w-3 h-3" />
-                Concluido
-              </span>
-            </div>
-          </div>
+    const renderOperationalRecords = (
+      bookingsForTab: readonly Booking[],
+      emptyMessage: string
+    ): JSX.Element => {
+      if (!bookingsForTab.length) {
+        return <p className="empty-state">{emptyMessage}</p>;
+      }
 
-          <div className="operational-list">
-            {filteredDayAgendaBookings.length ? (
-              filteredDayAgendaBookings.map((booking) => {
-                const service = services.find((item) => item.id === booking.serviceId);
-                const professional = professionals.find((item) => item.id === booking.professionalId);
-                const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-                const actions = resolveBookingActions(booking);
-                const canSyncPayment = paymentIntent !== undefined && paymentIntent.status !== "approved";
+      return (
+        <div className="records-column operational-records">
+          {bookingsForTab.map((booking) => {
+            const service = services.find((item) => item.id === booking.serviceId);
+            const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+            const actions = resolveBookingActions(booking);
+            const canSyncPayment = paymentIntent !== undefined && paymentIntent.status !== "approved";
+            const projectedAmount = service?.precoBase ?? 0;
+            const recognizedAmount =
+              booking.status === "concluido"
+                ? resolveRecognizedRevenueAmount(booking, services, cashEntries)
+                : 0;
+            const paymentStatusLabel = paymentIntent
+              ? `Pagamento ${formatPaymentIntentStatus(paymentIntent.status)}`
+              : "Sem payment intent";
 
-                let rowClassName = "operational-row";
-                let statusBadge = (
-                  <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
-                    {formatBookingStatus(booking.status)}
+            return (
+              <article
+                className={[
+                  "record-card",
+                  "operational-record-card",
+                  booking.status === "concluido" ? "is-muted" : "",
+                  booking.status === "faltou" ? "is-danger" : ""
+                ]
+                  .filter(Boolean)
+                  .join(" ")}
+                key={booking.id}
+              >
+                <div className="record-card-header operational-record-heading">
+                  <div className="record-stack operational-record-copy">
+                    <strong>{resolveClientName(booking.clientId, clients)}</strong>
+                    <span>
+                      {resolveServiceName(booking.serviceId, services)}  |  Prof.{" "}
+                      {resolveProfessionalName(booking.professionalId, professionals)}
+                    </span>
+                  </div>
+                  <div className="operational-record-badges">
+                    <span className="status-pill is-neutral">{formatTimeRange(booking.startAt, booking.endAt)}</span>
+                    {renderOperationalStatusBadge(booking)}
+                    {paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? (
+                      <span className="status-pill is-success">
+                        <CreditCard className="w-3 h-3" />
+                        Pago antecipado
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+
+                <div className="record-meta operational-record-meta">
+                  <span>{resolveClientPhone(booking.clientId, clients)}</span>
+                  <span>{paymentStatusLabel}</span>
+                  <span>
+                    {booking.status === "concluido"
+                      ? `Receita ${formatCurrency(recognizedAmount || projectedAmount)}`
+                      : `Previsto ${formatCurrency(projectedAmount)}`}
                   </span>
-                );
+                </div>
 
-                if (booking.status === "concluido") {
-                  rowClassName += " is-muted";
-                  statusBadge = (
-                    <span className="status-pill is-success">
-                      <Check className="w-3 h-3" />
-                      Concluido
-                    </span>
-                  );
-                } else if (booking.status === "faltou") {
-                  rowClassName += " is-danger";
-                  statusBadge = (
-                    <span className="status-pill is-danger">
-                      <XCircle className="w-3 h-3" />
-                      No-Show
-                    </span>
-                  );
-                } else if (booking.status === "confirmado") {
-                  statusBadge = (
-                    <span className="status-pill is-info">
-                      <CheckCircle className="w-3 h-3" />
-                      Confirmado
-                    </span>
-                  );
-                } else if (booking.status === "pendente" || booking.status === "aguardando pagamento") {
-                  statusBadge = (
-                    <span className="status-pill is-warning">
-                      <Clock className="w-3 h-3" />
-                      {formatBookingStatus(booking.status)}
-                    </span>
-                  );
-                }
+                <div className="button-row operational-record-actions">
+                  {actions.map((action) => (
+                    <button
+                      className={resolveActionButtonClassName(action.tone)}
+                      disabled={isBusy}
+                      key={action.label}
+                      onClick={() => void handleBookingStatusAction(booking.id, action.nextStatus)}
+                      type="button"
+                    >
+                      {action.nextStatus === "concluido" ? <Check className="w-4 h-4" /> : null}
+                      {action.nextStatus === "confirmado" ? <CheckCircle className="w-4 h-4" /> : null}
+                      {action.nextStatus === "faltou" ? <XCircle className="w-4 h-4" /> : null}
+                      {action.label}
+                    </button>
+                  ))}
+                  {canRescheduleBooking(booking) ? (
+                    <button className="secondary-button" onClick={() => handleOpenAgendaBooking(booking)} type="button">
+                      <CalendarIcon className="w-4 h-4" />
+                      Reagendar
+                    </button>
+                  ) : null}
+                  {paymentIntent && canSyncPayment ? (
+                    <button className="secondary-button" onClick={() => void handlePaymentSync(paymentIntent)} type="button">
+                      <CreditCard className="w-4 h-4" />
+                      Atualizar pagamento
+                    </button>
+                  ) : null}
+                  <button className="secondary-button" onClick={() => handleOpenAgendaBooking(booking)} type="button">
+                    <CalendarDays className="w-4 h-4" />
+                    Abrir agenda
+                  </button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      );
+    };
 
-                return (
-                  <article className={rowClassName} key={booking.id}>
-                    <div className="operational-row-main">
-                      <div className="operational-row-time">
-                        {formatClockTime(booking.startAt)}
-                      </div>
-                      <div className="operational-row-copy">
-                        <div className="operational-row-heading">
-                          <strong>{resolveClientName(booking.clientId, clients)}</strong>
-                          <span>
-                            {service?.nome ?? "Servico"}  |  Prof: <b>{professional?.nome ?? "Profissional"}</b>
-                          </span>
-                        </div>
-                        <div className="operational-row-statuses">
-                          {statusBadge}
-                          {paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? (
-                            <span className="status-pill is-success">
-                              <CreditCard className="w-3 h-3" />
-                              Pago antecipado
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                    </div>
+    return (
+      <DocumentViewLayout
+        className="operational-document-view"
+        eyebrow="Rotina do dia"
+        title={isTodayView ? "Operacao de hoje" : formatAgendaDayLabel(agendaDate)}
+        subtitle="Pendencias, confirmacoes e encerramentos do dia organizados por visao, sem misturar toda a fila em uma unica superficie."
+        statusBadge={<ViewBadge tone={isTodayView ? "success" : "info"}>{operationalFilterLabel}</ViewBadge>}
+        pageActions={
+          <div className="operational-document-actions">
+            <div className="operational-day-switch">
+              <button className="secondary-button" onClick={() => handleAgendaDateShift(-1)} type="button">
+                Ontem
+              </button>
+              <button
+                className={isTodayView ? "secondary-button is-active" : "secondary-button"}
+                onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
+                type="button"
+              >
+                Hoje
+              </button>
+              <button className="secondary-button" onClick={() => handleAgendaDateShift(1)} type="button">
+                Amanha
+              </button>
+            </div>
 
-                    <div className="operational-row-side">
-                      <div className="operational-row-price">
-                        <strong>{service ? formatCurrency(service.precoBase) : "Sem preco"}</strong>
-                        <span>{resolveClientPhone(booking.clientId, clients)}</span>
-                      </div>
-                      <div className="operational-row-actions">
-                        {actions.map((action) => (
-                          <button
-                            className={resolveActionButtonClassName(action.tone)}
-                            disabled={isBusy}
-                            key={action.label}
-                            onClick={() => void handleBookingStatusAction(booking.id, action.nextStatus)}
-                            type="button"
-                          >
-                            {action.nextStatus === "concluido" ? <Check className="w-4 h-4" /> : null}
-                            {action.nextStatus === "confirmado" ? <CheckCircle className="w-4 h-4" /> : null}
-                            {action.nextStatus === "faltou" ? <XCircle className="w-4 h-4" /> : null}
-                            {action.label}
-                          </button>
-                        ))}
-                        {canRescheduleBooking(booking) ? (
-                          <button className="secondary-button" onClick={() => handleOpenAgendaBooking(booking)} type="button">
-                            <CalendarIcon className="w-4 h-4" />
-                            Reagendar
-                          </button>
-                        ) : null}
-                        {paymentIntent && canSyncPayment ? (
-                          <button className="secondary-button" onClick={() => void handlePaymentSync(paymentIntent)} type="button">
-                            <CreditCard className="w-4 h-4" />
-                            Atualizar pagamento
-                          </button>
-                        ) : null}
-                        {booking.status === "pendente" ? (
-                          <button className="secondary-button" type="button">
-                            <MessageCircle className="w-4 h-4" />
-                            WhatsApp (nao funcional)
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </article>
-                );
-              })
-            ) : (
-              <p className="empty-state">Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)}.</p>
-            )}
+            <label className="dashboard-select">
+              <span>Profissional</span>
+              <select
+                onChange={(event) => setAgendaProfessionalFilter(event.target.value)}
+                value={agendaProfessionalFilter}
+              >
+                <option value="all">Equipe inteira</option>
+                {professionals.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+              Atualizar
+            </button>
+            <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+              Abrir agenda
+            </button>
           </div>
-        </section>
-      </section>
+        }
+        header={
+          <DocumentHeader
+            fields={[
+              {
+                id: "date",
+                label: "Data",
+                value: formatAgendaDayLabel(agendaDate)
+              },
+              {
+                id: "team",
+                label: "Equipe",
+                value: operationalFilterLabel
+              },
+              {
+                id: "next-action",
+                label: "Proxima acao",
+                value:
+                  nextOperationalBooking
+                    ? `${formatTimeRange(nextOperationalBooking.startAt, nextOperationalBooking.endAt)} · ${resolveClientName(nextOperationalBooking.clientId, clients)}`
+                    : "Sem fila em aberto"
+              },
+              {
+                id: "open",
+                label: "Em aberto",
+                value: `${agendaDaySummary.open} booking(s)`
+              }
+            ]}
+          />
+        }
+        summary={
+          <DocumentSummaryCards
+            metrics={[
+              {
+                id: "total",
+                label: "Agendados",
+                value: filteredDayAgendaBookings.length,
+                helper: "Total do recorte diario selecionado."
+              },
+              {
+                id: "pending",
+                label: "Pendencias",
+                value: pendingDayBookings.length,
+                helper: "Aguardando confirmacao ou cobranca.",
+                tone: "warning"
+              },
+              {
+                id: "confirmed",
+                label: "Confirmados",
+                value: confirmedDayBookings.length,
+                helper: "Prontos para atendimento no dia.",
+                tone: "info"
+              },
+              {
+                id: "completed",
+                label: "Concluidos",
+                value: completedDayBookings.length,
+                helper: `Receita reconhecida ${formatCurrency(dayRecognizedRevenue)}.`,
+                tone: "success"
+              }
+            ]}
+          />
+        }
+        tabs={
+          <div aria-label="Visoes da operacao diaria" className="operational-tabbar" role="tablist">
+            {operationalTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  aria-selected={operationalWorkspaceTab === tab.id}
+                  className={
+                    operationalWorkspaceTab === tab.id
+                      ? "operational-tab-button is-active"
+                      : "operational-tab-button"
+                  }
+                  key={tab.id}
+                  onClick={() => setOperationalWorkspaceTab(tab.id)}
+                  role="tab"
+                  type="button"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                  <small>{tab.count}</small>
+                </button>
+              );
+            })}
+          </div>
+        }
+        items={
+          operationalWorkspaceTab === "pending" ? (
+            <EntitySection
+              title="Pendencias da fila"
+              description="Confirmacoes e cobranca pendentes para destravar o dia sem abrir a agenda completa."
+              actions={<ViewBadge tone="warning">{pendingDayBookings.length} na fila</ViewBadge>}
+            >
+              {renderOperationalRecords(
+                pendingDayBookings,
+                `Nenhuma pendencia encontrada para ${formatAgendaDayLabel(agendaDate)}.`
+              )}
+            </EntitySection>
+          ) : operationalWorkspaceTab === "confirmed" ? (
+            <EntitySection
+              title="Confirmados em preparo"
+              description="Atendimentos confirmados prontos para execucao, reagendamento ou encerramento."
+              actions={<ViewBadge tone="info">{confirmedDayBookings.length} confirmados</ViewBadge>}
+            >
+              {renderOperationalRecords(
+                confirmedDayBookings,
+                `Nenhuma booking confirmada encontrada para ${formatAgendaDayLabel(agendaDate)}.`
+              )}
+            </EntitySection>
+          ) : operationalWorkspaceTab === "completed" ? (
+            <EntitySection
+              title="Concluidos do dia"
+              description="Fechamento operacional com leitura de receita reconhecida sem competir com relatorios."
+              actions={<ViewBadge tone="success">{completedDayBookings.length} concluidos</ViewBadge>}
+            >
+              {renderOperationalRecords(
+                completedDayBookings,
+                `Nenhum atendimento concluido encontrado para ${formatAgendaDayLabel(agendaDate)}.`
+              )}
+            </EntitySection>
+          ) : operationalWorkspaceTab === "noshow" ? (
+            <EntitySection
+              title="Ausencias registradas"
+              description="No-shows do dia em uma visao propria para follow-up e contexto da equipe."
+              actions={<ViewBadge tone="danger">{noShowDayBookings.length} no-show</ViewBadge>}
+            >
+              {renderOperationalRecords(
+                noShowDayBookings,
+                `Nenhum no-show identificado para ${formatAgendaDayLabel(agendaDate)}.`
+              )}
+            </EntitySection>
+          ) : (
+            <div className="operational-section-stack">
+              <EntitySection
+                title="Fila prioritaria"
+                description="Pendencias e confirmados mais proximos do dia, com acao direta e sem ruído de estados encerrados."
+                actions={<ViewBadge tone="info">{openDayBookings.length} em aberto</ViewBadge>}
+              >
+                {renderOperationalRecords(
+                  openDayBookings,
+                  `Nenhuma booking em aberto encontrada para ${formatAgendaDayLabel(agendaDate)}.`
+                )}
+              </EntitySection>
+
+              <EntitySection
+                title="Fechamento e receita"
+                description="Leitura curta do que o dia ja gerou e do que ainda esta previsto, sem abrir relatorios."
+              >
+                <DocumentSummaryCards
+                  metrics={[
+                    {
+                      id: "projected-revenue",
+                      label: "Previsao bruta",
+                      value: formatCurrency(dayProjectedRevenue),
+                      helper: "Valor bruto das bookings do dia."
+                    },
+                    {
+                      id: "recognized-revenue",
+                      label: "Receita reconhecida",
+                      value: formatCurrency(dayRecognizedRevenue),
+                      helper: "Somente atendimentos concluidos.",
+                      tone: "success"
+                    },
+                    {
+                      id: "approved-online",
+                      label: "Entrada online aprovada",
+                      value: formatCurrency(dayApprovedOnlineRevenue),
+                      helper: "Conciliacao minima ligada a bookings concluidas.",
+                      tone: "info"
+                    },
+                    {
+                      id: "noshow-count",
+                      label: "No-show",
+                      value: noShowDayBookings.length,
+                      helper: "Clientes ausentes no recorte selecionado.",
+                      tone: noShowDayBookings.length > 0 ? "danger" : undefined
+                    }
+                  ]}
+                />
+              </EntitySection>
+            </div>
+          )
+        }
+        aside={null}
+      />
     );
   }
 
@@ -6338,7 +6540,8 @@ export function App() {
   }
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
-  const showPageHero = currentRoute !== "profissionais" && currentRoute !== "dashboard";
+  const showPageHero =
+    currentRoute !== "profissionais" && currentRoute !== "dashboard" && currentRoute !== "operacional";
 
   if (!sessionToken) {
     return (
@@ -7658,6 +7861,10 @@ function formatCashEntryStatus(status: CashEntry["status"]): string {
 
 function isOpenBookingStatus(status: Booking["status"]): boolean {
   return status === "pendente" || status === "aguardando pagamento" || status === "confirmado";
+}
+
+function isPendingBookingStatus(status: Booking["status"]): boolean {
+  return status === "pendente" || status === "aguardando pagamento";
 }
 
 function isSameCalendarDay(value: string, baseDate: Date): boolean {

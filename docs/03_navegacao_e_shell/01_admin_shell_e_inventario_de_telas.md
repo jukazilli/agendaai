@@ -76,6 +76,7 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 ### Agenda
 
 - deve priorizar filtros, status e acoes;
+- leituras concorrentes da fila do dia devem ser separadas por visoes dedicadas, preferencialmente via tab bar por status, e nao por uma lista unica com todos os estados misturados;
 - detalhe denso pode abrir em drawer;
 - resumo do dia pertence aqui, nao ao dashboard de implantacao.
 
