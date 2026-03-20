@@ -102,6 +102,7 @@ type AdminRoute =
 type BookingFilter = "today" | "open" | "all";
 type AgendaViewMode = "day" | "week" | "month";
 type DashboardRange = "7d" | "30d" | "all";
+type DashboardWorkspaceTab = "executive" | "agenda" | "clients";
 type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
@@ -295,9 +296,8 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     section: "Gestao do negocio",
     icon: LayoutDashboard,
     eyebrow: "Gestao do negocio",
-    title: "Visao gerencial do tenant",
-    description:
-      "Resumo executivo com leitura operacional e financeira derivada do runtime atual, sem esconder as lacunas que ainda nao contam com read model dedicado.",
+    title: "Dashboard",
+    description: "Visao executiva, agenda da semana e atalhos do negocio.",
     stage: "parcial"
   },
   relatorios: {
@@ -307,8 +307,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     icon: TrendingUp,
     eyebrow: "Gestao do negocio",
     title: "Relatorios essenciais do tenant",
-    description:
-      "Comparativos por periodo de agenda, receita e retorno, apoiados por read model do backend e por `cash entry` minimo, com lacunas explicitadas onde ainda faltam cohort e conciliacao completa.",
+    description: "Comparativos por periodo de agenda, receita e retorno do tenant.",
     stage: "parcial"
   },
   operacional: {
@@ -642,6 +641,7 @@ export function App() {
   const [isBusy, setIsBusy] = useState(false);
   const [bookingFilter, setBookingFilter] = useState<BookingFilter>("today");
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
+  const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("executive");
   const [reportsRange, setReportsRange] = useState<DashboardRange>("30d");
   const [reportsServiceFilter, setReportsServiceFilter] = useState("all");
   const [reportsProfessionalFilter, setReportsProfessionalFilter] = useState("all");
@@ -3034,14 +3034,27 @@ export function App() {
       clientPortfolioSummary.activeCount > 0
         ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
         : 0;
+    const todayBookings = bookings.filter((booking) => isSameCalendarDay(booking.startAt, new Date()));
+    const todayPendingCount = todayBookings.filter(
+      (booking) => booking.status === "pendente" || booking.status === "aguardando pagamento"
+    ).length;
+    const todayConfirmedCount = todayBookings.filter((booking) => booking.status === "confirmado").length;
+    const dashboardTabs: ReadonlyArray<{
+      readonly id: DashboardWorkspaceTab;
+      readonly label: string;
+      readonly icon: LucideIcon;
+    }> = [
+      { id: "executive", label: "Resumo executivo", icon: LayoutDashboard },
+      { id: "agenda", label: "Agenda da semana", icon: CalendarDays },
+      { id: "clients", label: "Clientes e retorno", icon: Users }
+    ];
 
     return (
       <DocumentViewLayout
         className="dashboard-document-view"
-        eyebrow="Visao gerencial"
-        title={tenant?.nome ?? "Tenant nao carregado"}
-        subtitle="Ponto de entrada do admin para entender estado do negocio, distribuir fluxo e reconhecer o que ainda continua parcial no runtime."
-        statusBadge={<ViewBadge tone="warning">Leitura parcial do runtime</ViewBadge>}
+        eyebrow="Dashboard"
+        title="Dashboard central"
+        subtitle={`${tenant?.nome ?? "Tenant nao carregado"} · leitura executiva e distribuicao de fluxo do negocio.`}
         pageActions={
           <div className="dashboard-document-actions">
             <label className="dashboard-select">
@@ -3055,6 +3068,11 @@ export function App() {
                 <option value="all">Todo o historico</option>
               </select>
             </label>
+            {publicBookingUrl ? (
+              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+                Abrir booking
+              </a>
+            ) : null}
             <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
               Abrir relatorios
             </button>
@@ -3064,20 +3082,26 @@ export function App() {
           <DocumentHeader
             fields={[
               {
+                id: "tenant",
+                label: "Tenant",
+                value: tenant?.nome ?? "Tenant nao carregado"
+              },
+              {
                 id: "slug",
                 label: "Slug publica",
                 value: tenant?.slug ? `/${tenant.slug}` : "Nao publicada"
               },
               {
-                id: "booking-url",
-                label: "Booking publico",
-                value: publicBookingUrl || "Sem URL publicada"
+                id: "today-bookings",
+                label: "Agenda hoje",
+                value: `${bookingSummary.today} booking(s)`
               },
               {
                 id: "timezone",
                 label: "Timezone",
                 value: tenant?.timezone ?? "-"
-              },
+              }
+              ,
               {
                 id: "range",
                 label: "Janela ativa",
@@ -3102,15 +3126,8 @@ export function App() {
                 tone: "success"
               },
               {
-                id: "approved-online",
-                label: "Entrada online aprovada",
-                value: formatCurrency(dashboardRevenueSummary.approvedOnlineRevenue),
-                helper: "Soma conciliada de payment intents aprovadas ligadas a bookings concluidas.",
-                tone: "info"
-              },
-              {
                 id: "retention",
-                label: "Taxa de retencao",
+                label: "Clientes com retorno",
                 value: formatPercentage(retentionRate),
                 helper: `${clientPortfolioSummary.returningCount} cliente(s) com retorno recente.`,
                 tone: "success"
@@ -3123,131 +3140,101 @@ export function App() {
                 tone: "info"
               },
               {
-                id: "no-show",
-                label: "Taxa de no-show",
-                value: formatPercentage(dashboardRevenueSummary.noShowRate),
-                helper: `${dashboardRevenueSummary.cancelledCount} cancelamento(s) no periodo.`,
-                tone: "danger"
+                id: "today",
+                label: "Agenda hoje",
+                value: bookingSummary.today,
+                helper: `${todayPendingCount} pendencia(s) e ${todayConfirmedCount} confirmado(s).`,
+                tone: "info"
               }
             ]}
           />
         }
         tabs={
-          <DocumentTabs
-            tabs={[
-              { id: "overview", label: "Visao geral", active: true },
-              { id: "capacity", label: "Agenda e capacidade" },
-              { id: "retention", label: "Retorno e base real" }
-            ]}
-          />
+          <div aria-label="Visoes do dashboard" className="dashboard-tabbar" role="tablist">
+            {dashboardTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  aria-selected={dashboardWorkspaceTab === tab.id}
+                  className={
+                    dashboardWorkspaceTab === tab.id
+                      ? "dashboard-tab-button is-active"
+                      : "dashboard-tab-button"
+                  }
+                  key={tab.id}
+                  onClick={() => setDashboardWorkspaceTab(tab.id)}
+                  role="tab"
+                  type="button"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
         }
         items={
-          <>
+          dashboardWorkspaceTab === "agenda" ? (
             <EntitySection
-              title="Evolucao de faturamento vs agendamentos"
-              description="Serie derivada do runtime real. Cohort, historico consolidado e read model temporal completo continuam fora do contrato."
-              actions={<ViewBadge tone="warning">Parcial</ViewBadge>}
+              title="Saude da agenda da semana"
+              description="Capacidade, ocupacao e fila do dia em um unico contexto operacional."
             >
-              <DashboardChart data={dashboardChartData} />
+              <div className="dashboard-progress-stack">
+                <div className="dashboard-progress-block">
+                  <div className="dashboard-progress-copy">
+                    <span>Capacidade total</span>
+                    <strong>{formatMinutesAsHours(weekCapacitySummary.totalMinutes)}</strong>
+                  </div>
+                  <div className="dashboard-progress-bar">
+                    <span style={{ width: "100%" }} />
+                  </div>
+                </div>
+                <div className="dashboard-progress-block">
+                  <div className="dashboard-progress-copy">
+                    <span>Horas ocupadas</span>
+                    <strong>
+                      {formatMinutesAsHours(weekCapacitySummary.bookedMinutes)} ({formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)})
+                    </strong>
+                  </div>
+                  <div className="dashboard-progress-bar">
+                    <span
+                      className="is-info"
+                      style={{
+                        width: `${Math.min(
+                          weekCapacitySummary.totalMinutes > 0
+                            ? (weekCapacitySummary.bookedMinutes / weekCapacitySummary.totalMinutes) * 100
+                            : 0,
+                          100
+                        )}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="dashboard-mini-grid">
+                <div className="dashboard-mini-card">
+                  <strong>{todayBookings.length}</strong>
+                  <span>Booking(s) previstas para hoje.</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{todayPendingCount}</strong>
+                  <span>Pendencia(s) ou aguardando pagamento.</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{todayConfirmedCount}</strong>
+                  <span>Confirmada(s) no dia.</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{weekCapacitySummary.openBookings}</strong>
+                  <span>Booking(s) em aberto na semana.</span>
+                </div>
+              </div>
             </EntitySection>
-
-            <div className="dashboard-secondary-grid">
-              <EntitySection
-                title="Saude da agenda da semana"
-                description="Capacidade e ocupacao derivadas da disponibilidade publicada e das bookings reais ancoradas na agenda."
-              >
-                <div className="dashboard-progress-stack">
-                  <div className="dashboard-progress-block">
-                    <div className="dashboard-progress-copy">
-                      <span>Capacidade total</span>
-                      <strong>{formatMinutesAsHours(weekCapacitySummary.totalMinutes)}</strong>
-                    </div>
-                    <div className="dashboard-progress-bar">
-                      <span style={{ width: "100%" }} />
-                    </div>
-                  </div>
-                  <div className="dashboard-progress-block">
-                    <div className="dashboard-progress-copy">
-                      <span>Horas ocupadas</span>
-                      <strong>
-                        {formatMinutesAsHours(weekCapacitySummary.bookedMinutes)} ({formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)})
-                      </strong>
-                    </div>
-                    <div className="dashboard-progress-bar">
-                      <span
-                        className="is-info"
-                        style={{
-                          width: `${Math.min(
-                            weekCapacitySummary.totalMinutes > 0
-                              ? (weekCapacitySummary.bookedMinutes / weekCapacitySummary.totalMinutes) * 100
-                              : 0,
-                            100
-                          )}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <div className="dashboard-progress-block">
-                    <div className="dashboard-progress-copy">
-                      <span>Clientes com retorno</span>
-                      <strong>
-                        {clientPortfolioSummary.returningCount} ({formatPercentage(retentionRate)})
-                      </strong>
-                    </div>
-                    <div className="dashboard-progress-bar">
-                      <span
-                        className="is-success"
-                        style={{
-                          width: `${Math.min(retentionRate * 100, 100)}%`
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="dashboard-tip-card">
-                  <strong>Dica ainda sem automacao</strong>
-                  <p>
-                    Voce tem {formatMinutesAsHours(weekCapacitySummary.freeMinutes)} livres nesta semana. O produto ainda nao possui motor de recomendacao para afirmar a melhor acao com acuracia.
-                  </p>
-                </div>
-              </EntitySection>
-
-              <EntitySection
-                title="Movimentos recentes de receita"
-                description="Reflexo de `cash entry` minima e de `payment intents` conciliadas com atendimentos concluidos."
-                actions={
-                  <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
-                    Ver relatorios
-                  </button>
-                }
-              >
-                <div className="dashboard-feed">
-                  {revenueEntries.length ? (
-                    revenueEntries.slice(0, 6).map((entry) => (
-                      <article className="dashboard-feed-item" key={entry.booking.id}>
-                        <div className="dashboard-feed-main">
-                          <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
-                          <span>{entry.client?.nome ?? "Cliente"} | {entry.professional?.nome ?? "Profissional"}</span>
-                        </div>
-                        <div className="dashboard-feed-meta">
-                          <span>{formatCurrency(entry.recognizedAmount)}</span>
-                          <small>{formatDateTime(entry.booking.endAt)}</small>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="empty-state">
-                      Nenhuma booking concluida encontrada em {resolveDashboardRangeLabel(dashboardRange)}.
-                    </p>
-                  )}
-                </div>
-              </EntitySection>
-            </div>
-
+          ) : dashboardWorkspaceTab === "clients" ? (
             <EntitySection
-              title="Clientes sem retorno no shell atual"
-              description={`Preview dos clientes inativos na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}. O detalhe completo continua na rota Clientes.`}
+              title="Clientes e retorno"
+              description={`Leitura da carteira na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`}
               actions={
                 <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
                   Abrir clientes
@@ -3284,7 +3271,7 @@ export function App() {
                         activeClientRecurrence.averageRecurrenceDays === null
                           ? "n/d"
                           : `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`,
-                      helper: "Media disponivel apenas quando o read model consegue calcular."
+                      helper: "Media simples entre atendimentos concluidos."
                     }
                   ]}
                 />
@@ -3296,7 +3283,7 @@ export function App() {
                         <div className="record-card-header">
                           <div className="record-stack">
                             <strong>{entry.nome}</strong>
-                            <span>{entry.email}</span>
+                            <span>{entry.email || "Sem e-mail visivel"}</span>
                           </div>
                           <span className="status-pill is-warning">
                             {formatClientSegment("inactive", activeClientRecurrence.window)}
@@ -3325,44 +3312,121 @@ export function App() {
                 </div>
               </div>
             </EntitySection>
-          </>
+          ) : (
+            <>
+              <EntitySection
+                title="Evolucao de faturamento vs agendamentos"
+                description="Visao executiva do periodo para comparar volume e receita."
+                actions={<ViewBadge tone="info">{resolveDashboardRangeLabel(dashboardRange)}</ViewBadge>}
+              >
+                <DashboardChart data={dashboardChartData} />
+              </EntitySection>
+
+              <EntitySection
+                title="Movimentos recentes de receita"
+                description="Ultimos atendimentos concluidos com reflexo financeiro reconhecido."
+                actions={
+                  <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
+                    Ver relatorios
+                  </button>
+                }
+              >
+                <div className="dashboard-feed">
+                  {revenueEntries.length ? (
+                    revenueEntries.slice(0, 6).map((entry) => (
+                      <article className="dashboard-feed-item" key={entry.booking.id}>
+                        <div className="dashboard-feed-main">
+                          <strong>{entry.service?.nome ?? "Servico nao encontrado"}</strong>
+                          <span>{entry.client?.nome ?? "Cliente"} | {entry.professional?.nome ?? "Profissional"}</span>
+                        </div>
+                        <div className="dashboard-feed-meta">
+                          <span>{formatCurrency(entry.recognizedAmount)}</span>
+                          <small>{formatDateTime(entry.booking.endAt)}</small>
+                        </div>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="empty-state">
+                      Nenhuma booking concluida encontrada em {resolveDashboardRangeLabel(dashboardRange)}.
+                    </p>
+                  )}
+                </div>
+              </EntitySection>
+            </>
+          )
         }
         aside={
           <div className="dashboard-aside-stack">
             <EntityAsideSummary
-              title="Base real do tenant"
-              description="Tudo aqui ja existe no runtime e serve como distribuicao de fluxo para o owner."
-              items={[
-                {
-                  id: "services",
-                  label: "Servicos ativos",
-                  value: services.length,
-                  description: "Itens comerciais publicados no catalogo."
-                },
-                {
-                  id: "professionals",
-                  label: "Profissionais publicados",
-                  value: professionals.length,
-                  description: "Equipe visivel na agenda e no booking."
-                },
-                {
-                  id: "today-bookings",
-                  label: "Agendamentos para hoje",
-                  value: bookingSummary.today,
-                  description: "Fila operacional do dia corrente."
-                },
-                {
-                  id: "clients",
-                  label: "Clientes capturados",
-                  value: clients.length,
-                  description: "Base formada a partir da jornada publica."
-                }
-              ]}
+              title={dashboardWorkspaceTab === "agenda" ? "Radar da semana" : "Base real do tenant"}
+              description={
+                dashboardWorkspaceTab === "agenda"
+                  ? "Capacidade e ocupacao da equipe publicada."
+                  : "Leitura curta da base real para orientar a proxima navegacao."
+              }
+              items={
+                dashboardWorkspaceTab === "agenda"
+                  ? [
+                      {
+                        id: "capacity",
+                        label: "Capacidade total",
+                        value: formatMinutesAsHours(weekCapacitySummary.totalMinutes),
+                        description: "Disponibilidade derivada da equipe publicada."
+                      },
+                      {
+                        id: "booked",
+                        label: "Horas ocupadas",
+                        value: formatMinutesAsHours(weekCapacitySummary.bookedMinutes),
+                        description: `${weekCapacitySummary.bookingsCount} booking(s) distribuidas na semana.`
+                      },
+                      {
+                        id: "free",
+                        label: "Horas livres",
+                        value: formatMinutesAsHours(weekCapacitySummary.freeMinutes),
+                        description:
+                          weekCapacitySummary.totalMinutes > 0
+                            ? `${formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)} de ocupacao`
+                            : "Sem disponibilidade publicada."
+                      },
+                      {
+                        id: "open",
+                        label: "Bookings em aberto",
+                        value: weekCapacitySummary.openBookings,
+                        description: "Pendencias operacionais ainda vivas na agenda."
+                      }
+                    ]
+                  : [
+                      {
+                        id: "services",
+                        label: "Servicos ativos",
+                        value: services.length,
+                        description: "Itens comerciais publicados no catalogo."
+                      },
+                      {
+                        id: "professionals",
+                        label: "Profissionais publicados",
+                        value: professionals.length,
+                        description: "Equipe visivel na agenda e no booking."
+                      },
+                      {
+                        id: "today-bookings",
+                        label: "Agendamentos para hoje",
+                        value: bookingSummary.today,
+                        description: "Fila operacional do dia corrente."
+                      },
+                      {
+                        id: "clients",
+                        label: "Clientes capturados",
+                        value: clients.length,
+                        description: "Base formada a partir da jornada publica."
+                      }
+                    ]
+              }
             />
 
             <EntityAsideSummary
               title="Acessos rapidos"
-              description="Rotas mais uteis depois da leitura inicial do dashboard."
+              description="Rotas mais uteis a partir desta visao."
               items={[
                 {
                   id: "operacional",
@@ -3408,66 +3472,7 @@ export function App() {
                 }
               ]}
             />
-
-            <EntityAsideSummary
-              title="Radar rapido da semana"
-              items={[
-                {
-                  id: "capacity",
-                  label: "Capacidade total",
-                  value: formatMinutesAsHours(weekCapacitySummary.totalMinutes),
-                  description: "Disponibilidade derivada da equipe publicada."
-                },
-                {
-                  id: "booked",
-                  label: "Horas ocupadas",
-                  value: formatMinutesAsHours(weekCapacitySummary.bookedMinutes),
-                  description: `${weekCapacitySummary.bookingsCount} booking(s) distribuidas na semana.`
-                },
-                {
-                  id: "free",
-                  label: "Horas livres",
-                  value: formatMinutesAsHours(weekCapacitySummary.freeMinutes),
-                  description:
-                    weekCapacitySummary.totalMinutes > 0
-                      ? `${formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes)} de ocupacao`
-                      : "Sem disponibilidade publicada."
-                },
-                {
-                  id: "open",
-                  label: "Bookings em aberto",
-                  value: weekCapacitySummary.openBookings,
-                  description: "Pendencias operacionais ainda vivas na agenda."
-                }
-              ]}
-            />
           </div>
-        }
-        impactPanel={
-          <DocumentImpactPanel
-            sections={[
-              {
-                id: "dashboard-supported",
-                title: "Sustentado hoje pelo runtime",
-                tone: "success",
-                items: [
-                  "Receita reconhecida, entrada online aprovada, ticket medio e no-show ja saem de contratos reais.",
-                  "Capacidade semanal e retorno basico do cliente ja conseguem orientar a distribuicao do fluxo.",
-                  "O dashboard continua como tela de leitura e distribuicao, sem reabrir catalogo, equipe ou configuracoes aqui."
-                ]
-              },
-              {
-                id: "dashboard-gaps",
-                title: "O que ainda continua parcial",
-                tone: "warning",
-                items: [
-                  "Historico temporal consolidado, cohort e serie analitica mais rica ainda nao possuem read model dedicado.",
-                  "Motor de reativacao, score de risco e recomendacoes automaticas continuam fora do escopo atual.",
-                  "O dashboard nao substitui relatorios nem agenda operacional; ele apenas direciona o owner para essas rotas."
-                ]
-              }
-            ]}
-          />
         }
       />
     );
@@ -5853,13 +5858,6 @@ export function App() {
                 <p className="description">{currentRouteDefinition.description}</p>
               </div>
               <div className="admin-page-hero-actions">
-                <span
-                  className={`status-pill ${
-                    currentRouteDefinition.stage === "funcional" ? "is-success" : "is-warning"
-                  }`}
-                >
-                  {currentRouteDefinition.stage}
-                </span>
                 <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
                   Atualizar
                 </button>
