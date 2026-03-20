@@ -24,6 +24,9 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 
 No chrome global do shell:
 
+- no desktop, a navegacao lateral pode operar como `icon rail` compacta, sem card de perfil redundante nem controle de colapso permanente;
+- no mobile, o mesmo shell pode abrir em drawer expandido com rotulos e contexto do usuario;
+- a topbar deve priorizar tabs de workspace e utilitarios icon-first, evitando CTA grande ou texto duplicado quando uma acao rapida resolve;
 - busca rapida deve abrir uma rota real ligada a clientes ou carteira;
 - alertas, contexto e atalhos globais podem viver em disclosure ou sheet, sem competir com o conteudo principal da rota;
 - o topo nao deve repetir desnecessariamente o mesmo contexto que ja aparece no corpo da tela.

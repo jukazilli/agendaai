@@ -10,8 +10,6 @@ import {
   CalendarDays,
   Check,
   CheckCircle,
-  ChevronLeft,
-  ChevronRight,
   Clock,
   CreditCard,
   DollarSign,
@@ -696,7 +694,6 @@ export function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [currentRoute, setCurrentRoute] = useState<AdminRoute>(readAdminRouteFromHash);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState(() =>
     loadStoredValue(API_BASE_STORAGE_KEY, DEPLOY_ADMIN_API_BASE_URL)
   );
@@ -821,7 +818,6 @@ export function App() {
     let isCompactShell = window.innerWidth <= ADMIN_SHELL_COMPACT_BREAKPOINT;
     if (isCompactShell) {
       setIsSidebarOpen(false);
-      setIsSidebarCollapsed(false);
     }
 
     const syncShellMode = () => {
@@ -832,9 +828,6 @@ export function App() {
 
       isCompactShell = nextCompactShell;
       setIsSidebarOpen(false);
-      if (nextCompactShell) {
-        setIsSidebarCollapsed(false);
-      }
     };
 
     window.addEventListener("resize", syncShellMode);
@@ -6827,37 +6820,23 @@ export function App() {
       ) : null}
 
       <aside
-        className={`admin-sidebar-v2${isSidebarOpen ? " is-open" : ""}${isSidebarCollapsed ? " is-collapsed" : ""}`}
+        className={`admin-sidebar-v2${isSidebarOpen ? " is-open" : ""}`}
       >
         <div className="admin-sidebar-brand">
           <div className="admin-sidebar-brand-main">
             <div className="admin-sidebar-brand-mark">
               <CalendarDays className="w-5 h-5" />
             </div>
-            {!isSidebarCollapsed ? (
-              <div className="admin-sidebar-brand-copy">
-                <strong>AgendaAI</strong>
-              </div>
-            ) : null}
+            <div className="admin-sidebar-brand-copy">
+              <strong>AgendaAI</strong>
+            </div>
           </div>
-          <button
-            aria-label={isSidebarCollapsed ? "Expandir menu" : "Recolher menu"}
-            className="admin-sidebar-collapse"
-            onClick={() => setIsSidebarCollapsed((current) => !current)}
-            type="button"
-          >
-            {isSidebarCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-          </button>
         </div>
 
         <nav className="admin-sidebar-nav no-scrollbar">
           {adminNavigationSections.map((section) => (
             <div className="admin-sidebar-group" key={section.label}>
-              {!isSidebarCollapsed ? (
-                <p className="admin-sidebar-group-label">{section.label}</p>
-              ) : (
-                <div className="admin-sidebar-group-divider" />
-              )}
+              <p className="admin-sidebar-group-label">{section.label}</p>
               {section.routes.map((route) => {
                 const definition = adminRouteDefinitions[route];
                 const Icon = definition.icon;
@@ -6866,17 +6845,15 @@ export function App() {
                     className={currentRoute === route ? "admin-sidebar-link is-active" : "admin-sidebar-link"}
                     key={route}
                     onClick={() => navigateTo(route)}
-                    title={isSidebarCollapsed ? definition.label : undefined}
+                    title={definition.label}
                     type="button"
                   >
                     <span className="admin-sidebar-link-icon">
                       <Icon className="w-5 h-5" />
                     </span>
-                    {!isSidebarCollapsed ? (
-                      <span className="admin-sidebar-link-copy">
-                        <strong>{definition.label}</strong>
-                      </span>
-                    ) : null}
+                    <span className="admin-sidebar-link-copy">
+                      <strong>{definition.label}</strong>
+                    </span>
                   </button>
                 );
               })}
@@ -6889,25 +6866,21 @@ export function App() {
             <div className="admin-sidebar-profile-avatar">
               {resolveProfessionalInitials(sidebarProfileName)}
             </div>
-            {!isSidebarCollapsed ? (
-              <>
-                <div className="admin-sidebar-profile-copy">
-                  <strong>{sidebarProfileName}</strong>
-                  <span>{sidebarProfileEmail || "Sem e-mail cadastrado"}</span>
-                </div>
-                {publicBookingUrl ? (
-                  <a
-                    aria-label="Abrir booking publico"
-                    className="admin-sidebar-profile-action"
-                    href={publicBookingUrl}
-                    rel="noreferrer"
-                    target="_blank"
-                    title="Abrir booking publico"
-                  >
-                    <LinkIcon className="w-4 h-4" />
-                  </a>
-                ) : null}
-              </>
+            <div className="admin-sidebar-profile-copy">
+              <strong>{sidebarProfileName}</strong>
+              <span>{sidebarProfileEmail || "Sem e-mail cadastrado"}</span>
+            </div>
+            {publicBookingUrl ? (
+              <a
+                aria-label="Abrir booking publico"
+                className="admin-sidebar-profile-action"
+                href={publicBookingUrl}
+                rel="noreferrer"
+                target="_blank"
+                title="Abrir booking publico"
+              >
+                <LinkIcon className="w-4 h-4" />
+              </a>
             ) : null}
           </article>
         </div>
@@ -6989,9 +6962,14 @@ export function App() {
                 <Activity className="w-4 h-4" />
               </button>
             ) : null}
-            <button className="admin-primary-action" onClick={openCounterBookingModal} type="button">
+            <button
+              aria-label="Novo agendamento"
+              className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
+              onClick={openCounterBookingModal}
+              title="Novo agendamento"
+              type="button"
+            >
               <Plus className="w-4 h-4" />
-              Novo Agendamento
             </button>
             <div aria-label={`Perfil ${sidebarProfileName}`} className="admin-topbar-avatar" title={sidebarProfileName}>
               {resolveProfessionalInitials(sidebarProfileName)}
