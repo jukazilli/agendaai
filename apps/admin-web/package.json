@@ -12,12 +12,15 @@
   "dependencies": {
     "@agendaai/contracts": "workspace:^",
     "@agendaai/ui": "workspace:*",
+    "date-fns": "^4.1.0",
     "lucide-react": "^0.542.0",
     "react": "^19.0.0",
+    "react-big-calendar": "^1.19.4",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/react": "^19.0.10",
+    "@types/react-big-calendar": "^1.16.3",
     "@types/react-dom": "^19.0.4",
     "@vitejs/plugin-react": "^4.4.1",
     "vite": "^6.2.0"

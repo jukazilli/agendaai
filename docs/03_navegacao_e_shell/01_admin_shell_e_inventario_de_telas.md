@@ -75,10 +75,17 @@ No `admin-web`, dashboard, implantacao, catalogo, operacao e configuracoes nao p
 
 ### Agenda
 
-- deve priorizar filtros, status e acoes;
-- leituras concorrentes da fila do dia devem ser separadas por visoes dedicadas, preferencialmente via tab bar por status, e nao por uma lista unica com todos os estados misturados;
-- detalhe denso pode abrir em drawer;
-- resumo do dia pertence aqui, nao ao dashboard de implantacao.
+- deve priorizar filtros, navegacao de data e acoes operacionais;
+- deve separar `lista` e `agenda` em visoes dedicadas, preferencialmente via tab bar responsiva;
+- o clique em um agendamento precisa abrir o detalhe completo da booking sem sair da rota;
+- capacidade agregada semanal e mensal pertence a `relatorios`, nao ao corpo principal desta tela.
+
+### Relatorios
+
+- deve concentrar apenas leitura gerencial, comparativos e recortes analiticos;
+- agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em visoes dedicadas, preferencialmente via tab bar;
+- contexto tecnico do recorte, fonte e comparativo nao deve competir com KPI e listas principais no mesmo viewport;
+- acoes operacionais continuam em `operacao diaria`, `agenda` e `clientes`.
 
 ### Clientes
 
@@ -98,9 +105,9 @@ Em `19/03/2026`, o `admin-web` passou a refletir a primeira materializacao real 
 - modulos separados de `dashboard`, `operacional`, `agenda`, `catalogo`, `profissionais`, `clientes` e `configuracoes`;
 - dashboard com leitura real do bootstrap, filtro de periodo para agenda/receita, bloco de clientes sem retorno por janela e lacunas marcadas como `(nao funcional)` quando o mock sugeria blocos sem contrato;
 - configuracoes separadas da operacao, concentrando slug, branding minimo, Mercado Pago e ambiente administrativo;
-- agenda com timeline diaria por data, selecao de booking, reagendamento por slot real, grade semanal de capacidade por profissional e calendario mensal navegavel dentro da mesma rota.
+- agenda com filtros operacionais por data e profissional, `lista` do dia, calendario React em `dia/semana/mes`, selecao de booking e reagendamento por slot real na mesma rota.
 - clientes com recorte de retorno por janela, ultimo atendimento concluido, receita persistida minima, selecao de cliente e detalhe operacional com historico e movimentos financeiros.
-- relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior e read model minimo de receita/recorrencia vindo do `api-rest`, agora apoiado por `cash entries` minimas.
+- relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior, read model minimo de receita/recorrencia vindo do `api-rest` e `insights da agenda` para capacidade agregada semanal/mensal.
 
 Este documento continua sendo a referencia oficial para:
 

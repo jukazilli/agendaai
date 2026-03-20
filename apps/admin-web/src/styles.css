@@ -611,15 +611,8 @@ a {
 .timeline-toolbar,
 .timeline-card,
 .timeline-card-header,
-.agenda-board,
 .slot-grid,
-.agenda-week-layout,
-.agenda-month-layout,
-.capacity-grid,
-.week-day-cell-meta,
-.week-bookings-list,
-.month-grid,
-.month-day-cell {
+.week-day-cell-meta {
   display: grid;
   gap: 16px;
 }
@@ -631,10 +624,6 @@ a {
 
 .timeline-date-field {
   min-width: 0;
-}
-
-.agenda-board {
-  grid-template-columns: minmax(0, 1.35fr) minmax(320px, 420px);
 }
 
 .timeline-card {
@@ -658,156 +647,13 @@ a {
   grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
 }
 
-.capacity-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-}
-
-.agenda-week-layout {
-  grid-template-columns: minmax(0, 1.45fr) minmax(320px, 380px);
-}
-
-.agenda-month-layout {
-  grid-template-columns: minmax(0, 1.4fr) minmax(320px, 380px);
-}
-
-.month-grid {
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-}
-
-.month-grid-header,
-.month-day-cell {
-  border: 1px solid rgba(11, 122, 117, 0.12);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.9);
-  padding: 14px;
-}
-
-.month-grid-header {
-  background: rgba(11, 122, 117, 0.08);
-}
-
-.month-day-cell {
-  min-height: 152px;
-  align-content: start;
-  text-align: left;
-  cursor: pointer;
-}
-
-.month-day-cell.is-muted {
-  opacity: 0.56;
-}
-
-.month-day-cell.is-active {
-  border-color: rgba(11, 122, 117, 0.42);
-  box-shadow: 0 0 0 1px rgba(11, 122, 117, 0.14);
-}
-
-.month-day-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.detail-button {
-  width: 100%;
-  border: 0;
-  text-align: left;
-  cursor: pointer;
-}
-
-.week-grid-shell {
-  overflow-x: auto;
-}
-
-.week-grid {
-  display: grid;
-  grid-template-columns: 220px repeat(7, minmax(170px, 1fr));
-  gap: 12px;
-  min-width: 1480px;
-}
-
-.week-grid-header,
-.week-professional-cell,
-.week-day-cell,
-.week-booking-chip {
-  border: 1px solid rgba(11, 122, 117, 0.12);
-  border-radius: 20px;
-  background: rgba(255, 255, 255, 0.9);
-}
-
-.week-grid-header,
-.week-professional-cell,
-.week-day-cell {
-  padding: 14px;
-}
-
-.week-grid-header {
-  display: grid;
-  gap: 8px;
-  align-content: start;
-  background: rgba(11, 122, 117, 0.08);
-}
-
-.week-grid-header.is-professional {
-  background: rgba(15, 23, 42, 0.08);
-}
-
-.week-grid-header strong,
-.week-professional-cell strong,
-.week-booking-chip strong {
-  color: var(--ag-color-text-primary);
-}
-
-.week-grid-header small,
-.week-professional-cell small,
-.week-booking-chip span,
-.week-booking-chip small {
-  color: var(--ag-color-text-muted);
-  line-height: 1.5;
-}
-
-.week-professional-cell {
-  display: grid;
-  gap: 8px;
-  align-content: center;
-  position: sticky;
-  left: 0;
-  z-index: 1;
-}
-
-.week-day-cell {
-  display: grid;
-  gap: 12px;
-  align-content: start;
-  min-height: 188px;
-}
-
-.week-bookings-list {
-  align-content: start;
-}
-
-.week-booking-chip {
-  width: 100%;
-  padding: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-
 @media (max-width: 1100px) {
   .editor-layout {
     grid-template-columns: 1fr;
   }
 
-  .agenda-week-layout,
-  .agenda-month-layout,
-  .agenda-board,
   .timeline-toolbar {
     grid-template-columns: 1fr;
-  }
-
-  .month-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1621,11 +1467,25 @@ a {
   background: rgba(255, 255, 255, 0.94);
 }
 
+.agenda-document-view .ag-view-panel {
+  background: rgba(255, 255, 255, 0.94);
+}
+
 .dashboard-document-actions,
 .dashboard-aside-stack,
-.dashboard-retention-preview {
+.dashboard-retention-preview,
+.reports-insights-stack {
   display: grid;
   gap: 16px;
+}
+
+.reports-workspace-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.reports-context-header {
+  margin-bottom: 4px;
 }
 
 .dashboard-tabbar,
@@ -1659,6 +1519,7 @@ a {
   font-weight: 600;
 }
 
+.dashboard-tab-button small,
 .operational-tab-button small {
   font-size: 0.76rem;
   font-weight: 700;
@@ -1689,11 +1550,23 @@ a {
   gap: 12px;
 }
 
+.agenda-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .dashboard-document-actions .dashboard-select {
   min-width: 220px;
 }
 
 .operational-document-actions .dashboard-select {
+  min-width: 220px;
+}
+
+.agenda-page-actions .dashboard-select {
   min-width: 220px;
 }
 
@@ -1732,12 +1605,116 @@ a {
   color: var(--ag-color-text-muted);
 }
 
-.dashboard-select select {
+.dashboard-select select,
+.dashboard-select input {
   min-height: 46px;
   padding: 0 14px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.88);
+}
+
+.agenda-tabs-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.agenda-subtabbar .dashboard-tab-button {
+  min-height: 40px;
+  padding: 0 14px;
+}
+
+.agenda-workspace-grid {
+  align-items: start;
+}
+
+.agenda-workspace-panel,
+.agenda-detail-panel {
+  align-content: start;
+}
+
+.agenda-panel-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.agenda-panel-header h3 {
+  margin: 4px 0 0;
+  font-size: clamp(1.08rem, 1.8vw, 1.28rem);
+}
+
+.agenda-panel-header .helper {
+  margin: 8px 0 0;
+}
+
+.agenda-calendar-shell {
+  min-height: 620px;
+  height: min(70vh, 760px);
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 30%),
+    rgba(248, 250, 252, 0.82);
+}
+
+.agenda-calendar-shell .rbc-calendar {
+  min-height: 100%;
+  color: var(--ag-color-text-primary);
+}
+
+.agenda-calendar-shell .rbc-toolbar,
+.agenda-calendar-shell .rbc-time-header-cell .rbc-button-link,
+.agenda-calendar-shell .rbc-header {
+  font-weight: 700;
+}
+
+.agenda-calendar-shell .rbc-header {
+  padding: 12px 8px;
+  border-bottom-color: rgba(148, 163, 184, 0.14);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.agenda-calendar-shell .rbc-time-content,
+.agenda-calendar-shell .rbc-month-view,
+.agenda-calendar-shell .rbc-time-view {
+  border-color: rgba(148, 163, 184, 0.14);
+}
+
+.agenda-calendar-shell .rbc-time-slot,
+.agenda-calendar-shell .rbc-day-bg + .rbc-day-bg,
+.agenda-calendar-shell .rbc-month-row + .rbc-month-row {
+  border-color: rgba(226, 232, 240, 0.72);
+}
+
+.agenda-rbc-event {
+  border: 0;
+  border-radius: 14px;
+  box-shadow: 0 10px 22px rgba(15, 23, 42, 0.14);
+}
+
+.agenda-rbc-event.is-success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.94), rgba(5, 150, 105, 0.94));
+}
+
+.agenda-rbc-event.is-info {
+  background: linear-gradient(135deg, rgba(79, 70, 229, 0.94), rgba(67, 56, 202, 0.94));
+}
+
+.agenda-rbc-event.is-warning {
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.94), rgba(217, 119, 6, 0.94));
+}
+
+.agenda-rbc-event.is-danger {
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.94), rgba(225, 29, 72, 0.94));
+}
+
+.agenda-rbc-event.is-neutral {
+  background: linear-gradient(135deg, rgba(71, 85, 105, 0.94), rgba(51, 65, 85, 0.94));
 }
 
 .dashboard-metric-grid {
@@ -2326,8 +2303,7 @@ a {
   color: #475569;
 }
 
-.professional-entity-view,
-.agenda-master-detail {
+.professional-entity-view {
   margin-top: 4px;
 }
 
@@ -2336,7 +2312,6 @@ a {
 }
 
 .professional-entity-view .ag-view-panel,
-.agenda-master-detail .ag-view-panel,
 .clients-master-detail .ag-view-panel {
   background: rgba(255, 255, 255, 0.94);
 }
@@ -2572,15 +2547,20 @@ a {
     justify-content: flex-start;
   }
 
-  .dashboard-document-actions,
-  .operational-document-actions,
-  .clients-toolbar {
-    justify-content: flex-start;
-  }
+.dashboard-document-actions,
+.operational-document-actions,
+.agenda-page-actions,
+.clients-toolbar {
+  justify-content: flex-start;
+}
 
-  .dashboard-document-actions {
-    grid-auto-flow: row;
-  }
+.dashboard-document-actions {
+  grid-auto-flow: row;
+}
+
+.agenda-page-actions {
+  justify-content: flex-start;
+}
 
   .settings-page-actions {
     justify-content: flex-start;
@@ -2626,12 +2606,18 @@ a {
     min-width: 0;
   }
 
-  .dashboard-document-actions .dashboard-select,
-  .operational-document-actions .dashboard-select,
-  .clients-toolbar .dashboard-select {
-    min-width: 0;
-    width: 100%;
-  }
+.dashboard-document-actions .dashboard-select,
+.operational-document-actions .dashboard-select,
+.agenda-page-actions .dashboard-select,
+.clients-toolbar .dashboard-select {
+  min-width: 0;
+  width: 100%;
+}
+
+.agenda-calendar-shell {
+  min-height: 520px;
+  height: 62vh;
+}
 
   .settings-page-actions .button-link,
   .settings-page-actions .secondary-button {

@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useState, type CSSProperties, type FormEvent, type JSX } from "react";
+import { format as formatDateFns, getDay, parse as parseDateFns, startOfWeek } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import {
   Activity,
   AlertCircle,
@@ -28,6 +30,12 @@ import {
   XCircle,
   type LucideIcon
 } from "lucide-react";
+import {
+  Calendar as BigCalendar,
+  dateFnsLocalizer,
+  type View as BigCalendarView
+} from "react-big-calendar";
+import "react-big-calendar/lib/css/react-big-calendar.css";
 
 import {
   defaultServicePaymentPolicy,
@@ -101,8 +109,8 @@ type AdminRoute =
   | "profissionais"
   | "clientes"
   | "configuracoes";
-type BookingFilter = "today" | "open" | "all";
 type AgendaViewMode = "day" | "week" | "month";
+type AgendaWorkspaceTab = "list" | "calendar";
 type DashboardRange = "7d" | "30d" | "all";
 type DashboardWorkspaceTab = "executive" | "agenda" | "radar" | "clients" | "shortcuts";
 type OperationalWorkspaceTab = "overview" | "pending" | "confirmed" | "completed" | "noshow";
@@ -110,6 +118,7 @@ type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
 type CounterBookingStep = "service" | "professional" | "slot" | "client";
+type ReportsWorkspaceTab = "overview" | "services" | "team" | "retention" | "agenda";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
 type PaymentChargeType = (typeof paymentChargeTypeValues)[number];
@@ -269,6 +278,14 @@ interface DashboardChartPoint {
   readonly bookingsCount: number;
 }
 
+interface AgendaCalendarEvent {
+  readonly id: string;
+  readonly title: string;
+  readonly start: Date;
+  readonly end: Date;
+  readonly resource: Booking;
+}
+
 interface ClientPortfolioSummary {
   readonly activeCount: number;
   readonly inactiveCount: number;
@@ -301,6 +318,30 @@ const BOOKING_BASE_URL =
   (import.meta.env.VITE_BOOKING_BASE_URL as string | undefined)?.trim() || "http://127.0.0.1:3000";
 const ADMIN_SHELL_COMPACT_BREAKPOINT = 1100;
 const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
+const agendaCalendarMessages = {
+  next: "Proximo",
+  previous: "Anterior",
+  today: "Hoje",
+  month: "Mes",
+  week: "Semana",
+  work_week: "Semana util",
+  day: "Dia",
+  agenda: "Agenda",
+  date: "Data",
+  time: "Horario",
+  event: "Booking",
+  noEventsInRange: "Nenhuma booking neste recorte.",
+  showMore: (total: number) => `+${total} mais`
+} satisfies Record<string, string | ((total: number) => string)>;
+const agendaCalendarLocalizer = dateFnsLocalizer({
+  format: formatDateFns,
+  parse: parseDateFns,
+  startOfWeek: (value: Date) => startOfWeek(value, { locale: ptBR }),
+  getDay,
+  locales: {
+    "pt-BR": ptBR
+  }
+});
 const professionalAvatarVariants = [
   "is-cobalt",
   "is-violet",
@@ -326,7 +367,7 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     icon: TrendingUp,
     eyebrow: "Gestao do negocio",
     title: "Relatorios essenciais do tenant",
-    description: "Comparativos por periodo de agenda, receita e retorno do tenant.",
+    description: "Comparativos por periodo, retorno e insights de capacidade sem disputar a operacao da agenda.",
     stage: "parcial"
   },
   operacional: {
@@ -346,9 +387,9 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     section: "Dia a dia",
     icon: CalendarDays,
     eyebrow: "Planejamento",
-    title: "Agenda e leitura de capacidade",
+    title: "Agenda operacional",
     description:
-      "Timeline diaria com reagendamento por slot real, leitura semanal de capacidade e visao mensal navegavel; drag-and-drop continua fora do corte.",
+      "Lista do dia e calendario interativo com detalhe completo da booking; capacidade agregada fica em Relatorios.",
     stage: "parcial"
   },
   catalogo: {
@@ -666,7 +707,6 @@ export function App() {
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
-  const [bookingFilter, setBookingFilter] = useState<BookingFilter>("today");
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
   const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("executive");
   const [operationalWorkspaceTab, setOperationalWorkspaceTab] =
@@ -725,6 +765,7 @@ export function App() {
   const [availabilityDays, setAvailabilityDays] = useState<AvailabilityDayState[]>(
     createDefaultAvailabilityDays()
   );
+  const [agendaWorkspaceTab, setAgendaWorkspaceTab] = useState<AgendaWorkspaceTab>("list");
   const [agendaViewMode, setAgendaViewMode] = useState<AgendaViewMode>("day");
   const [agendaDate, setAgendaDate] = useState(() => formatDateInputValue(new Date()));
   const [agendaProfessionalFilter, setAgendaProfessionalFilter] = useState("all");
@@ -737,6 +778,8 @@ export function App() {
     Record<string, AvailabilityRule[]>
   >({});
   const [isLoadingWeeklyAvailability, setIsLoadingWeeklyAvailability] = useState(false);
+  const [reportsWorkspaceTab, setReportsWorkspaceTab] = useState<ReportsWorkspaceTab>("overview");
+  const [isReportsContextVisible, setIsReportsContextVisible] = useState(false);
 
   useEffect(() => {
     storeValue(API_BASE_STORAGE_KEY, apiBaseUrl);
@@ -1103,7 +1146,6 @@ export function App() {
     cashEntries
   );
   const bookingSummary = summarizeBookings(bookings);
-  const agendaBookings = filterAgendaBookings(bookings, bookingFilter);
   const dayAgendaBookings = filterBookingsByDate(bookings, agendaDate);
   const filteredDayAgendaBookings =
     agendaProfessionalFilter === "all"
@@ -1215,6 +1257,57 @@ export function App() {
   const monthCapacitySummary = summarizeMonthCapacity(currentMonthCells);
   const selectedMonthCell =
     agendaMonthCells.find((cell) => cell.date === agendaDate) ?? currentMonthCells[0];
+  const filteredAgendaCalendarBookings =
+    agendaProfessionalFilter === "all"
+      ? bookings
+      : bookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
+  const agendaCalendarEvents: AgendaCalendarEvent[] = filteredAgendaCalendarBookings.map((booking) => ({
+    id: booking.id,
+    title: `${resolveClientName(booking.clientId, clients)} - ${resolveServiceName(booking.serviceId, services)}`,
+    start: new Date(booking.startAt),
+    end: new Date(booking.endAt),
+    resource: booking
+  }));
+  const selectedAgendaCalendarEvent =
+    agendaCalendarEvents.find((event) => event.resource.id === selectedAgendaBooking?.id) ?? null;
+  const reportsInsightAnchorDate = formatDateInputValue(new Date());
+  const reportsInsightProfessionals =
+    reportsProfessionalFilter === "all"
+      ? professionals
+      : professionals.filter((professional) => professional.id === reportsProfessionalFilter);
+  const reportsInsightBookings =
+    reportsProfessionalFilter === "all"
+      ? bookings
+      : bookings.filter((booking) => booking.professionalId === reportsProfessionalFilter);
+  const reportsInsightWeekDates = buildAgendaWeekDates(reportsInsightAnchorDate);
+  const reportsInsightWeekBookings = filterBookingsByDates(reportsInsightBookings, reportsInsightWeekDates);
+  const reportsInsightWeekCapacitySummary = summarizeWeekCapacity(
+    reportsInsightWeekBookings,
+    reportsInsightWeekDates,
+    reportsInsightProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+  const reportsInsightWeekDaySummaries = buildWeekDaySummaries(
+    reportsInsightWeekBookings,
+    reportsInsightWeekDates,
+    reportsInsightProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+  const reportsInsightWeekProfessionalSummaries = buildWeekProfessionalSummaries(
+    reportsInsightWeekBookings,
+    reportsInsightWeekDates,
+    reportsInsightProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+  const reportsInsightMonthCells = buildAgendaMonthCells(
+    reportsInsightAnchorDate,
+    bookings,
+    reportsInsightProfessionals,
+    weeklyAvailabilityByProfessional,
+    reportsProfessionalFilter
+  );
+  const reportsInsightCurrentMonthCells = reportsInsightMonthCells.filter((cell) => cell.inCurrentMonth);
+  const reportsInsightMonthCapacitySummary = summarizeMonthCapacity(reportsInsightCurrentMonthCells);
 
   useEffect(() => {
     const nextClientId = filteredClientInsights[0]?.client.id ?? "";
@@ -1826,6 +1919,7 @@ export function App() {
   function openProfessionalAgenda(professionalId: string): void {
     setIsCreatingProfessional(false);
     setSelectedProfessionalId(professionalId);
+    setAgendaWorkspaceTab("list");
     setAgendaViewMode("day");
     setAgendaProfessionalFilter(professionalId);
     navigateTo("agenda");
@@ -1840,11 +1934,11 @@ export function App() {
 
   function handleAgendaDateShift(step: number): void {
     setAgendaDate((current) => {
-      if (agendaViewMode === "week") {
+      if (agendaWorkspaceTab === "calendar" && agendaViewMode === "week") {
         return addDaysToDateValue(current, step * 7);
       }
 
-      if (agendaViewMode === "month") {
+      if (agendaWorkspaceTab === "calendar" && agendaViewMode === "month") {
         return addMonthsToDateValue(current, step);
       }
 
@@ -1861,122 +1955,9 @@ export function App() {
 
   function handleOpenAgendaBooking(booking: Booking): void {
     handleAgendaBookingSelection(booking);
+    setAgendaWorkspaceTab("list");
     setAgendaViewMode("day");
     navigateTo("agenda");
-  }
-
-  function handleOpenAgendaWeekBooking(booking: Booking): void {
-    handleAgendaBookingSelection(booking);
-    setAgendaViewMode("day");
-  }
-
-  function handleOpenAgendaMonthDate(date: string, bookingsForDate: readonly Booking[]): void {
-    setAgendaDate(date);
-    setRescheduleDate(date);
-    if (bookingsForDate.length > 0) {
-      handleAgendaBookingSelection(bookingsForDate[0]);
-      return;
-    }
-
-    setSelectedAgendaBookingId("");
-    setSelectedAgendaSlotStartAt("");
-  }
-
-  function renderAgendaRecords(): JSX.Element {
-    if (!agendaBookings.length) {
-      return (
-        <p className="empty-state">Nenhum booking encontrado para este filtro operacional.</p>
-      );
-    }
-
-    return (
-      <>
-        {agendaBookings.map((booking) => {
-          const service = services.find((item) => item.id === booking.serviceId);
-          const professional = professionals.find((item) => item.id === booking.professionalId);
-          const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-          const actions = resolveBookingActions(booking);
-          const canSyncPayment = paymentIntent !== undefined && paymentIntent.status !== "approved";
-
-          return (
-            <article className="record-card agenda-card" key={booking.id}>
-              <div className="record-card-header">
-                <div className="record-stack">
-                  <strong>{resolveBookingTitle(booking, services, professionals)}</strong>
-                  <span>{resolveClientName(booking.clientId, clients)}</span>
-                </div>
-                <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
-                  {formatBookingStatus(booking.status)}
-                </span>
-              </div>
-
-              <div className="record-meta">
-                <span>{formatDateTime(booking.startAt)}</span>
-                <span>{service ? formatCurrency(service.precoBase) : "Preco nao encontrado"}</span>
-                <span>{professional?.nome ?? "Profissional nao encontrado"}</span>
-              </div>
-
-              {paymentIntent ? (
-                <div className="record-meta">
-                  <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
-                    Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
-                  </span>
-                  {paymentIntent.paymentId ? (
-                    <span className="status-pill is-neutral">MP {paymentIntent.paymentId}</span>
-                  ) : (
-                    <span className="status-pill is-neutral">Sem `paymentId` conciliado</span>
-                  )}
-                </div>
-              ) : null}
-
-              {booking.status === "aguardando pagamento" ? (
-                <p className="helper">
-                  Este horario segue bloqueado aguardando a conciliacao do pagamento online.
-                </p>
-              ) : null}
-
-              {actions.length || canSyncPayment ? (
-                <div className="record-card-actions">
-                  {canRescheduleBooking(booking) ? (
-                    <button
-                      className="secondary-button"
-                      disabled={isBusy}
-                      onClick={() => handleOpenAgendaBooking(booking)}
-                      type="button"
-                    >
-                      Reagendar
-                    </button>
-                  ) : null}
-                  {actions.map((action) => (
-                    <button
-                      className={resolveActionButtonClassName(action.tone)}
-                      disabled={isBusy}
-                      key={action.label}
-                      onClick={() => void handleBookingStatusAction(booking.id, action.nextStatus)}
-                      type="button"
-                    >
-                      {action.label}
-                    </button>
-                  ))}
-                  {paymentIntent && canSyncPayment ? (
-                    <button
-                      className="secondary-button"
-                      disabled={isBusy}
-                      onClick={() => void handlePaymentSync(paymentIntent)}
-                      type="button"
-                    >
-                      Atualizar pagamento
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <p className="helper">Nenhuma acao operacional adicional para este status.</p>
-              )}
-            </article>
-          );
-        })}
-      </>
-    );
   }
 
   function renderClientRecords(entries: readonly ClientInsight[]): JSX.Element {
@@ -4480,873 +4461,481 @@ export function App() {
     );
   }
 
-  function renderAgendaView(): JSX.Element {
+  function renderAgendaBookingDocument(): JSX.Element | null {
+    if (!selectedAgendaBooking) {
+      return null;
+    }
+
+    const selectedService = services.find((item) => item.id === selectedAgendaBooking.serviceId);
+    const selectedProfessional = professionals.find((item) => item.id === selectedAgendaBooking.professionalId);
+    const selectedClient = clients.find((item) => item.id === selectedAgendaBooking.clientId);
+
     return (
-      <section className="view-stack">
-        <section className="workspace-grid">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Agenda / calendario</p>
-                <h2>Timeline operacional publicada</h2>
+      <DocumentViewLayout
+        className="agenda-booking-document"
+        eyebrow="Booking selecionada"
+        title={selectedService?.nome ?? "Servico nao encontrado"}
+        subtitle={`${selectedClient?.nome ?? "Cliente"} com ${selectedProfessional?.nome ?? "profissional nao encontrado"}`}
+        documentNumber={selectedAgendaBooking.id.slice(-8).toUpperCase()}
+        statusBadge={
+          <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
+            {formatBookingStatus(selectedAgendaBooking.status)}
+          </ViewBadge>
+        }
+        header={
+          <DocumentHeader
+            fields={[
+              {
+                id: "schedule",
+                label: "Horario",
+                value: formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)
+              },
+              {
+                id: "date",
+                label: "Data",
+                value: formatAgendaDayLabel(extractDatePart(selectedAgendaBooking.startAt))
+              },
+              {
+                id: "client",
+                label: "Cliente",
+                value: selectedClient?.nome ?? "Cliente nao encontrado"
+              },
+              {
+                id: "professional",
+                label: "Profissional",
+                value: selectedProfessional?.nome ?? "Profissional nao encontrado"
+              }
+            ]}
+          />
+        }
+        summary={
+          <DocumentSummaryCards
+            metrics={[
+              {
+                id: "service-value",
+                label: "Valor bruto",
+                value: selectedService ? formatCurrency(selectedService.precoBase) : "--",
+                helper: "Preco base derivado do catalogo ativo.",
+                tone: "success"
+              },
+              {
+                id: "service-duration",
+                label: "Duracao",
+                value: selectedService ? formatMinutesAsHours(selectedService.duracaoMin) : "--",
+                helper: "Tempo previsto para a agenda."
+              },
+              {
+                id: "payment-status",
+                label: "Pagamento",
+                value:
+                  selectedAgendaPaymentIntent
+                    ? formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
+                    : "Sem payment intent",
+                helper:
+                  selectedAgendaPaymentIntent?.paymentId
+                    ? `MP ${selectedAgendaPaymentIntent.paymentId}`
+                    : "Nao existe pagamento vinculado para esta booking.",
+                tone:
+                  selectedAgendaPaymentIntent
+                    ? (resolvePaymentIntentTone(selectedAgendaPaymentIntent.status) as "info" | "success" | "warning" | "danger")
+                    : undefined
+              },
+              {
+                id: "client-phone",
+                label: "Contato",
+                value: selectedClient?.telefone || "Sem telefone",
+                helper: selectedClient?.email ?? "Sem e-mail visivel"
+              }
+            ]}
+          />
+        }
+        tabs={
+          <DocumentTabs
+            tabs={[
+              { id: "overview", label: "Resumo", active: true },
+              { id: "payment", label: "Pagamento" },
+              { id: "reschedule", label: "Reagendamento" }
+            ]}
+          />
+        }
+        items={
+          <>
+            <EntitySection
+              title="Contexto atual"
+              description="Leitura operacional minima da booking selecionada."
+            >
+              <div className="record-meta">
+                <span className={`status-pill is-${resolveBookingStatusTone(selectedAgendaBooking.status)}`}>
+                  {formatBookingStatus(selectedAgendaBooking.status)}
+                </span>
+                <span className="status-pill is-neutral">
+                  {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}
+                </span>
+                {selectedAgendaPaymentIntent ? (
+                  <span className={`status-pill is-${resolvePaymentIntentTone(selectedAgendaPaymentIntent.status)}`}>
+                    Pagamento {formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)}
+                  </span>
+                ) : null}
               </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
+            </EntitySection>
 
-            <p className="helper">
-              A lista cronologica de bookings ja existe. A grade visual de calendario completo, com drag-and-drop e reagendamento, ainda nao faz parte do contrato atual.
-            </p>
-
-            <div className="mode-switch">
-              <button
-                className={bookingFilter === "today" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("today")}
-                type="button"
-              >
-                Hoje
-              </button>
-              <button
-                className={bookingFilter === "open" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("open")}
-                type="button"
-              >
-                Em aberto
-              </button>
-              <button
-                className={bookingFilter === "all" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setBookingFilter("all")}
-                type="button"
-              >
-                Tudo
-              </button>
-            </div>
-
-            <div className="records-column">{renderAgendaRecords()}</div>
-          </article>
-
-          <aside className="panel aside-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Lacunas</p>
-                <h3>O que ainda falta nesta tela</h3>
-              </div>
-            </div>
-
-            <div className="records-column">
-              <div className="list-card">
-                <strong>Calendario mensal/semanal (nao funcional)</strong>
-                <p>Sem componente de grade e sem endpoint dedicado para ocupacao agregada.</p>
-              </div>
-              <div className="list-card">
-                <strong>Reagendamento visual (nao funcional)</strong>
-                <p>A API atual aceita mutacao de booking, mas o shell ainda nao expoe UX de mover horario em calendario.</p>
-              </div>
-              <div className="list-card">
-                <strong>Capacidade e horas ociosas (nao funcional)</strong>
-                <p>Nao existe consolidacao semanal para calcular o insight do mock com confiabilidade.</p>
-              </div>
-            </div>
-          </aside>
-        </section>
-      </section>
-    );
-  }
-
-  function renderAgendaWeekView(): JSX.Element {
-    return (
-      <>
-        <div className="records-grid capacity-grid">
-          <div className="stat-card">
-            <span>Capacidade semanal</span>
-            <strong>{formatMinutesAsHours(weekCapacitySummary.totalMinutes)}</strong>
-            <small>{filteredWeekProfessionals.length} profissional(is) no recorte</small>
-          </div>
-          <div className="stat-card">
-            <span>Horas ocupadas</span>
-            <strong>{formatMinutesAsHours(weekCapacitySummary.bookedMinutes)}</strong>
-            <small>{weekCapacitySummary.bookingsCount} booking(s) distribuidas</small>
-          </div>
-          <div className="stat-card">
-            <span>Horas livres</span>
-            <strong>{formatMinutesAsHours(weekCapacitySummary.freeMinutes)}</strong>
-            <small>{weekCapacitySummary.totalMinutes > 0 ? formatUtilization(weekCapacitySummary.bookedMinutes, weekCapacitySummary.totalMinutes) : "Sem disponibilidade publicada"}</small>
-          </div>
-          <div className="stat-card">
-            <span>Em aberto na semana</span>
-            <strong>{weekCapacitySummary.openBookings}</strong>
-            <small>Confirmadas, pendentes e aguardando pagamento</small>
-          </div>
-        </div>
-
-        <section className="agenda-week-layout">
-          <article className="panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Calendario semanal</p>
-                <h3>Grade densa por profissional</h3>
-              </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
-
-            {isLoadingWeeklyAvailability ? (
-              <p className="helper">Carregando disponibilidade semanal da equipe...</p>
-            ) : filteredWeekProfessionals.length ? (
-              <div className="week-grid-shell">
-                <div className="week-grid">
-                  <div className="week-grid-header is-professional">Profissional</div>
-                  {agendaWeekDates.map((date) => {
-                    const daySummary = weekDaySummaries.find((item) => item.date === date);
-                    return (
-                      <div className="week-grid-header" key={date}>
-                        <strong>{formatAgendaDayLabel(date)}</strong>
-                        <small>
-                          {formatMinutesAsHours(daySummary?.bookedMinutes ?? 0)}
-                          {" / "}
-                          {formatMinutesAsHours(daySummary?.totalMinutes ?? 0)}
-                        </small>
-                      </div>
-                    );
-                  })}
-
-                  {filteredWeekProfessionals.map((professional) => {
-                    const professionalSummary = weekProfessionalSummaries.find(
-                      (item) => item.professionalId === professional.id
-                    );
-
-                    return (
-                      <Fragment key={professional.id}>
-                        <div className="week-professional-cell">
-                          <strong>{professional.nome}</strong>
-                          <small>
-                            {formatMinutesAsHours(professionalSummary?.bookedMinutes ?? 0)}
-                            {" / "}
-                            {formatMinutesAsHours(professionalSummary?.totalMinutes ?? 0)}
-                          </small>
-                        </div>
-
-                        {agendaWeekDates.map((date) => {
-                          const cell = buildWeekGridCell(
-                            date,
-                            professional.id,
-                            filteredWeekBookings,
-                            weeklyAvailabilityByProfessional
-                          );
-                          return (
-                            <div className="week-day-cell" key={`${professional.id}-${date}`}>
-                              <div className="week-day-cell-meta">
-                                <span className="status-pill is-neutral">
-                                  {cell.rule ? `${cell.rule.faixa.startTime} - ${cell.rule.faixa.endTime}` : "Sem escala"}
-                                </span>
-                                <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
-                                  {cell.totalMinutes > 0
-                                    ? `${formatUtilization(cell.bookedMinutes, cell.totalMinutes)} ocupacao`
-                                    : "Sem capacidade"}
-                                </span>
-                              </div>
-
-                              <div className="week-bookings-list">
-                                {cell.bookings.length ? (
-                                  cell.bookings.map((booking) => {
-                                    const service = services.find((item) => item.id === booking.serviceId);
-                                    return (
-                                      <button
-                                        className="week-booking-chip"
-                                        key={booking.id}
-                                        onClick={() => handleOpenAgendaWeekBooking(booking)}
-                                        type="button"
-                                      >
-                                        <strong>{formatTimeRange(booking.startAt, booking.endAt)}</strong>
-                                        <span>{service?.nome ?? "Servico"}</span>
-                                        <small>{resolveClientName(booking.clientId, clients)}</small>
-                                      </button>
-                                    );
-                                  })
-                                ) : (
-                                  <p className="helper">Sem booking</p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </Fragment>
-                    );
-                  })}
-                </div>
-              </div>
-            ) : (
-              <p className="empty-state">Nenhum profissional publicado para montar a grade semanal.</p>
-            )}
-          </article>
-
-          <aside className="panel aside-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Capacidade</p>
-                <h3>Leitura agregada da semana</h3>
-              </div>
-            </div>
-
-            <div className="records-column">
-              {weekDaySummaries.map((summary) => (
-                <div className="list-card" key={summary.date}>
-                  <strong>{formatAgendaDayLabel(summary.date)}</strong>
-                  <div className="record-meta">
-                    <span className="status-pill is-neutral">
-                      {formatMinutesAsHours(summary.bookedMinutes)} / {formatMinutesAsHours(summary.totalMinutes)}
-                    </span>
-                    <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
-                      {summary.totalMinutes > 0
-                        ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
-                        : "Sem capacidade"}
-                    </span>
-                  </div>
-                  <p>
-                    {summary.bookingsCount} booking(s) na data, {summary.openBookings} em aberto.
-                  </p>
-                </div>
-              ))}
-
-              <div className="list-card">
-                <strong>Lacunas desta tela</strong>
-                <p>Drag-and-drop, bloqueios por excecao e alertas preditivos continuam fora do contrato atual.</p>
-              </div>
-            </div>
-          </aside>
-        </section>
-      </>
-    );
-  }
-
-  function renderAgendaMonthView(): JSX.Element {
-    return (
-      <>
-        <div className="records-grid capacity-grid">
-          <div className="stat-card">
-            <span>Capacidade do mes</span>
-            <strong>{formatMinutesAsHours(monthCapacitySummary.totalMinutes)}</strong>
-            <small>{currentMonthCells.length} dia(s) no recorte atual</small>
-          </div>
-          <div className="stat-card">
-            <span>Horas ocupadas</span>
-            <strong>{formatMinutesAsHours(monthCapacitySummary.bookedMinutes)}</strong>
-            <small>{monthCapacitySummary.bookingsCount} booking(s) no mes</small>
-          </div>
-          <div className="stat-card">
-            <span>Horas livres</span>
-            <strong>{formatMinutesAsHours(monthCapacitySummary.freeMinutes)}</strong>
-            <small>
-              {monthCapacitySummary.totalMinutes > 0
-                ? formatUtilization(monthCapacitySummary.bookedMinutes, monthCapacitySummary.totalMinutes)
-                : "Sem disponibilidade publicada"}
-            </small>
-          </div>
-          <div className="stat-card">
-            <span>Em aberto no mes</span>
-            <strong>{monthCapacitySummary.openBookings}</strong>
-            <small>Confirmadas, pendentes e aguardando pagamento</small>
-          </div>
-        </div>
-
-        <section className="agenda-month-layout">
-          <article className="panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Calendario mensal</p>
-                <h3>Visao navegavel do mes operacional</h3>
-              </div>
-              <span className="status-pill is-success">Funcional</span>
-            </div>
-
-            <div className="month-grid">
-              {weekdayLabels.map((label) => (
-                <div className="month-grid-header" key={label}>
-                  <strong>{label}</strong>
-                </div>
-              ))}
-
-              {agendaMonthCells.map((cell) => (
-                <button
-                  className={[
-                    "month-day-cell",
-                    cell.inCurrentMonth ? "" : "is-muted",
-                    cell.date === selectedMonthCell?.date ? "is-active" : ""
-                  ]
-                    .filter(Boolean)
-                    .join(" ")}
-                  key={cell.date}
-                  onClick={() => handleOpenAgendaMonthDate(cell.date, cell.bookings)}
-                  type="button"
-                >
-                  <div className="month-day-header">
-                    <strong>{formatAgendaMonthDayNumber(cell.date)}</strong>
-                    <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
-                      {cell.bookingsCount} booking(s)
-                    </span>
-                  </div>
-                  <div className="record-meta">
-                    <span>{cell.openBookings} em aberto</span>
-                    <span>{cell.completedBookings} concluidas</span>
-                  </div>
-                  <small>
-                    {cell.totalMinutes > 0
-                      ? `${formatMinutesAsHours(cell.bookedMinutes)} / ${formatMinutesAsHours(cell.totalMinutes)}`
-                      : "Sem capacidade"}
-                  </small>
-                </button>
-              ))}
-            </div>
-          </article>
-
-          <aside className="panel aside-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Dia selecionado</p>
-                <h3>{selectedMonthCell ? formatAgendaDayLabel(selectedMonthCell.date) : "Sem data"}</h3>
-              </div>
-            </div>
-
-            {selectedMonthCell ? (
+            <EntitySection
+              title="Reagendar"
+              description="Escolha uma nova data e selecione um slot real da agenda do profissional."
+            >
               <div className="records-column">
-                <div className="list-card">
-                  <strong>Resumo do dia</strong>
-                  <div className="record-meta">
-                    <span className="status-pill is-info">{selectedMonthCell.bookingsCount} booking(s)</span>
-                    <span className="status-pill is-success">{selectedMonthCell.completedBookings} concluidas</span>
-                    <span className="status-pill is-neutral">{selectedMonthCell.openBookings} em aberto</span>
-                  </div>
-                  <p>
-                    {selectedMonthCell.totalMinutes > 0
-                      ? `${formatMinutesAsHours(selectedMonthCell.bookedMinutes)} ocupadas de ${formatMinutesAsHours(selectedMonthCell.totalMinutes)}`
-                      : "Sem disponibilidade publicada para este dia."}
-                  </p>
+                <div className="field">
+                  <label htmlFor="reschedule-date">Nova data</label>
+                  <input
+                    id="reschedule-date"
+                    onChange={(event) => setRescheduleDate(event.target.value)}
+                    type="date"
+                    value={rescheduleDate}
+                  />
                 </div>
 
-                <div className="list-card">
-                  <strong>Atendimentos do dia</strong>
-                  {selectedMonthCell.bookings.length ? (
-                    <div className="records-column detail-list">
-                      {selectedMonthCell.bookings.slice(0, 6).map((booking) => (
-                        <button
-                          className="detail-item detail-button"
-                          key={booking.id}
-                          onClick={() => handleOpenAgendaWeekBooking(booking)}
-                          type="button"
-                        >
-                          <div className="record-card-header">
-                            <strong>{resolveBookingTitle(booking, services, professionals)}</strong>
-                            <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
-                              {formatBookingStatus(booking.status)}
-                            </span>
-                          </div>
-                          <div className="record-meta">
-                            <span>{formatTimeRange(booking.startAt, booking.endAt)}</span>
-                            <span>{resolveClientName(booking.clientId, clients)}</span>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <p>Nenhuma booking encontrada para esta data.</p>
-                  )}
-                </div>
+                {isLoadingAgendaSlots ? (
+                  <p className="helper">Carregando slots disponiveis...</p>
+                ) : agendaSlots.length ? (
+                  <div className="slot-grid">
+                    {agendaSlots.map((slot) => (
+                      <button
+                        className={
+                          slot.startAt === selectedAgendaSlotStartAt ?
+                            "secondary-button is-active"
+                          : "secondary-button"
+                        }
+                        key={slot.startAt}
+                        onClick={() => setSelectedAgendaSlotStartAt(slot.startAt)}
+                        type="button"
+                      >
+                        {slot.startTime}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="helper">Nenhum slot disponivel para esta data.</p>
+                )}
 
                 <div className="button-row">
                   <button
-                    className="secondary-button"
-                    onClick={() => setAgendaViewMode("day")}
+                    className="primary-button"
+                    disabled={
+                      isBusy ||
+                      isLoadingAgendaSlots ||
+                      !selectedAgendaSlotStartAt ||
+                      selectedAgendaSlotStartAt === selectedAgendaBooking.startAt
+                    }
+                    onClick={() => void handleRescheduleBooking()}
                     type="button"
                   >
-                    Abrir dia
+                    Salvar novo horario
                   </button>
-                </div>
-
-                <div className="list-card">
-                  <strong>Lacunas desta tela</strong>
-                  <p>Drag-and-drop, bloqueios por excecao e alertas preditivos continuam fora do contrato atual.</p>
                 </div>
               </div>
-            ) : (
-              <p className="empty-state">Selecione um dia do calendario para abrir o resumo operacional.</p>
-            )}
-          </aside>
-        </section>
-      </>
-    );
-  }
-
-  function renderAgendaDayMasterDetail(): JSX.Element {
-    const selectedService = services.find((item) => item.id === selectedAgendaBooking?.serviceId);
-    const selectedProfessional = professionals.find(
-      (item) => item.id === selectedAgendaBooking?.professionalId
-    );
-    const selectedClient = clients.find((item) => item.id === selectedAgendaBooking?.clientId);
-
-    return (
-      <MasterDetailLayout
-        className="agenda-master-detail"
-        eyebrow="Operacao diaria"
-        title="Timeline e detalhe da booking"
-        subtitle="Selecione um item da agenda para abrir o detalhe documental e reagendar por slot real."
-        masterTitle="Atendimentos do dia"
-        masterDescription={`Recorte de ${formatAgendaDayLabel(agendaDate)} com leitura operacional em tempo real.`}
-        master={
-          filteredDayAgendaBookings.length ? (
-            <div className="records-column">
-              {filteredDayAgendaBookings.map((booking) => {
-                const service = services.find((item) => item.id === booking.serviceId);
-                const professional = professionals.find((item) => item.id === booking.professionalId);
-                const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-
-                return (
-                  <button
-                    className={
-                      booking.id === selectedAgendaBooking?.id ?
-                        "entity-card timeline-card is-active"
-                      : "entity-card timeline-card"
-                    }
-                    key={booking.id}
-                    onClick={() => handleAgendaBookingSelection(booking)}
-                    type="button"
-                  >
-                    <div className="timeline-card-header">
-                      <strong className="timeline-card-time">
-                        {formatTimeRange(booking.startAt, booking.endAt)}
-                      </strong>
-                      <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
-                        {formatBookingStatus(booking.status)}
-                      </span>
-                    </div>
-                    <div className="record-stack">
-                      <strong>{service?.nome ?? "Servico"}</strong>
-                      <span>{resolveClientName(booking.clientId, clients)}</span>
-                    </div>
-                    <div className="record-meta">
-                      <span>{professional?.nome ?? "Profissional nao encontrado"}</span>
-                      {paymentIntent ? (
-                        <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
-                          Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="empty-state">
-              Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)} neste recorte.
-            </p>
-          )
+            </EntitySection>
+          </>
         }
-        detailTitle={selectedAgendaBooking ? "Document view da booking" : "Nenhuma booking selecionada"}
-        detailDescription={
-          selectedAgendaBooking ?
-            "Leitura documental da booking com status, pagamento vinculado e reagendamento por slot real."
-          : "Selecione uma booking do dia para abrir o detalhe e reagendar."
+        timeline={
+          <DocumentTimeline
+            title="Linha operacional"
+            entries={[
+              {
+                id: "timeline-booking",
+                title: "Horario reservado",
+                description: `${formatAgendaDayLabel(extractDatePart(selectedAgendaBooking.startAt))}  |  ${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}`
+              },
+              {
+                id: "timeline-status",
+                title: "Status atual",
+                description: formatBookingStatus(selectedAgendaBooking.status)
+              },
+              {
+                id: "timeline-payment",
+                title: "Pagamento vinculado",
+                description:
+                  selectedAgendaPaymentIntent
+                    ? formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
+                    : "Sem payment intent nesta booking."
+              }
+            ]}
+          />
         }
-        detail={
-          selectedAgendaBooking ? (
-            <DocumentViewLayout
-              className="agenda-booking-document"
-              eyebrow="Booking selecionada"
-              title={selectedService?.nome ?? "Servico nao encontrado"}
-              subtitle={`${selectedClient?.nome ?? "Cliente"} com ${selectedProfessional?.nome ?? "profissional nao encontrado"}`}
-              documentNumber={selectedAgendaBooking.id.slice(-8).toUpperCase()}
-              statusBadge={
-                <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
-                  {formatBookingStatus(selectedAgendaBooking.status)}
-                </ViewBadge>
-              }
-              header={
-                <DocumentHeader
-                  fields={[
-                    {
-                      id: "schedule",
-                      label: "Horario",
-                      value: formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)
-                    },
-                    {
-                      id: "date",
-                      label: "Data",
-                      value: formatAgendaDayLabel(extractDatePart(selectedAgendaBooking.startAt))
-                    },
-                    {
-                      id: "client",
-                      label: "Cliente",
-                      value: selectedClient?.nome ?? "Cliente nao encontrado"
-                    },
-                    {
-                      id: "professional",
-                      label: "Profissional",
-                      value: selectedProfessional?.nome ?? "Profissional nao encontrado"
-                    }
-                  ]}
-                />
-              }
-              summary={
-                <DocumentSummaryCards
-                  metrics={[
-                    {
-                      id: "service-value",
-                      label: "Valor bruto",
-                      value: selectedService ? formatCurrency(selectedService.precoBase) : "--",
-                      helper: "Preco base derivado do catalogo ativo.",
-                      tone: "success"
-                    },
-                    {
-                      id: "service-duration",
-                      label: "Duracao",
-                      value: selectedService ? formatMinutesAsHours(selectedService.duracaoMin) : "--",
-                      helper: "Tempo previsto para a agenda."
-                    },
-                    {
-                      id: "payment-status",
-                      label: "Pagamento",
-                      value: selectedAgendaPaymentIntent ?
-                        formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
-                      : "Sem payment intent",
-                      helper: selectedAgendaPaymentIntent?.paymentId ?
-                        `MP ${selectedAgendaPaymentIntent.paymentId}`
-                      : "Nao existe pagamento vinculado para esta booking.",
-                      tone: selectedAgendaPaymentIntent ?
-                        (resolvePaymentIntentTone(selectedAgendaPaymentIntent.status) as "info" | "success" | "warning" | "danger")
-                      : undefined
-                    },
-                    {
-                      id: "client-phone",
-                      label: "Contato",
-                      value: selectedClient?.telefone || "Sem telefone",
-                      helper: selectedClient?.email ?? "Sem e-mail visivel"
-                    }
-                  ]}
-                />
-              }
-              tabs={
-                <DocumentTabs
-                  tabs={[
-                    { id: "schedule", label: "Agenda", active: true },
-                    { id: "payment", label: "Pagamento" },
-                    { id: "gaps", label: "Lacunas" }
-                  ]}
-                />
-              }
-              items={
-                <>
-                  <EntitySection
-                    title="Reagendar"
-                    description="Escolha uma nova data e selecione um slot real da agenda do profissional."
-                  >
-                    <div className="records-column">
-                      <div className="field">
-                        <label htmlFor="reschedule-date">Nova data</label>
-                        <input
-                          id="reschedule-date"
-                          onChange={(event) => setRescheduleDate(event.target.value)}
-                          type="date"
-                          value={rescheduleDate}
-                        />
-                      </div>
-
-                      {isLoadingAgendaSlots ? (
-                        <p className="helper">Carregando slots disponiveis...</p>
-                      ) : agendaSlots.length ? (
-                        <div className="slot-grid">
-                          {agendaSlots.map((slot) => (
-                            <button
-                              className={
-                                slot.startAt === selectedAgendaSlotStartAt ?
-                                  "secondary-button is-active"
-                                : "secondary-button"
-                              }
-                              key={slot.startAt}
-                              onClick={() => setSelectedAgendaSlotStartAt(slot.startAt)}
-                              type="button"
-                            >
-                              {slot.startTime}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="helper">Nenhum slot disponivel para esta data.</p>
-                      )}
-
-                      <div className="button-row">
-                        <button
-                          className="primary-button"
-                          disabled={
-                            isBusy ||
-                            isLoadingAgendaSlots ||
-                            !selectedAgendaSlotStartAt ||
-                            selectedAgendaSlotStartAt === selectedAgendaBooking.startAt
-                          }
-                          onClick={() => void handleRescheduleBooking()}
-                          type="button"
-                        >
-                          Salvar novo horario
-                        </button>
-                      </div>
-                    </div>
-                  </EntitySection>
-
-                  <EntitySection
-                    title="Contexto atual"
-                    description="Leitura operacional minima da booking selecionada."
-                  >
-                    <div className="record-meta">
-                      <span className={`status-pill is-${resolveBookingStatusTone(selectedAgendaBooking.status)}`}>
-                        {formatBookingStatus(selectedAgendaBooking.status)}
-                      </span>
-                      <span className="status-pill is-neutral">
-                        {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}
-                      </span>
-                      {selectedAgendaPaymentIntent ? (
-                        <span className={`status-pill is-${resolvePaymentIntentTone(selectedAgendaPaymentIntent.status)}`}>
-                          Pagamento {formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)}
-                        </span>
-                      ) : null}
-                    </div>
-                  </EntitySection>
-                </>
-              }
-              timeline={
-                <DocumentTimeline
-                  title="Linha operacional"
-                  entries={[
-                    {
-                      id: "timeline-booking",
-                      title: "Horario reservado",
-                      description: `${formatAgendaDayLabel(extractDatePart(selectedAgendaBooking.startAt))}  |  ${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}`
-                    },
-                    {
-                      id: "timeline-status",
-                      title: "Status atual",
-                      description: formatBookingStatus(selectedAgendaBooking.status)
-                    },
-                    {
-                      id: "timeline-payment",
-                      title: "Pagamento vinculado",
-                      description: selectedAgendaPaymentIntent ?
-                        formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
-                      : "Sem payment intent nesta booking."
-                    }
-                  ]}
-                />
-              }
-              impactPanel={
-                <DocumentImpactPanel
-                  sections={[
-                    {
-                      id: "agenda-impact",
-                      title: "Impacto operacional",
-                      tone: "success",
-                      items: [
-                        "O reagendamento usa slots reais da disponibilidade do profissional.",
-                        "A agenda administrativa continua refletindo o status atual da booking."
-                      ]
-                    },
-                    {
-                      id: "agenda-gap",
-                      title: "Lacunas desta tela",
-                      tone: "warning",
-                      items: [
-                        "Drag-and-drop, bloqueios por excecao e alertas preditivos continuam sem contrato dedicado.",
-                        "Nao existe timeline persistida de eventos da booking neste corte."
-                      ]
-                    }
-                  ]}
-                />
-              }
-            />
-          ) : undefined
-        }
-        emptyDetail={<p className="empty-state">Selecione uma booking do dia para abrir o detalhe e reagendar.</p>}
       />
     );
   }
 
-  function renderAgendaViewV2(): JSX.Element {
-
-    if (isAgendaDayMode(agendaViewMode)) {
-      return (
-        <section className="view-stack">
-          <article className="panel">
-            <div className="panel-header">
-              <div>
-                <p className="eyebrow">Agenda / calendario</p>
-                <h2>Agenda diaria, semanal e mensal</h2>
-              </div>
-              <span className="status-pill is-warning">Parcial</span>
-            </div>
-
-            <p className="helper">
-              O shell agora opera a linha do dia com selecao de booking e reagendamento por slot real, alem de uma grade semanal de capacidade por profissional e uma visao mensal navegavel. Drag-and-drop continua fora do corte.
-            </p>
-
-            <div className="timeline-toolbar">
-              <div className="button-row">
-                <button
-                  className={agendaViewMode === "day" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setAgendaViewMode("day")}
-                  type="button"
-                >
-                  Dia
-                </button>
-                <button
-                  className={agendaViewMode === "week" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setAgendaViewMode("week")}
-                  type="button"
-                >
-                  Semana
-                </button>
-                <button
-                  className={agendaViewMode === "month" ? "secondary-button is-active" : "secondary-button"}
-                  onClick={() => setAgendaViewMode("month")}
-                  type="button"
-                >
-                  Mes
-                </button>
-              </div>
-
-              <div className="button-row">
-                <button
-                  className="secondary-button"
-                  onClick={() => handleAgendaDateShift(-1)}
-                  type="button"
-                >
-                  Dia anterior
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
-                  type="button"
-                >
-                  Hoje
-                </button>
-                <button
-                  className="secondary-button"
-                  onClick={() => handleAgendaDateShift(1)}
-                  type="button"
-                >
-                  Proximo dia
-                </button>
-              </div>
-
-              <div className="field timeline-date-field">
-                <label htmlFor="agenda-date">Data da agenda</label>
-                <input
-                  id="agenda-date"
-                  onChange={(event) => setAgendaDate(event.target.value)}
-                  type="date"
-                  value={agendaDate}
-                />
-              </div>
-
-              <div className="field timeline-date-field">
-                <label htmlFor="agenda-professional-filter">Profissional</label>
-                <select
-                  id="agenda-professional-filter"
-                  onChange={(event) => setAgendaProfessionalFilter(event.target.value)}
-                  value={agendaProfessionalFilter}
-                >
-                  <option value="all">Todos os profissionais</option>
-                  {professionals.map((professional) => (
-                    <option key={professional.id} value={professional.id}>
-                      {professional.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="record-meta">
-              <span className="status-pill is-neutral">{formatAgendaDayLabel(agendaDate)}</span>
-              <span className="status-pill is-info">{agendaDaySummary.total} booking(s) no dia</span>
-              <span className="status-pill is-info">Em aberto {agendaDaySummary.open}</span>
-              <span className="status-pill is-success">Confirmadas {agendaDaySummary.confirmed}</span>
-            </div>
-          </article>
-
-          {renderAgendaDayMasterDetail()}
-        </section>
-      );
-    }
-
+  function renderAgendaListWorkspace(): JSX.Element {
     return (
-      <section className="view-stack">
-        <article className="panel">
-          <div className="panel-header">
+      <div className="ag-master-detail-grid agenda-workspace-grid">
+        <article className="ag-surface-card ag-view-panel agenda-workspace-panel">
+          <div className="agenda-panel-header">
             <div>
-              <p className="eyebrow">Agenda / calendario</p>
-              <h2>Agenda diaria, semanal e mensal</h2>
+              <p className="eyebrow">Formato lista</p>
+              <h3>{formatAgendaDayLabel(agendaDate)}</h3>
+              <p className="helper">
+                Selecione um atendimento da fila do dia para abrir o detalhe completo e reagendar por slot real.
+              </p>
             </div>
-            <span className="status-pill is-warning">Parcial</span>
+            <ViewBadge tone="info">{filteredDayAgendaBookings.length} booking(s)</ViewBadge>
           </div>
 
-          <p className="helper">
-            O shell agora opera a linha do dia com selecao de booking e reagendamento por slot real, alem de uma grade semanal de capacidade por profissional e uma visao mensal navegavel. Drag-and-drop continua fora do corte.
-          </p>
+          <div className="ag-master-detail-body">
+            {filteredDayAgendaBookings.length ? (
+              <div className="records-column">
+                {filteredDayAgendaBookings.map((booking) => {
+                  const service = services.find((item) => item.id === booking.serviceId);
+                  const professional = professionals.find((item) => item.id === booking.professionalId);
+                  const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
 
-          <div className="timeline-toolbar">
-            <div className="button-row">
-              <button
-                className={agendaViewMode === "day" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setAgendaViewMode("day")}
-                type="button"
-              >
-                Dia
-              </button>
-              <button
-                className={agendaViewMode === "week" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setAgendaViewMode("week")}
-                type="button"
-              >
-                Semana
-              </button>
-              <button
-                className={agendaViewMode === "month" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setAgendaViewMode("month")}
-                type="button"
-              >
-                Mes
-              </button>
+                  return (
+                    <button
+                      className={
+                        booking.id === selectedAgendaBooking?.id ?
+                          "entity-card timeline-card is-active"
+                        : "entity-card timeline-card"
+                      }
+                      key={booking.id}
+                      onClick={() => handleAgendaBookingSelection(booking)}
+                      type="button"
+                    >
+                      <div className="timeline-card-header">
+                        <strong className="timeline-card-time">{formatTimeRange(booking.startAt, booking.endAt)}</strong>
+                        <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                          {formatBookingStatus(booking.status)}
+                        </span>
+                      </div>
+                      <div className="record-stack">
+                        <strong>{resolveClientName(booking.clientId, clients)}</strong>
+                        <span>{service?.nome ?? "Servico"}  |  {professional?.nome ?? "Profissional nao encontrado"}</span>
+                      </div>
+                      <div className="record-meta">
+                        <span>{service ? formatCurrency(service.precoBase) : "Preco nao encontrado"}</span>
+                        {paymentIntent ? (
+                          <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
+                            Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
+                          </span>
+                        ) : (
+                          <span className="status-pill is-neutral">Sem payment intent</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="empty-state">
+                Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)} neste recorte.
+              </p>
+            )}
+          </div>
+        </article>
+
+        <article className="ag-surface-card ag-view-panel agenda-detail-panel">
+          <div className="agenda-panel-header">
+            <div>
+              <p className="eyebrow">Detalhe da booking</p>
+              <h3>
+                {selectedAgendaBooking ?
+                  `${resolveClientName(selectedAgendaBooking.clientId, clients)}  |  ${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}`
+                : "Selecione um atendimento"}
+              </h3>
+              <p className="helper">
+                Clique em um item da lista ou da grade para abrir o documento completo e seguir com o reagendamento.
+              </p>
             </div>
+            {selectedAgendaBooking ? (
+              <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
+                {formatBookingStatus(selectedAgendaBooking.status)}
+              </ViewBadge>
+            ) : null}
+          </div>
 
-            <div className="button-row">
-              <button
-                className="secondary-button"
-                onClick={() => handleAgendaDateShift(-1)}
-                type="button"
-              >
-                {agendaViewMode === "week" ? "Semana anterior" : "Mes anterior"}
+          <div className="ag-master-detail-body">
+            {renderAgendaBookingDocument() ?? (
+              <p className="empty-state">Selecione uma booking do dia para abrir o detalhe e reagendar.</p>
+            )}
+          </div>
+        </article>
+      </div>
+    );
+  }
+
+  function renderAgendaCalendarWorkspace(): JSX.Element {
+    const agendaCalendarDate = parseDateFns(agendaDate, "yyyy-MM-dd", new Date());
+    const visibleCalendarLabel =
+      agendaViewMode === "day" ?
+        formatAgendaDayLabel(agendaDate)
+      : agendaViewMode === "week" ?
+        formatAgendaWeekLabel(agendaWeekDates)
+      : formatAgendaMonthLabel(agendaDate);
+
+    return (
+      <div className="ag-master-detail-grid agenda-workspace-grid agenda-calendar-grid">
+        <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-calendar-panel">
+          <div className="agenda-panel-header">
+            <div>
+              <p className="eyebrow">Formato agenda</p>
+              <h3>{visibleCalendarLabel}</h3>
+              <p className="helper">
+                Grade interativa em React para navegar por dia, semana e mes sem perder o detalhe da booking.
+              </p>
+            </div>
+            <ViewBadge tone="success">{agendaCalendarEvents.length} evento(s)</ViewBadge>
+          </div>
+
+          <div className="agenda-calendar-shell">
+            <BigCalendar
+              culture="pt-BR"
+              date={agendaCalendarDate}
+              endAccessor="end"
+              eventPropGetter={(event) => ({
+                className: `agenda-rbc-event is-${resolveBookingStatusTone(event.resource.status)}`
+              })}
+              events={agendaCalendarEvents}
+              localizer={agendaCalendarLocalizer}
+              max={new Date(1970, 0, 1, 22, 0, 0)}
+              messages={agendaCalendarMessages}
+              min={new Date(1970, 0, 1, 6, 0, 0)}
+              onNavigate={(nextDate) => setAgendaDate(formatDateFns(nextDate, "yyyy-MM-dd"))}
+              onSelectEvent={(event) => handleAgendaBookingSelection(event.resource)}
+              onView={(view) => {
+                if (view === "day" || view === "week" || view === "month") {
+                  setAgendaViewMode(view);
+                }
+              }}
+              popup
+              selected={selectedAgendaCalendarEvent ?? undefined}
+              startAccessor="start"
+              toolbar={false}
+              view={agendaViewMode as BigCalendarView}
+              views={["day", "week", "month"]}
+            />
+          </div>
+        </article>
+
+        <article className="ag-surface-card ag-view-panel agenda-detail-panel">
+          <div className="agenda-panel-header">
+            <div>
+              <p className="eyebrow">Detalhe da booking</p>
+              <h3>
+                {selectedAgendaBooking ?
+                  `${resolveClientName(selectedAgendaBooking.clientId, clients)}  |  ${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}`
+                : "Selecione um evento"}
+              </h3>
+              <p className="helper">
+                Clique em um evento do calendario para abrir o documento completo e seguir com a acao operacional.
+              </p>
+            </div>
+            {selectedAgendaBooking ? (
+              <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
+                {formatBookingStatus(selectedAgendaBooking.status)}
+              </ViewBadge>
+            ) : null}
+          </div>
+
+          <div className="ag-master-detail-body">
+            {renderAgendaBookingDocument() ?? (
+              <p className="empty-state">Selecione um evento do calendario para abrir o detalhe e reagendar.</p>
+            )}
+          </div>
+        </article>
+      </div>
+    );
+  }
+
+  function renderAgendaViewV2(): JSX.Element {
+    const agendaWorkspaceTabs: ReadonlyArray<{
+      readonly id: AgendaWorkspaceTab;
+      readonly label: string;
+      readonly icon: LucideIcon;
+      readonly helper: string;
+    }> = [
+      { id: "list", label: "Lista", icon: ListTodo, helper: `${filteredDayAgendaBookings.length} do dia` },
+      { id: "calendar", label: "Agenda", icon: CalendarDays, helper: `${agendaCalendarEvents.length} carregados` }
+    ];
+    const agendaViewTabs: ReadonlyArray<{
+      readonly id: AgendaViewMode;
+      readonly label: string;
+    }> = [
+      { id: "day", label: "Dia" },
+      { id: "week", label: "Semana" },
+      { id: "month", label: "Mes" }
+    ];
+    const activeAgendaBookings =
+      agendaWorkspaceTab === "list" || agendaViewMode === "day" ?
+        filteredDayAgendaBookings
+      : agendaViewMode === "week" ?
+        filteredWeekBookings
+      : currentMonthCells.flatMap((cell) => cell.bookings);
+    const activeAgendaSummary = {
+      total: activeAgendaBookings.length,
+      open: activeAgendaBookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
+      confirmed: activeAgendaBookings.filter((booking) => booking.status === "confirmado").length,
+      completed: activeAgendaBookings.filter((booking) => booking.status === "concluido").length
+    };
+    const activeAgendaLabel =
+      agendaWorkspaceTab === "list" || agendaViewMode === "day" ?
+        formatAgendaDayLabel(agendaDate)
+      : agendaViewMode === "week" ?
+        formatAgendaWeekLabel(agendaWeekDates)
+      : formatAgendaMonthLabel(agendaDate);
+    const agendaViewLabel =
+      agendaWorkspaceTab === "list" ?
+        "Lista operacional"
+      : agendaViewMode === "day" ?
+        "Calendario diario"
+      : agendaViewMode === "week" ?
+        "Calendario semanal"
+      : "Calendario mensal";
+    const navigationLabels =
+      agendaWorkspaceTab === "calendar" && agendaViewMode === "week" ?
+        { previous: "Semana anterior", current: "Esta semana", next: "Proxima semana" }
+      : agendaWorkspaceTab === "calendar" && agendaViewMode === "month" ?
+        { previous: "Mes anterior", current: "Este mes", next: "Proximo mes" }
+      : { previous: "Dia anterior", current: "Hoje", next: "Proximo dia" };
+
+    return (
+      <DocumentViewLayout
+        className="agenda-document-view"
+        eyebrow="Agenda / calendario"
+        title="Agenda operacional"
+        subtitle="Filtros, lista do dia e grade interativa da agenda sem misturar capacidade agregada e leitura gerencial."
+        statusBadge={
+          <ViewBadge tone={agendaWorkspaceTab === "list" ? "info" : "success"}>
+            {agendaViewLabel}
+          </ViewBadge>
+        }
+        pageActions={
+          <div className="agenda-page-actions">
+            <div className="mode-switch">
+              <button className="secondary-button" onClick={() => handleAgendaDateShift(-1)} type="button">
+                {navigationLabels.previous}
               </button>
               <button
                 className="secondary-button"
                 onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
                 type="button"
               >
-                {agendaViewMode === "week" ? "Esta semana" : "Este mes"}
+                {navigationLabels.current}
               </button>
-              <button
-                className="secondary-button"
-                onClick={() => handleAgendaDateShift(1)}
-                type="button"
-              >
-                {agendaViewMode === "week" ? "Proxima semana" : "Proximo mes"}
+              <button className="secondary-button" onClick={() => handleAgendaDateShift(1)} type="button">
+                {navigationLabels.next}
               </button>
             </div>
 
-            <div className="field timeline-date-field">
-              <label htmlFor="agenda-date">Data da agenda</label>
+            <label className="dashboard-select" htmlFor="agenda-date">
+              <span>Data da agenda</span>
               <input
                 id="agenda-date"
                 onChange={(event) => setAgendaDate(event.target.value)}
                 type="date"
                 value={agendaDate}
               />
-            </div>
+            </label>
 
-            <div className="field timeline-date-field">
-              <label htmlFor="agenda-professional-filter">Profissional</label>
+            <label className="dashboard-select" htmlFor="agenda-professional-filter">
+              <span>Profissional</span>
               <select
                 id="agenda-professional-filter"
                 onChange={(event) => setAgendaProfessionalFilter(event.target.value)}
@@ -5359,38 +4948,113 @@ export function App() {
                   </option>
                 ))}
               </select>
-            </div>
+            </label>
+
+            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+              Atualizar
+            </button>
           </div>
-
-          {agendaViewMode === "week" ? (
-            <div className="record-meta">
-              <span className="status-pill is-neutral">{formatAgendaWeekLabel(agendaWeekDates)}</span>
-              <span className="status-pill is-info">
-                {formatMinutesAsHours(weekCapacitySummary.bookedMinutes)} ocupadas
-              </span>
-              <span className="status-pill is-success">
-                {formatMinutesAsHours(weekCapacitySummary.freeMinutes)} livres
-              </span>
-              <span className="status-pill is-info">{weekCapacitySummary.bookingsCount} booking(s) na semana</span>
+        }
+        header={
+          <DocumentHeader
+            fields={[
+              { id: "period", label: "Recorte ativo", value: activeAgendaLabel },
+              {
+                id: "professional",
+                label: "Profissional",
+                value:
+                  agendaProfessionalFilter === "all" ?
+                    "Todos os profissionais"
+                  : resolveProfessionalName(agendaProfessionalFilter, professionals)
+              },
+              { id: "workspace", label: "Formato", value: agendaViewLabel },
+              {
+                id: "selected",
+                label: "Selecionada",
+                value:
+                  selectedAgendaBooking
+                    ? `${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}  |  ${resolveClientName(selectedAgendaBooking.clientId, clients)}`
+                    : "Nenhuma booking selecionada"
+              }
+            ]}
+          />
+        }
+        summary={
+          <DocumentSummaryCards
+            metrics={[
+              {
+                id: "total",
+                label: "No recorte",
+                value: activeAgendaSummary.total,
+                helper: "Eventos realmente carregados para a visao atual.",
+                tone: "info"
+              },
+              {
+                id: "open",
+                label: "Em aberto",
+                value: activeAgendaSummary.open,
+                helper: "Pendentes, confirmados e aguardando pagamento.",
+                tone: "warning"
+              },
+              {
+                id: "confirmed",
+                label: "Confirmados",
+                value: activeAgendaSummary.confirmed,
+                helper: "Prontos para execucao operacional.",
+                tone: "info"
+              },
+              {
+                id: "completed",
+                label: "Concluidos",
+                value: activeAgendaSummary.completed,
+                helper: "Fechados sem abrir o modulo gerencial.",
+                tone: "success"
+              }
+            ]}
+          />
+        }
+        tabs={
+          <div className="agenda-tabs-stack">
+            <div aria-label="Formatos da agenda" className="dashboard-tabbar" role="tablist">
+              {agendaWorkspaceTabs.map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    aria-selected={agendaWorkspaceTab === tab.id}
+                    className={agendaWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                    key={tab.id}
+                    onClick={() => setAgendaWorkspaceTab(tab.id)}
+                    role="tab"
+                    type="button"
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span>{tab.label}</span>
+                    <small>{tab.helper}</small>
+                  </button>
+                );
+              })}
             </div>
-          ) : (
-            <div className="record-meta">
-              <span className="status-pill is-neutral">{formatAgendaMonthLabel(agendaDate)}</span>
-              <span className="status-pill is-info">{monthCapacitySummary.bookingsCount} booking(s) no mes</span>
-              <span className="status-pill is-success">
-                {formatMinutesAsHours(monthCapacitySummary.freeMinutes)} livres
-              </span>
-              <span className="status-pill is-info">Em aberto {monthCapacitySummary.openBookings}</span>
-            </div>
-          )}
-        </article>
 
-        {agendaViewMode === "week" ? (
-          renderAgendaWeekView()
-        ) : (
-          renderAgendaMonthView()
-        )}
-      </section>
+            {agendaWorkspaceTab === "calendar" ? (
+              <div aria-label="Visoes do calendario" className="dashboard-tabbar agenda-subtabbar" role="tablist">
+                {agendaViewTabs.map((tab) => (
+                  <button
+                    aria-selected={agendaViewMode === tab.id}
+                    className={agendaViewMode === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                    key={tab.id}
+                    onClick={() => setAgendaViewMode(tab.id)}
+                    role="tab"
+                    type="button"
+                  >
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        }
+        items={agendaWorkspaceTab === "list" ? renderAgendaListWorkspace() : renderAgendaCalendarWorkspace()}
+      />
     );
   }
 
@@ -5583,24 +5247,50 @@ export function App() {
       activeClientRecurrence.averageRecurrenceDays === null
         ? "n/d"
         : `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`;
+    const reportOpenBookings = reportBookings.filter((booking) => isOpenBookingStatus(booking.status)).length;
     const reportsSourceLabel = reportsReadModel ? "Read model do backend" : "Fallback local";
-    const reportsSourceHelper = reportsReadModelError
-      ? `Leitura dedicada indisponivel; fallback local ativo. ${reportsReadModelError}`
-      : isLoadingReportsReadModel
-        ? "Atualizando o read model dedicado sem interromper a leitura."
-        : reportsReadModel
-          ? "Metricas e buckets vieram do endpoint dedicado de reporting."
-          : "Sem read model carregado nesta sessao.";
+    const reportsWorkspaceTabs: ReadonlyArray<{
+      readonly id: ReportsWorkspaceTab;
+      readonly label: string;
+      readonly helper: string;
+    }> = [
+      {
+        id: "overview",
+        label: "Visao executiva",
+        helper: "KPI principal"
+      },
+      {
+        id: "services",
+        label: "Servicos",
+        helper: `${activeReportServiceSummaries.length} grupo(s)`
+      },
+      {
+        id: "team",
+        label: "Equipe",
+        helper: `${activeReportProfessionalSummaries.length} profissional(is)`
+      },
+      {
+        id: "retention",
+        label: "Retorno",
+        helper: `${activeClientRecurrence.inactiveCount} sem retorno`
+      },
+      {
+        id: "agenda",
+        label: "Agenda",
+        helper: `${reportsInsightWeekCapacitySummary.openBookings} em aberto`
+      }
+    ];
+    const reportsInsightMonthHighlights = reportsInsightCurrentMonthCells.filter((cell) => cell.bookingsCount > 0);
 
     return (
       <DocumentViewLayout
         className="reports-document-view"
-        eyebrow="Leitura comparativa"
-        title={tenant?.nome ?? "Tenant nao carregado"}
-        subtitle="Relatorios essenciais do tenant com recorte por periodo, servico, profissional e retorno."
+        eyebrow="Relatorios"
+        title="Leitura gerencial"
+        subtitle="Receita, equipe, retorno e capacidade por recorte."
         statusBadge={
-          <ViewBadge tone="warning">
-            {reportsComparisonEnabled ? "Comparativo parcial ativo" : "Sem comparativo no historico total"}
+          <ViewBadge tone={reportsComparisonEnabled ? "success" : "neutral"}>
+            {reportsComparisonEnabled ? "Comparativo ativo" : "Historico total"}
           </ViewBadge>
         }
         pageActions={
@@ -5664,47 +5354,19 @@ export function App() {
                 <option value="90d">90 dias</option>
               </select>
             </label>
+            <button
+              className="secondary-button"
+              onClick={() => setIsReportsContextVisible((current) => !current)}
+              type="button"
+            >
+              {isReportsContextVisible ? "Ocultar contexto" : "Contexto"}
+            </button>
           </div>
         }
-        header={
-          <DocumentHeader
-            fields={[
-              { id: "range", label: "Periodo", value: resolveDashboardRangeLabel(reportsRange) },
-              { id: "service", label: "Servico", value: selectedReportService?.nome ?? "Todos os servicos" },
-              {
-                id: "professional",
-                label: "Profissional",
-                value: selectedReportProfessional?.nome ?? "Todos os profissionais"
-              },
-              {
-                id: "window",
-                label: "Janela de retorno",
-                value: resolveClientReturnWindowLabel(activeClientRecurrence.window)
-              },
-              {
-                id: "comparison",
-                label: "Comparativo",
-                value: reportsComparisonEnabled ? "Periodo anterior" : "Indisponivel"
-              },
-              { id: "source", label: "Fonte da leitura", value: reportsSourceLabel }
-            ]}
-          />
-        }
+        header={null}
         summary={
           <DocumentSummaryCards
             metrics={[
-              {
-                id: "bookings",
-                label: "Bookings no periodo",
-                value: activeReportCurrent.bookingsCount,
-                helper: resolveReportComparisonLabel(
-                  activeReportCurrent.bookingsCount,
-                  activeReportPrevious?.bookingsCount ?? 0,
-                  "count",
-                  reportsComparisonEnabled
-                ),
-                tone: "info"
-              },
               {
                 id: "recognized",
                 label: "Receita reconhecida",
@@ -5718,13 +5380,13 @@ export function App() {
                 tone: "success"
               },
               {
-                id: "online",
-                label: "Entrada online aprovada",
-                value: formatCurrency(activeReportCurrent.approvedOnlineRevenue),
+                id: "bookings",
+                label: "Bookings no periodo",
+                value: activeReportCurrent.bookingsCount,
                 helper: resolveReportComparisonLabel(
-                  activeReportCurrent.approvedOnlineRevenue,
-                  activeReportPrevious?.approvedOnlineRevenue ?? 0,
-                  "currency",
+                  activeReportCurrent.bookingsCount,
+                  activeReportPrevious?.bookingsCount ?? 0,
+                  "count",
                   reportsComparisonEnabled
                 ),
                 tone: "info"
@@ -5742,30 +5404,26 @@ export function App() {
                 value: activeReportCurrent.uniqueClients,
                 helper: "Base distinta atendida no recorte.",
                 tone: "info"
-              },
-              {
-                id: "no-show",
-                label: "Taxa de no-show",
-                value: formatPercentage(currentNoShowRate),
-                helper: resolveReportComparisonLabel(
-                  currentNoShowRate,
-                  previousNoShowRate,
-                  "percentage",
-                  reportsComparisonEnabled
-                ),
-                tone: "danger"
               }
             ]}
           />
         }
         tabs={
-          <DocumentTabs
-            tabs={[
-              { id: "overview", label: "Receita e agenda", active: true },
-              { id: "groups", label: "Servicos e equipe" },
-              { id: "retention", label: "Retorno e lacunas" }
-            ]}
-          />
+          <div aria-label="Visoes dos relatorios" className="dashboard-tabbar" role="tablist">
+            {reportsWorkspaceTabs.map((tab) => (
+              <button
+                aria-selected={reportsWorkspaceTab === tab.id}
+                className={reportsWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                key={tab.id}
+                onClick={() => setReportsWorkspaceTab(tab.id)}
+                role="tab"
+                type="button"
+              >
+                <span>{tab.label}</span>
+                <small>{tab.helper}</small>
+              </button>
+            ))}
+          </div>
         }
         items={
           <>
@@ -5775,11 +5433,128 @@ export function App() {
             {reportsReadModelError ? (
               <div className="feedback-banner is-error">{reportsReadModelError}</div>
             ) : null}
+            {isReportsContextVisible ? (
+              <DocumentHeader
+                className="reports-context-header"
+                fields={[
+                  { id: "range", label: "Periodo", value: resolveDashboardRangeLabel(reportsRange) },
+                  { id: "service", label: "Servico", value: selectedReportService?.nome ?? "Todos os servicos" },
+                  {
+                    id: "professional",
+                    label: "Profissional",
+                    value: selectedReportProfessional?.nome ?? "Todos os profissionais"
+                  },
+                  {
+                    id: "window",
+                    label: "Janela de retorno",
+                    value: resolveClientReturnWindowLabel(activeClientRecurrence.window)
+                  },
+                  {
+                    id: "comparison",
+                    label: "Comparativo",
+                    value: reportsComparisonEnabled ? "Periodo anterior" : "Indisponivel"
+                  },
+                  { id: "source", label: "Fonte", value: reportsSourceLabel }
+                ]}
+              />
+            ) : null}
 
-            <div className="workspace-grid">
+            {reportsWorkspaceTab === "overview" ? (
+              <div className="reports-workspace-stack">
+                <EntitySection
+                  title="Saude do periodo"
+                  description="Leitura executiva para receita, demanda e risco do recorte."
+                >
+                  <DocumentSummaryCards
+                    metrics={[
+                      {
+                        id: "completed",
+                        label: "Concluidos",
+                        value: activeReportCurrent.completedCount,
+                        helper: "Atendimentos finalizados no recorte.",
+                        tone: "success"
+                      },
+                      {
+                        id: "open",
+                        label: "Em aberto",
+                        value: reportOpenBookings,
+                        helper: "Pendentes, confirmados e aguardando pagamento.",
+                        tone: "warning"
+                      },
+                      {
+                        id: "online",
+                        label: "Entrada online",
+                        value: formatCurrency(activeReportCurrent.approvedOnlineRevenue),
+                        helper: resolveReportComparisonLabel(
+                          activeReportCurrent.approvedOnlineRevenue,
+                          activeReportPrevious?.approvedOnlineRevenue ?? 0,
+                          "currency",
+                          reportsComparisonEnabled
+                        ),
+                        tone: "info"
+                      },
+                      {
+                        id: "no-show",
+                        label: "Taxa de no-show",
+                        value: formatPercentage(currentNoShowRate),
+                        helper: resolveReportComparisonLabel(
+                          currentNoShowRate,
+                          previousNoShowRate,
+                          "percentage",
+                          reportsComparisonEnabled
+                        ),
+                        tone: "danger"
+                      }
+                    ]}
+                  />
+                </EntitySection>
+
+                <EntitySection
+                  title="Retencao no recorte"
+                  description="Resumo da base sem abrir a rota de clientes."
+                  actions={
+                    <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
+                      Abrir clientes
+                    </button>
+                  }
+                >
+                  <DocumentSummaryCards
+                    metrics={[
+                      {
+                        id: "returning",
+                        label: "Com retorno",
+                        value: activeClientRecurrence.returningCount,
+                        helper: "Clientes com ultimo concluido dentro da janela.",
+                        tone: "success"
+                      },
+                      {
+                        id: "inactive",
+                        label: "Sem retorno",
+                        value: activeClientRecurrence.inactiveCount,
+                        helper: `Nao voltaram em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
+                        tone: "warning"
+                      },
+                      {
+                        id: "never",
+                        label: "Nunca concluiu",
+                        value: activeClientRecurrence.neverCompletedCount,
+                        helper: "Entraram na base sem atendimento concluido."
+                      },
+                      {
+                        id: "recurrence",
+                        label: "Recorrencia media",
+                        value: recurrenceAverageLabel,
+                        helper: "Media simples entre atendimentos concluidos.",
+                        tone: "info"
+                      }
+                    ]}
+                  />
+                </EntitySection>
+              </div>
+            ) : reportsWorkspaceTab === "services" ? (
               <EntitySection
-                title="Receita e agenda por servico"
-                description="Agrupamento por servico com bookings, concluidos, clientes unicos e ticket."
+                title="Servicos no recorte"
+                description="Receita, volume, clientes unicos e ticket por servico."
               >
                 <div className="records-column">
                   {activeReportServiceSummaries.length ? (
@@ -5804,10 +5579,10 @@ export function App() {
                   )}
                 </div>
               </EntitySection>
-
+            ) : reportsWorkspaceTab === "team" ? (
               <EntitySection
-                title="Performance por profissional"
-                description="Leitura da equipe com o mesmo recorte aplicado ao modulo."
+                title="Equipe no recorte"
+                description="Performance da equipe com o mesmo filtro aplicado ao modulo."
               >
                 <div className="records-column">
                   {activeReportProfessionalSummaries.length ? (
@@ -5832,200 +5607,296 @@ export function App() {
                   )}
                 </div>
               </EntitySection>
-            </div>
+            ) : reportsWorkspaceTab === "retention" ? (
+              <EntitySection
+                title="Retorno da base real"
+                description={`Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`}
+                actions={
+                  <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
+                    Abrir clientes
+                  </button>
+                }
+              >
+                <div className="dashboard-retention-preview">
+                  <DocumentSummaryCards
+                    metrics={[
+                      {
+                        id: "returning",
+                        label: "Com retorno",
+                        value: activeClientRecurrence.returningCount,
+                        helper: "Clientes com ultimo concluido dentro da janela.",
+                        tone: "success"
+                      },
+                      {
+                        id: "inactive",
+                        label: "Sem retorno",
+                        value: activeClientRecurrence.inactiveCount,
+                        helper: `Nao voltaram em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
+                        tone: "warning"
+                      },
+                      {
+                        id: "never",
+                        label: "Nunca concluiu",
+                        value: activeClientRecurrence.neverCompletedCount,
+                        helper: "Entraram na base sem atendimento concluido."
+                      },
+                      {
+                        id: "recurrence",
+                        label: "Recorrencia media",
+                        value: recurrenceAverageLabel,
+                        helper: "Media simples entre atendimentos concluidos.",
+                        tone: "info"
+                      }
+                    ]}
+                  />
 
-            <EntitySection
-              title="Retorno da base real"
-              description={`Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`}
-              actions={
-                <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
-                  Abrir clientes
-                </button>
-              }
-            >
-              <div className="dashboard-retention-preview">
-                <DocumentSummaryCards
-                  metrics={[
-                    {
-                      id: "returning",
-                      label: "Com retorno",
-                      value: activeClientRecurrence.returningCount,
-                      helper: "Clientes com ultimo concluido dentro da janela.",
-                      tone: "success"
-                    },
-                    {
-                      id: "inactive",
-                      label: "Sem retorno",
-                      value: activeClientRecurrence.inactiveCount,
-                      helper: `Nao voltaram em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
-                      tone: "warning"
-                    },
-                    {
-                      id: "never",
-                      label: "Nunca concluiu",
-                      value: activeClientRecurrence.neverCompletedCount,
-                      helper: "Entraram na base sem atendimento concluido."
-                    },
-                    {
-                      id: "recurrence",
-                      label: "Recorrencia media",
-                      value: recurrenceAverageLabel,
-                      helper: "Media simples entre atendimentos concluidos.",
-                      tone: "info"
-                    }
-                  ]}
-                />
-
-                {activeClientRecurrence.returnBuckets.length ? (
-                  <div className="dashboard-mini-grid">
-                    {activeClientRecurrence.returnBuckets.map((bucket) => (
-                      <div className="dashboard-mini-card" key={bucket.id}>
-                        <strong>{bucket.label}</strong>
-                        <span>{bucket.clientsCount} cliente(s) neste bucket.</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="empty-state">Buckets de retorno ainda nao disponiveis neste recorte.</p>
-                )}
-
-                <div className="records-column">
-                  {activeClientRecurrence.inactiveClients.length ? (
-                    activeClientRecurrence.inactiveClients.map((entry) => (
-                      <article className="record-card" key={entry.clientId}>
-                        <div className="record-card-header">
-                          <div className="record-stack">
-                            <strong>{entry.nome}</strong>
-                            <span>{entry.email || "Sem e-mail visivel"}</span>
-                          </div>
-                          <span className="status-pill is-warning">
-                            {formatClientSegment("inactive", activeClientRecurrence.window)}
-                          </span>
+                  {activeClientRecurrence.returnBuckets.length ? (
+                    <div className="dashboard-mini-grid">
+                      {activeClientRecurrence.returnBuckets.map((bucket) => (
+                        <div className="dashboard-mini-card" key={bucket.id}>
+                          <strong>{bucket.label}</strong>
+                          <span>{bucket.clientsCount} cliente(s) neste bucket.</span>
                         </div>
-                        <div className="record-meta">
-                          <span>
-                            Ultimo atendimento {entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "nunca"}
-                          </span>
-                          <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
-                          <span>
-                            Recorrencia media{" "}
-                            {entry.averageRecurrenceDays === null
-                              ? "n/d"
-                              : `${Math.round(entry.averageRecurrenceDays)} dias`}
-                          </span>
-                        </div>
-                      </article>
-                    ))
+                      ))}
+                    </div>
                   ) : (
-                    <p className="empty-state">
-                      Nenhum cliente sem retorno identificado na janela de{" "}
-                      {resolveClientReturnWindowLabel(activeClientRecurrence.window)}.
-                    </p>
+                    <p className="empty-state">Buckets de retorno ainda nao disponiveis neste recorte.</p>
                   )}
-                </div>
-              </div>
-            </EntitySection>
-          </>
-        }
-        aside={
-          <div className="dashboard-aside-stack">
-            <EntityAsideSummary
-              title="Leitura deste recorte"
-              description="Contexto aplicado antes da interpretacao dos indicadores."
-              items={[
-                {
-                  id: "range-context",
-                  label: "Periodo",
-                  value: resolveDashboardRangeLabel(reportsRange),
-                  description: "Base principal da comparacao de agenda e receita.",
-                  active: true
-                },
-                {
-                  id: "service-context",
-                  label: "Servico",
-                  value: selectedReportService?.nome ?? "Todos",
-                  description: "Refina o agrupamento sem criar contrato paralelo.",
-                  active: reportsServiceFilter !== "all"
-                },
-                {
-                  id: "professional-context",
-                  label: "Profissional",
-                  value: selectedReportProfessional?.nome ?? "Todos",
-                  description: "Mantem a visao coerente com a agenda operacional.",
-                  active: reportsProfessionalFilter !== "all"
-                },
-                {
-                  id: "window-context",
-                  label: "Janela de retorno",
-                  value: resolveClientReturnWindowLabel(activeClientRecurrence.window),
-                  description: "Usada pelo read model para buckets e clientes inativos."
-                }
-              ]}
-            />
 
-            <EntityAsideSummary
-              title="Capacidade do modulo hoje"
-              description="Estado atual da fonte e das leituras realmente existentes."
-              items={[
-                {
-                  id: "source-state",
-                  label: "Fonte da leitura",
-                  value: reportsSourceLabel,
-                  description: reportsSourceHelper,
-                  active: Boolean(reportsReadModel)
-                },
-                {
-                  id: "comparison-state",
-                  label: "Comparativo historico",
-                  value: reportsComparisonEnabled ? "Ativo" : "Indisponivel",
-                  description:
-                    reportsComparisonEnabled
-                      ? "Compara contra o mesmo recorte imediatamente anterior."
-                      : "No historico total, o shell nao promete comparacao consolidada.",
-                  active: reportsComparisonEnabled
-                },
-                {
-                  id: "buckets-state",
-                  label: "Buckets de retorno",
-                  value: activeClientRecurrence.returnBuckets.length,
-                  description: "Faixas simples geradas pelo read model atual.",
-                  active: activeClientRecurrence.returnBuckets.length > 0
-                },
-                {
-                  id: "financial-state",
-                  label: "Base financeira minima",
-                  value: formatCurrency(activeReportCurrent.recognizedRevenue),
-                  description: "Receita reconhecida e entrada online ja leem `cash entries` minimas."
-                }
-              ]}
-            />
-          </div>
-        }
-        impactPanel={
-          <DocumentImpactPanel
-            sections={[
-              {
-                id: "reports-supported",
-                title: "Sustentado hoje pelo runtime",
-                tone: "success",
-                items: [
-                  "Comparativo contra periodo anterior quando o recorte permite.",
-                  "Agrupamentos por servico e profissional sustentados pelo mesmo payload do modulo.",
-                  "Buckets de retorno, clientes inativos e financeiro minimo apoiados pelo read model atual."
-                ]
-              },
-              {
-                id: "reports-gaps",
-                title: "O que ainda continua parcial",
-                tone: "warning",
-                items: [
-                  "Cohort, score de risco e previsao de reativacao ainda nao existem neste modulo.",
-                  "Exportacao e conciliacao contabil completa continuam fora do corte.",
-                  "O modulo informa o estado atual do negocio, mas nao substitui um data mart analitico dedicado."
-                ]
-              }
-            ]}
-          />
+                  <div className="records-column">
+                    {activeClientRecurrence.inactiveClients.length ? (
+                      activeClientRecurrence.inactiveClients.map((entry) => (
+                        <article className="record-card" key={entry.clientId}>
+                          <div className="record-card-header">
+                            <div className="record-stack">
+                              <strong>{entry.nome}</strong>
+                              <span>{entry.email || "Sem e-mail visivel"}</span>
+                            </div>
+                            <span className="status-pill is-warning">
+                              {formatClientSegment("inactive", activeClientRecurrence.window)}
+                            </span>
+                          </div>
+                          <div className="record-meta">
+                            <span>
+                              Ultimo atendimento {entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "nunca"}
+                            </span>
+                            <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
+                            <span>
+                              Recorrencia media{" "}
+                              {entry.averageRecurrenceDays === null
+                                ? "n/d"
+                                : `${Math.round(entry.averageRecurrenceDays)} dias`}
+                            </span>
+                          </div>
+                        </article>
+                      ))
+                    ) : (
+                      <p className="empty-state">
+                        Nenhum cliente sem retorno identificado na janela de{" "}
+                        {resolveClientReturnWindowLabel(activeClientRecurrence.window)}.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </EntitySection>
+            ) : reportsWorkspaceTab === "agenda" ? (
+              <div className="reports-insights-stack">
+                <EntitySection
+                  title="Radar semanal da agenda"
+                  description="Leitura gerencial de capacidade e ocupacao, separada da acao operacional do dia."
+                  actions={
+                    <button
+                      className="secondary-button"
+                      onClick={() => {
+                        setAgendaWorkspaceTab("calendar");
+                        setAgendaViewMode("week");
+                        navigateTo("agenda");
+                      }}
+                      type="button"
+                    >
+                      Abrir agenda
+                    </button>
+                  }
+                >
+                  <div className="reports-insights-stack">
+                    {isLoadingWeeklyAvailability ? (
+                      <p className="helper">Carregando disponibilidade semanal da equipe...</p>
+                    ) : null}
+
+                    <DocumentSummaryCards
+                      metrics={[
+                        {
+                          id: "week-total",
+                          label: "Capacidade total",
+                          value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.totalMinutes),
+                          helper: `${reportsInsightWeekDates.length} dia(s) no radar.`,
+                          tone: "info"
+                        },
+                        {
+                          id: "week-booked",
+                          label: "Horas ocupadas",
+                          value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.bookedMinutes),
+                          helper: `${reportsInsightWeekCapacitySummary.bookingsCount} booking(s) na semana.`,
+                          tone: "success"
+                        },
+                        {
+                          id: "week-free",
+                          label: "Horas livres",
+                          value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.freeMinutes),
+                          helper:
+                            reportsInsightWeekCapacitySummary.totalMinutes > 0
+                              ? `${formatUtilization(reportsInsightWeekCapacitySummary.bookedMinutes, reportsInsightWeekCapacitySummary.totalMinutes)} de ocupacao.`
+                              : "Sem disponibilidade publicada.",
+                          tone: "warning"
+                        },
+                        {
+                          id: "week-open",
+                          label: "Em aberto",
+                          value: reportsInsightWeekCapacitySummary.openBookings,
+                          helper: "Confirmados, pendentes e aguardando pagamento."
+                        }
+                      ]}
+                    />
+
+                    <div className="workspace-grid">
+                      <EntitySection
+                        title="Dia a dia"
+                        description="Carga por data para orientar distribuicao e remanejamento."
+                      >
+                        <div className="records-column">
+                          {reportsInsightWeekDaySummaries.map((summary) => (
+                            <article className="record-card" key={summary.date}>
+                              <div className="record-card-header">
+                                <div className="record-stack">
+                                  <strong>{formatAgendaDayLabel(summary.date)}</strong>
+                                  <span>{summary.bookingsCount} booking(s) na data</span>
+                                </div>
+                                <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
+                                  {summary.totalMinutes > 0
+                                    ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                                    : "Sem capacidade"}
+                                </span>
+                              </div>
+                              <div className="record-meta">
+                                <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
+                                <span>{formatMinutesAsHours(summary.totalMinutes)} totais</span>
+                                <span>{summary.openBookings} em aberto</span>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      </EntitySection>
+
+                      <EntitySection
+                        title="Equipe na semana"
+                        description="Distribuicao por profissional no mesmo radar."
+                      >
+                        <div className="records-column">
+                          {reportsInsightWeekProfessionalSummaries.length ? (
+                            reportsInsightWeekProfessionalSummaries.map((summary) => (
+                              <article className="record-card" key={summary.professionalId}>
+                                <div className="record-card-header">
+                                  <div className="record-stack">
+                                    <strong>{summary.professionalName}</strong>
+                                    <span>{summary.bookingsCount} booking(s) na semana</span>
+                                  </div>
+                                  <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
+                                    {summary.totalMinutes > 0
+                                      ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                                      : "Sem capacidade"}
+                                  </span>
+                                </div>
+                                <div className="record-meta">
+                                  <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
+                                  <span>{formatMinutesAsHours(summary.totalMinutes)} totais</span>
+                                  <span>{summary.openBookings} em aberto</span>
+                                </div>
+                              </article>
+                            ))
+                          ) : (
+                            <p className="empty-state">Nenhum profissional publicado para montar o radar semanal.</p>
+                          )}
+                        </div>
+                      </EntitySection>
+                    </div>
+                  </div>
+                </EntitySection>
+
+                <EntitySection
+                  title="Visao mensal"
+                  description="Concentrado mensal para leitura gerencial, sem competir com a agenda operacional."
+                >
+                  <div className="reports-insights-stack">
+                    <DocumentSummaryCards
+                      metrics={[
+                        {
+                          id: "month-bookings",
+                          label: "Bookings no mes",
+                          value: reportsInsightMonthCapacitySummary.bookingsCount,
+                          helper: formatAgendaMonthLabel(reportsInsightAnchorDate),
+                          tone: "info"
+                        },
+                        {
+                          id: "month-booked",
+                          label: "Horas ocupadas",
+                          value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.bookedMinutes),
+                          helper: `${reportsInsightMonthHighlights.length} dia(s) com movimento.`,
+                          tone: "success"
+                        },
+                        {
+                          id: "month-free",
+                          label: "Horas livres",
+                          value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.freeMinutes),
+                          helper:
+                            reportsInsightMonthCapacitySummary.totalMinutes > 0
+                              ? `${formatUtilization(reportsInsightMonthCapacitySummary.bookedMinutes, reportsInsightMonthCapacitySummary.totalMinutes)} de ocupacao.`
+                              : "Sem disponibilidade publicada.",
+                          tone: "warning"
+                        },
+                        {
+                          id: "month-open",
+                          label: "Em aberto",
+                          value: reportsInsightMonthCapacitySummary.openBookings,
+                          helper: "Pendencias concentradas no mes atual."
+                        }
+                      ]}
+                    />
+
+                    {reportsInsightMonthHighlights.length ? (
+                      <div className="records-column">
+                        {reportsInsightMonthHighlights.slice(0, 8).map((cell) => (
+                          <article className="record-card" key={cell.date}>
+                            <div className="record-card-header">
+                              <div className="record-stack">
+                                <strong>{formatAgendaDayLabel(cell.date)}</strong>
+                                <span>{cell.bookingsCount} booking(s) no dia</span>
+                              </div>
+                              <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
+                                {cell.totalMinutes > 0
+                                  ? `${formatUtilization(cell.bookedMinutes, cell.totalMinutes)} ocupacao`
+                                  : "Sem capacidade"}
+                              </span>
+                            </div>
+                            <div className="record-meta">
+                              <span>{cell.openBookings} em aberto</span>
+                              <span>{cell.completedBookings} concluidos</span>
+                              <span>
+                                {cell.totalMinutes > 0
+                                  ? `${formatMinutesAsHours(cell.bookedMinutes)} de ${formatMinutesAsHours(cell.totalMinutes)}`
+                                  : "Sem disponibilidade"}
+                              </span>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="empty-state">Nenhum movimento encontrado no mes corrente para este filtro.</p>
+                    )}
+                  </div>
+                </EntitySection>
+              </div>
+            ) : null}
+          </>
         }
       />
     );
@@ -6541,7 +6412,11 @@ export function App() {
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
   const showPageHero =
-    currentRoute !== "profissionais" && currentRoute !== "dashboard" && currentRoute !== "operacional";
+    currentRoute !== "profissionais" &&
+    currentRoute !== "dashboard" &&
+    currentRoute !== "operacional" &&
+    currentRoute !== "agenda" &&
+    currentRoute !== "relatorios";
 
   if (!sessionToken) {
     return (
@@ -7131,20 +7006,6 @@ function filterBookingsByReportSelection(
     .sort((left, right) => right.startAt.localeCompare(left.startAt));
 }
 
-function filterAgendaBookings(bookings: readonly Booking[], filter: BookingFilter): Booking[] {
-  return [...bookings]
-    .filter((booking) => {
-      if (filter === "today") {
-        return isSameCalendarDay(booking.startAt, new Date());
-      }
-      if (filter === "open") {
-        return isOpenBookingStatus(booking.status);
-      }
-      return true;
-    })
-    .sort((left, right) => left.startAt.localeCompare(right.startAt));
-}
-
 function filterBookingsByDate(bookings: readonly Booking[], date: string): Booking[] {
   return [...bookings]
     .filter((booking) => extractDatePart(booking.startAt) === date)
@@ -7341,23 +7202,30 @@ function buildWeekProfessionalSummaries(
   availabilityByProfessional: Readonly<Record<string, AvailabilityRule[]>>
 ): Array<{
   readonly professionalId: string;
+  readonly professionalName: string;
   readonly totalMinutes: number;
   readonly bookedMinutes: number;
+  readonly bookingsCount: number;
+  readonly openBookings: number;
 }> {
   return professionals.map((professional) => {
+    const professionalBookings = bookings.filter((booking) => booking.professionalId === professional.id);
     const totalMinutes = dates.reduce((total, date) => {
       const weekday = new Date(`${date}T12:00:00`).getDay();
       const rule = availabilityByProfessional[professional.id]?.find((item) => item.weekday === weekday);
       return total + calculateRuleDurationMinutes(rule);
     }, 0);
-    const bookedMinutes = bookings
-      .filter((booking) => booking.professionalId === professional.id && booking.status !== "cancelado")
+    const bookedMinutes = professionalBookings
+      .filter((booking) => booking.status !== "cancelado")
       .reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0);
 
     return {
       professionalId: professional.id,
+      professionalName: professional.nome,
       totalMinutes,
-      bookedMinutes
+      bookedMinutes,
+      bookingsCount: professionalBookings.length,
+      openBookings: professionalBookings.filter((booking) => isOpenBookingStatus(booking.status)).length
     };
   });
 }
@@ -7880,10 +7748,6 @@ function extractDatePart(value: string): string {
   return value.slice(0, 10);
 }
 
-function isAgendaDayMode(mode: AgendaViewMode): boolean {
-  return mode === "day";
-}
-
 function formatDateInputValue(value: Date): string {
   const year = value.getFullYear();
   const month = String(value.getMonth() + 1).padStart(2, "0");
@@ -7915,12 +7779,6 @@ function formatAgendaDayLabel(value: string): string {
 
 function formatAgendaMonthLabel(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(
-    new Date(`${value}T12:00:00`)
-  );
-}
-
-function formatAgendaMonthDayNumber(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit" }).format(
     new Date(`${value}T12:00:00`)
   );
 }
