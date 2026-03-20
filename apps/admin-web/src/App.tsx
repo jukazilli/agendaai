@@ -89,6 +89,7 @@ type AdminRoute =
 type BookingFilter = "today" | "open" | "all";
 type AgendaViewMode = "day" | "week" | "month";
 type DashboardRange = "7d" | "30d" | "all";
+type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
@@ -264,6 +265,12 @@ const DEPLOY_ADMIN_API_BASE_URL =
 const BOOKING_BASE_URL =
   (import.meta.env.VITE_BOOKING_BASE_URL as string | undefined)?.trim() || "http://127.0.0.1:3000";
 const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
+const professionalAvatarVariants = [
+  "is-cobalt",
+  "is-violet",
+  "is-slate",
+  "is-teal"
+] as const;
 const defaultAdminRoute: AdminRoute = "operacional";
 const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
   dashboard: {
@@ -643,6 +650,9 @@ export function App() {
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceForm, setServiceForm] = useState<ServiceFormState>(defaultServiceForm);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState("");
+  const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
+  const [professionalWorkspaceMode, setProfessionalWorkspaceMode] =
+    useState<ProfessionalWorkspaceMode>("overview");
   const [professionalForm, setProfessionalForm] = useState<ProfessionalFormState>({
     nome: "",
     status: "active",
@@ -687,6 +697,20 @@ export function App() {
   useEffect(() => {
     storeValue(SESSION_STORAGE_KEY, sessionToken);
   }, [sessionToken]);
+
+  useEffect(() => {
+    if (!feedback || feedback.tone === "error") {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setFeedback((current) => (current?.message === feedback.message ? null : current));
+    }, 3600);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [feedback]);
 
   useEffect(() => {
     if (!sessionToken) {
@@ -803,20 +827,23 @@ export function App() {
       setServiceForm(defaultServiceForm);
     }
 
-    const professional =
-      bootstrap.professionals.find((item) => item.id === selectedProfessionalId) ??
-      bootstrap.professionals[0];
+    const professional = selectedProfessionalId ?
+        bootstrap.professionals.find((item) => item.id === selectedProfessionalId)
+      : undefined;
     if (professional) {
-      if (professional.id !== selectedProfessionalId) {
-        setSelectedProfessionalId(professional.id);
-      }
       setProfessionalForm({
         nome: professional.nome,
         status: professional.status,
         especialidades: [...professional.especialidades]
       });
+    } else if (!isCreatingProfessional) {
+      setProfessionalForm({
+        nome: "",
+        status: "active",
+        especialidades: []
+      });
     }
-  }, [bootstrap, selectedProfessionalId, selectedServiceId]);
+  }, [bootstrap, isCreatingProfessional, selectedProfessionalId, selectedServiceId]);
 
   useEffect(() => {
     if (!sessionToken || !selectedProfessionalId) {
@@ -1287,8 +1314,9 @@ export function App() {
   async function handleSaveProfessional(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(async () => {
+      const isEditingProfessional = Boolean(selectedProfessionalId);
       const professional =
-        selectedProfessionalId ?
+        isEditingProfessional ?
           await updateProfessional(apiBaseUrl, sessionToken, selectedProfessionalId, {
             nome: professionalForm.nome.trim(),
             status: professionalForm.status.trim(),
@@ -1298,11 +1326,13 @@ export function App() {
             nome: professionalForm.nome.trim(),
             especialidades: [...professionalForm.especialidades]
           });
+      setIsCreatingProfessional(false);
       setSelectedProfessionalId(professional.id);
+      setProfessionalWorkspaceMode("profile");
       await refreshAdminState();
       setFeedback({
         tone: "success",
-        message: selectedProfessionalId ? "Profissional atualizado." : "Profissional criado."
+        message: isEditingProfessional ? "Profissional atualizado." : "Profissional criado."
       });
     });
   }
@@ -1391,6 +1421,50 @@ export function App() {
     }
     setCurrentRoute(route);
     setIsSidebarOpen(false);
+  }
+
+  function scrollProfessionalsWorkspaceIntoView(): void {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.setTimeout(() => {
+      document
+        .getElementById("professionals-workspace")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 40);
+  }
+
+  function openProfessionalProfileWorkspace(professionalId?: string): void {
+    setIsCreatingProfessional(!professionalId);
+    setSelectedProfessionalId(professionalId ?? "");
+    setProfessionalWorkspaceMode("profile");
+
+    if (!professionalId) {
+      setProfessionalForm({
+        nome: "",
+        status: "active",
+        especialidades: []
+      });
+      setAvailabilityDays(createDefaultAvailabilityDays());
+    }
+
+    scrollProfessionalsWorkspaceIntoView();
+  }
+
+  function openProfessionalAvailabilityWorkspace(professionalId: string): void {
+    setIsCreatingProfessional(false);
+    setSelectedProfessionalId(professionalId);
+    setProfessionalWorkspaceMode("availability");
+    scrollProfessionalsWorkspaceIntoView();
+  }
+
+  function openProfessionalAgenda(professionalId: string): void {
+    setIsCreatingProfessional(false);
+    setSelectedProfessionalId(professionalId);
+    setAgendaViewMode("day");
+    setAgendaProfessionalFilter(professionalId);
+    navigateTo("agenda");
   }
 
   function handleRefreshClick(): void {
@@ -2138,83 +2212,74 @@ export function App() {
     );
   }
 
-  function renderProfessionalsPanel(): JSX.Element {
+  function renderProfessionalProfileWorkspace(): JSX.Element {
+    const selectedProfessional = professionals.find((professional) => professional.id === selectedProfessionalId);
+    const linkedServiceNames = selectedProfessional ?
+        resolveProfessionalServiceNames(selectedProfessional, services)
+      : professionalForm.especialidades
+          .map((serviceId) => services.find((service) => service.id === serviceId)?.nome)
+          .filter((value): value is string => Boolean(value));
+
     return (
-      <article className="panel">
-        <div className="panel-header">
+      <article className="dashboard-surface professional-workspace-surface" id="professionals-workspace">
+        <div className="dashboard-surface-header">
           <div>
             <p className="eyebrow">Equipe</p>
-            <h2>Profissionais e agenda semanal</h2>
+            <h3>{isCreatingProfessional ? "Novo profissional" : selectedProfessional?.nome ?? "Editar profissional"}</h3>
+            <p>
+              {isCreatingProfessional ?
+                "Cadastre o profissional e vincule os servicos que ele pode atender."
+              : "Ajuste nome, status e servicos vinculados sem sair da rota de equipe."}
+            </p>
           </div>
-          <button
-            className="secondary-button"
-            onClick={() => {
-              setSelectedProfessionalId("");
-              setProfessionalForm({ nome: "", status: "active", especialidades: [] });
-              setAvailabilityDays(createDefaultAvailabilityDays());
-            }}
-            type="button"
-          >
-            Novo profissional
-          </button>
+          {selectedProfessional && !isCreatingProfessional ? (
+            <span className={`status-pill is-${resolveProfessionalStatusTone(selectedProfessional.status)}`}>
+              {formatProfessionalStatus(selectedProfessional.status)}
+            </span>
+          ) : (
+            <span className="helper-chip">Novo cadastro</span>
+          )}
         </div>
 
-        <div className="editor-layout">
-          <div className="entity-list">
-            {professionals.length ? (
-              professionals.map((professional) => (
-                <button
-                  className={
-                    professional.id === selectedProfessionalId
-                      ? "entity-card is-active"
-                      : "entity-card"
-                  }
-                  key={professional.id}
-                  onClick={() => setSelectedProfessionalId(professional.id)}
-                  type="button"
-                >
-                  <strong>{professional.nome}</strong>
-                  <span>{professional.especialidades.length} servicos</span>
-                  <small>{professional.status}</small>
-                </button>
-              ))
-            ) : (
-              <p className="empty-state">Nenhum profissional cadastrado ainda.</p>
-            )}
-          </div>
+        <form className="professional-editor-form" onSubmit={handleSaveProfessional}>
+          <div className="professional-editor-grid">
+            <label className="field">
+              <span>Nome</span>
+              <input
+                required
+                type="text"
+                value={professionalForm.nome}
+                onChange={(event) =>
+                  setProfessionalForm({ ...professionalForm, nome: event.target.value })
+                }
+              />
+            </label>
 
-          <div className="stack-form split-stack">
-            <form className="stack-form" onSubmit={handleSaveProfessional}>
-              <div className="form-grid">
-                <label className="field">
-                  <span>Nome</span>
-                  <input
-                    required
-                    type="text"
-                    value={professionalForm.nome}
-                    onChange={(event) =>
-                      setProfessionalForm({ ...professionalForm, nome: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Status</span>
-                  <input
-                    required
-                    type="text"
-                    value={professionalForm.status}
-                    onChange={(event) =>
-                      setProfessionalForm({ ...professionalForm, status: event.target.value })
-                    }
-                  />
-                </label>
+            {isCreatingProfessional ? (
+              <div className="professional-editor-note">
+                <strong>Status inicial</strong>
+                <p>Novos profissionais entram como ativos e podem ter o status ajustado depois.</p>
               </div>
+            ) : (
+              <label className="field">
+                <span>Status</span>
+                <input
+                  required
+                  type="text"
+                  value={professionalForm.status}
+                  onChange={(event) =>
+                    setProfessionalForm({ ...professionalForm, status: event.target.value })
+                  }
+                />
+              </label>
+            )}
 
-              <fieldset className="checkbox-group">
-                <legend>Especialidades</legend>
-                {services.length ? (
-                  services.map((service) => (
-                    <label className="check-item" key={service.id}>
+            <fieldset className="professional-services-fieldset">
+              <legend>Servicos vinculados</legend>
+              {services.length ? (
+                <div className="professional-services-grid">
+                  {services.map((service) => (
+                    <label className="professional-service-option" key={service.id}>
                       <input
                         checked={professionalForm.especialidades.includes(service.id)}
                         type="checkbox"
@@ -2228,89 +2293,249 @@ export function App() {
                           })
                         }
                       />
-                      <span>{service.nome}</span>
+                      <div>
+                        <strong>{service.nome}</strong>
+                        <span>
+                          {formatMinutesAsHours(service.duracaoMin)} • {formatCurrency(service.precoBase)}
+                        </span>
+                      </div>
                     </label>
-                  ))
-                ) : (
-                  <p className="helper">Cadastre servicos antes de vincular equipe.</p>
-                )}
-              </fieldset>
-
-              <button className="primary-button" disabled={isBusy} type="submit">
-                {selectedProfessionalId ? "Salvar profissional" : "Criar profissional"}
-              </button>
-            </form>
-
-            <form className="stack-form" onSubmit={handleSaveAvailability}>
-              <div className="panel-header compact">
-                <div>
-                  <p className="eyebrow">Disponibilidade</p>
-                  <h3>Semana operacional</h3>
+                  ))}
                 </div>
-              </div>
+              ) : (
+                <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
+              )}
+            </fieldset>
+          </div>
 
-              <div className="availability-list">
-                {availabilityDays.map((day) => (
-                  <div className="availability-row" key={day.weekday}>
-                    <label className="check-item inline">
-                      <input
-                        checked={day.enabled}
-                        type="checkbox"
-                        onChange={(event) =>
-                          setAvailabilityDays((current) =>
-                            current.map((item) =>
-                              item.weekday === day.weekday
-                                ? { ...item, enabled: event.target.checked }
-                                : item
-                            )
-                          )
-                        }
-                      />
-                      <span>{weekdayLabels[day.weekday]}</span>
-                    </label>
-                    <input
-                      disabled={!day.enabled}
-                      type="time"
-                      value={day.startTime}
-                      onChange={(event) =>
-                        setAvailabilityDays((current) =>
-                          current.map((item) =>
-                            item.weekday === day.weekday
-                              ? { ...item, startTime: event.target.value }
-                              : item
-                          )
-                        )
-                      }
-                    />
-                    <input
-                      disabled={!day.enabled}
-                      type="time"
-                      value={day.endTime}
-                      onChange={(event) =>
-                        setAvailabilityDays((current) =>
-                          current.map((item) =>
-                            item.weekday === day.weekday
-                              ? { ...item, endTime: event.target.value }
-                              : item
-                          )
-                        )
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
+          <div className="professional-editor-footer">
+            <div className="professional-editor-summary">
+              <span>{linkedServiceNames.length} servico(s) vinculado(s)</span>
+              <span>
+                {linkedServiceNames.length ?
+                  linkedServiceNames.slice(0, 2).join(" • ")
+                : "Sem especialidades ainda"}
+              </span>
+            </div>
+            <div className="button-row">
+              {!isCreatingProfessional && selectedProfessionalId ? (
+                <button
+                  className="secondary-button"
+                  onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
+                  type="button"
+                >
+                  Horarios
+                </button>
+              ) : null}
+              <button className="primary-button" disabled={isBusy} type="submit">
+                {isCreatingProfessional ? "Criar profissional" : "Salvar profissional"}
+              </button>
+            </div>
+          </div>
+        </form>
+      </article>
+    );
+  }
 
+  function renderProfessionalAvailabilityWorkspace(): JSX.Element {
+    const selectedProfessional = professionals.find((professional) => professional.id === selectedProfessionalId);
+
+    return (
+      <article className="dashboard-surface professional-workspace-surface" id="professionals-workspace">
+        <div className="dashboard-surface-header">
+          <div>
+            <p className="eyebrow">Disponibilidade</p>
+            <h3>{selectedProfessional ? `Horarios de ${selectedProfessional.nome}` : "Agenda semanal"}</h3>
+            <p>Configure a janela semanal que alimenta slots, booking publico e agenda interna.</p>
+          </div>
+          <span className="helper-chip">
+            {resolveAvailabilitySummary(weeklyAvailabilityByProfessional[selectedProfessionalId] ?? [])}
+          </span>
+        </div>
+
+        <form className="professional-availability-form" onSubmit={handleSaveAvailability}>
+          <div className="professional-availability-grid">
+            {availabilityDays.map((day) => (
+              <div className="professional-availability-row" key={day.weekday}>
+                <label className="professional-availability-day">
+                  <input
+                    checked={day.enabled}
+                    type="checkbox"
+                    onChange={(event) =>
+                      setAvailabilityDays((current) =>
+                        current.map((item) =>
+                          item.weekday === day.weekday
+                            ? { ...item, enabled: event.target.checked }
+                            : item
+                        )
+                      )
+                    }
+                  />
+                  <span>{weekdayLabels[day.weekday]}</span>
+                </label>
+
+                <input
+                  disabled={!day.enabled}
+                  type="time"
+                  value={day.startTime}
+                  onChange={(event) =>
+                    setAvailabilityDays((current) =>
+                      current.map((item) =>
+                        item.weekday === day.weekday
+                          ? { ...item, startTime: event.target.value }
+                          : item
+                      )
+                    )
+                  }
+                />
+
+                <input
+                  disabled={!day.enabled}
+                  type="time"
+                  value={day.endTime}
+                  onChange={(event) =>
+                    setAvailabilityDays((current) =>
+                      current.map((item) =>
+                        item.weekday === day.weekday
+                          ? { ...item, endTime: event.target.value }
+                          : item
+                      )
+                    )
+                  }
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="professional-editor-footer">
+            <div className="professional-editor-summary">
+              <span>Base semanal real do profissional selecionado</span>
+              <span>Sem calendario de excecoes por data neste corte.</span>
+            </div>
+            <div className="button-row">
+              <button
+                className="secondary-button"
+                onClick={() => setProfessionalWorkspaceMode("profile")}
+                type="button"
+              >
+                Voltar ao cadastro
+              </button>
               <button
                 className="primary-button"
                 disabled={isBusy || !selectedProfessionalId}
                 type="submit"
               >
-                Salvar disponibilidade
+                Salvar horarios
               </button>
-            </form>
+            </div>
           </div>
-        </div>
+        </form>
       </article>
+    );
+  }
+
+  function renderProfessionalsPanel(): JSX.Element {
+    const selectedCardProfessionalId =
+      professionalWorkspaceMode === "overview" || isCreatingProfessional ? "" : selectedProfessionalId;
+
+    return (
+      <section className="professionals-view">
+        <div className="professionals-header">
+          <div>
+            <h2>Equipe de Profissionais</h2>
+          </div>
+          <button
+            className="admin-primary-action"
+            onClick={() => openProfessionalProfileWorkspace()}
+            type="button"
+          >
+            <Plus className="w-4 h-4" />
+            Novo Profissional
+          </button>
+        </div>
+
+        {professionals.length ? (
+          <div className="professionals-card-grid">
+            {professionals.map((professional, index) => {
+              const linkedServiceNames = resolveProfessionalServiceNames(professional, services);
+              const professionalStatusTone = resolveProfessionalStatusTone(professional.status);
+              const professionalStatusLabel = formatProfessionalStatus(professional.status).toUpperCase();
+              const avatarVariant = professionalAvatarVariants[index % professionalAvatarVariants.length];
+              const isActiveCard = professional.id === selectedCardProfessionalId;
+
+              return (
+                <article
+                  className={isActiveCard ? "professional-card is-active" : "professional-card"}
+                  key={professional.id}
+                >
+                  <div className="professional-card-status">
+                    <span className={`professional-status-chip is-${professionalStatusTone}`}>
+                      {professionalStatusLabel}
+                    </span>
+                  </div>
+
+                  <button
+                    className="professional-card-main"
+                    onClick={() => openProfessionalProfileWorkspace(professional.id)}
+                    type="button"
+                  >
+                    <div className={`professional-avatar ${avatarVariant}`}>
+                      {resolveProfessionalInitials(professional.nome)}
+                    </div>
+                    <div className="professional-card-copy">
+                      <h3>{professional.nome}</h3>
+                      <p>{resolveProfessionalSummaryLine(linkedServiceNames)}</p>
+                    </div>
+                  </button>
+
+                  <div className="professional-card-actions">
+                    <button
+                      className="professional-card-action"
+                      onClick={() => openProfessionalAgenda(professional.id)}
+                      type="button"
+                    >
+                      <CalendarIcon className="w-5 h-5" />
+                      <span>Ver Agenda</span>
+                    </button>
+                    <button
+                      className="professional-card-action"
+                      onClick={() => openProfessionalAvailabilityWorkspace(professional.id)}
+                      type="button"
+                    >
+                      <Clock className="w-5 h-5" />
+                      <span>Horarios</span>
+                    </button>
+                    <button
+                      className="professional-card-action"
+                      onClick={() => openProfessionalProfileWorkspace(professional.id)}
+                      type="button"
+                    >
+                      <BookOpen className="w-5 h-5" />
+                      <span>Servicos</span>
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <article className="professional-empty-state">
+            <div>
+              <h3>Nenhum profissional cadastrado</h3>
+              <p>Crie o primeiro perfil da equipe para liberar agenda, horarios e vinculo com servicos.</p>
+            </div>
+            <button className="admin-primary-action" onClick={() => openProfessionalProfileWorkspace()} type="button">
+              <Plus className="w-4 h-4" />
+              Criar primeiro profissional
+            </button>
+          </article>
+        )}
+
+        {professionalWorkspaceMode === "profile" ? renderProfessionalProfileWorkspace() : null}
+        {professionalWorkspaceMode === "availability" && selectedProfessionalId ?
+          renderProfessionalAvailabilityWorkspace()
+        : null}
+      </section>
     );
   }
 
@@ -3846,37 +4071,7 @@ export function App() {
   }
 
   function renderProfessionalsView(): JSX.Element {
-    return (
-      <section className="view-stack">
-        <section className="workspace-grid">
-          {renderProfessionalsPanel()}
-
-          <aside className="panel aside-panel">
-            <div className="panel-header compact">
-              <div>
-                <p className="eyebrow">Resumo</p>
-                <h3>Capacidade operacional atual</h3>
-              </div>
-            </div>
-
-            <div className="records-column">
-              <div className="list-card">
-                <strong>{professionals.length} profissional(is)</strong>
-                <p>Com especialidades vinculadas a {services.length} servico(s) publicados.</p>
-              </div>
-              <div className="list-card">
-                <strong>Agenda semanal</strong>
-                <p>A disponibilidade salva alimenta o booking publico por profissional.</p>
-              </div>
-              <div className="list-card">
-                <strong>Ferias, bloqueios e excecoes (nao funcional)</strong>
-                <p>O contrato atual cobre agenda semanal base, sem calendario de excecoes por data.</p>
-              </div>
-            </div>
-          </aside>
-        </section>
-      </section>
-    );
+    return renderProfessionalsPanel();
   }
 
   function renderClientsView(): JSX.Element {
@@ -4487,7 +4682,7 @@ export function App() {
               <Menu className="w-5 h-5" />
             </button>
             <div className="admin-topbar-title">
-              <p>{currentRouteDefinition.eyebrow}</p>
+              {currentRoute === "profissionais" ? null : <p>{currentRouteDefinition.eyebrow}</p>}
               <strong>{currentRouteDefinition.label}</strong>
             </div>
           </div>
@@ -4507,29 +4702,31 @@ export function App() {
           </div>
         </header>
 
-        <section className="admin-stage-content">
-          <section className="admin-page-hero">
-            <div className="admin-page-hero-copy">
-              <p className="eyebrow">{currentRouteDefinition.eyebrow}</p>
-              <h1>{currentRouteDefinition.title}</h1>
-              <p className="description">{currentRouteDefinition.description}</p>
-            </div>
-            <div className="admin-page-hero-actions">
-              <span
-                className={`status-pill ${
-                  currentRouteDefinition.stage === "funcional" ? "is-success" : "is-warning"
-                }`}
-              >
-                {currentRouteDefinition.stage}
-              </span>
-              <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
-                Atualizar
-              </button>
-              <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
-                Sair
-              </button>
-            </div>
-          </section>
+        <section className={currentRoute === "profissionais" ? "admin-stage-content is-professionals-route" : "admin-stage-content"}>
+          {currentRoute !== "profissionais" ? (
+            <section className="admin-page-hero">
+              <div className="admin-page-hero-copy">
+                <p className="eyebrow">{currentRouteDefinition.eyebrow}</p>
+                <h1>{currentRouteDefinition.title}</h1>
+                <p className="description">{currentRouteDefinition.description}</p>
+              </div>
+              <div className="admin-page-hero-actions">
+                <span
+                  className={`status-pill ${
+                    currentRouteDefinition.stage === "funcional" ? "is-success" : "is-warning"
+                  }`}
+                >
+                  {currentRouteDefinition.stage}
+                </span>
+                <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+                  Atualizar
+                </button>
+                <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
+                  Sair
+                </button>
+              </div>
+            </section>
+          ) : null}
 
           <section className="admin-content">
           {feedback ? <div className={`feedback-banner is-${feedback.tone}`}>{feedback.message}</div> : null}
@@ -5740,6 +5937,96 @@ function resolveUtilizationTone(bookedMinutes: number, totalMinutes: number): st
     return "warning";
   }
   return "info";
+}
+
+function resolveProfessionalInitials(value: string): string {
+  const parts = value
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return "AG";
+  }
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part.slice(0, 1).toUpperCase())
+    .join("");
+}
+
+function resolveProfessionalServiceNames(
+  professional: Professional,
+  services: readonly Service[]
+): string[] {
+  return professional.especialidades
+    .map((serviceId) => services.find((service) => service.id === serviceId)?.nome)
+    .filter((value): value is string => Boolean(value));
+}
+
+function resolveProfessionalSummaryLine(serviceNames: readonly string[]): string {
+  if (!serviceNames.length) {
+    return "Sem servicos vinculados";
+  }
+
+  if (serviceNames.length <= 2) {
+    return serviceNames.join(" • ");
+  }
+
+  return `${serviceNames.slice(0, 2).join(" • ")} +${serviceNames.length - 2}`;
+}
+
+function resolveProfessionalStatusTone(status: string): string {
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized === "active" || normalized === "ativo") {
+    return "success";
+  }
+
+  if (
+    normalized === "inactive" ||
+    normalized === "inativo" ||
+    normalized.includes("ferias") ||
+    normalized.includes("férias")
+  ) {
+    return "warning";
+  }
+
+  return "neutral";
+}
+
+function formatProfessionalStatus(status: string): string {
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized === "active") {
+    return "Ativo";
+  }
+  if (normalized === "inactive") {
+    return "Inativo";
+  }
+  if (normalized === "ativo") {
+    return "Ativo";
+  }
+  if (normalized === "inativo") {
+    return "Inativo";
+  }
+  if (normalized.includes("ferias") || normalized.includes("férias")) {
+    return "Ferias";
+  }
+
+  if (!status.trim()) {
+    return "Sem status";
+  }
+
+  return `${status.trim().slice(0, 1).toUpperCase()}${status.trim().slice(1)}`;
+}
+
+function resolveAvailabilitySummary(rules: readonly AvailabilityRule[]): string {
+  if (!rules.length) {
+    return "Sem horarios";
+  }
+
+  return `${rules.length} dia(s) ativos`;
 }
 
 function formatCurrency(value: number): string {
