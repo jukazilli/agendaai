@@ -99,7 +99,15 @@ No chrome global do shell:
 ### Relatorios
 
 - deve concentrar apenas leitura gerencial, comparativos e recortes analiticos;
-- deve operar em workspace local proprio, com `filtros no topo`, `menu de visoes` e `abas abertas` sem misturar a navegacao do shell com os contextos internos do modulo;
+- deve operar em workspace local proprio, com `menu de visoes`, `abas abertas` e `contexto` desacoplados da navegacao global do shell;
+- no desktop, a abertura das visoes deve preferir hover ou flyout no proprio item lateral `relatorios`, evitando um segundo menu redundante dentro da tela;
+- em viewport compacto, a rota pode manter um disclosure proprio como fallback para quem nao possui hover;
+- filtros devem ser locais a cada visao e abrir em modal proprio via botao `filtrar`, nunca como faixa fixa ocupando o topo inteiro do modulo;
+- filtros de lookup devem privilegiar busca por `nome`, `telefone` e identificador atual do registro, sem inventar `codigo` persistido onde o backend ainda nao modelou esse campo;
+- campos de lookup devem exibir acao explicita de consulta, como icone de lupa, e abrir popup tabular com colunas aderentes ao tipo do registro:
+  - `codigo` + `descricao` para itens e servicos;
+  - `codigo` + `nome` para pessoas;
+  - colunas complementares como `telefone` podem aparecer quando o contrato real ja fornecer esse dado.
 - agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em visoes dedicadas, preferencialmente via tab bar;
 - o workspace pode abrir visoes como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `retorno e retencao`, `radar semanal`, `visao mensal` e `pendencias operacionais`;
 - quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;

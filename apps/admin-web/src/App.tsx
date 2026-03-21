@@ -82,7 +82,12 @@ import {
   updateTenantBranding,
   updateTenantSlug
 } from "./lib/admin-api";
-import { ReportsWorkspace, type ReportsWorkspacePane } from "./reports-workspace";
+import {
+  ReportsWorkspace,
+  type ReportsWorkspaceFilterField,
+  type ReportsWorkspaceLookupOption,
+  type ReportsWorkspacePane
+} from "./reports-workspace";
 import {
   DocumentHeader,
   DocumentImpactPanel,
@@ -207,6 +212,17 @@ interface ReportsWorkspaceItem {
   readonly group: string;
   readonly description: string;
   readonly badge?: string;
+}
+
+interface ReportsPaneFilters {
+  readonly dateFrom: string;
+  readonly dateTo: string;
+  readonly serviceFrom: string;
+  readonly serviceTo: string;
+  readonly professionalFrom: string;
+  readonly professionalTo: string;
+  readonly clientQuery: string;
+  readonly returnWindow: ClientReturnWindow;
 }
 
 const reportsWorkspaceItems: readonly ReportsWorkspaceItem[] = [
@@ -575,6 +591,183 @@ function groupReportsWorkspaceItems(
   return Array.from(grouped.entries());
 }
 
+function createDefaultReportsPaneFilters(window: ClientReturnWindow): ReportsPaneFilters {
+  return {
+    dateFrom: "",
+    dateTo: "",
+    serviceFrom: "",
+    serviceTo: "",
+    professionalFrom: "",
+    professionalTo: "",
+    clientQuery: "",
+    returnWindow: window
+  };
+}
+
+function describeLookupRange(from: string, to: string, emptyLabel: string): string {
+  if (from && to) {
+    return from === to ? from : `${from} ate ${to}`;
+  }
+  if (from) {
+    return `De ${from}`;
+  }
+  if (to) {
+    return `Ate ${to}`;
+  }
+  return emptyLabel;
+}
+
+function describeDateWindow(from: string, to: string, fallbackLabel: string): string {
+  if (from && to) {
+    return `${formatDateShort(from)} ate ${formatDateShort(to)}`;
+  }
+  if (from) {
+    return `Desde ${formatDateShort(from)}`;
+  }
+  if (to) {
+    return `Ate ${formatDateShort(to)}`;
+  }
+  return fallbackLabel;
+}
+
+function mapLookupOptions(
+  options: ReadonlyArray<{
+    readonly value: string;
+    readonly label: string;
+  }>
+): ReportsWorkspaceLookupOption[] {
+  return options.map((option) => ({
+    value: option.label,
+    label: option.value
+  }));
+}
+
+function formatLookupCode(value: string): string {
+  const compact = value.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  return compact.slice(-6) || value.toUpperCase();
+}
+
+function buildLookupDisplay(label: string, value: string): string {
+  return `${label} | ${formatLookupCode(value)}`;
+}
+
+function normalizeLookupValue(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function resolveLookupIndex(
+  options: ReadonlyArray<{
+    readonly value: string;
+    readonly label: string;
+    readonly searchTerms: readonly string[];
+  }>,
+  query: string
+): number | null {
+  const normalizedQuery = normalizeLookupValue(query);
+  if (!normalizedQuery) {
+    return null;
+  }
+
+  const exactIndex = options.findIndex((option) =>
+    option.searchTerms.some((term) => normalizeLookupValue(term) === normalizedQuery)
+  );
+  if (exactIndex >= 0) {
+    return exactIndex;
+  }
+
+  const fuzzyIndex = options.findIndex((option) =>
+    option.searchTerms.some((term) => normalizeLookupValue(term).includes(normalizedQuery))
+  );
+  return fuzzyIndex >= 0 ? fuzzyIndex : null;
+}
+
+function isWithinLookupRange(
+  value: string,
+  options: ReadonlyArray<{
+    readonly value: string;
+    readonly label: string;
+    readonly searchTerms: readonly string[];
+  }>,
+  fromQuery: string,
+  toQuery: string
+): boolean {
+  const valueIndex = options.findIndex((option) => option.value === value);
+  if (valueIndex < 0) {
+    return true;
+  }
+
+  const fromIndex = resolveLookupIndex(options, fromQuery);
+  const toIndex = resolveLookupIndex(options, toQuery);
+  const start = fromIndex ?? 0;
+  const end = toIndex ?? options.length - 1;
+  return valueIndex >= Math.min(start, end) && valueIndex <= Math.max(start, end);
+}
+
+function filterBookingsByDetailedReportsFilters(
+  bookings: readonly Booking[],
+  filters: ReportsPaneFilters,
+  services: ReadonlyArray<{
+    readonly value: string;
+    readonly label: string;
+    readonly searchTerms: readonly string[];
+  }>,
+  professionals: ReadonlyArray<{
+    readonly value: string;
+    readonly label: string;
+    readonly searchTerms: readonly string[];
+  }>,
+  clients: readonly Client[],
+  fallbackRange: DashboardRange
+): Booking[] {
+  const dateScopedBookings =
+    filters.dateFrom || filters.dateTo
+      ? bookings.filter((booking) => {
+          const bookingDate = extractDatePart(booking.startAt);
+          if (filters.dateFrom && bookingDate < filters.dateFrom) {
+            return false;
+          }
+          if (filters.dateTo && bookingDate > filters.dateTo) {
+            return false;
+          }
+          return true;
+        })
+      : filterBookingsByRange(bookings, fallbackRange);
+
+  const normalizedClientQuery = normalizeLookupValue(filters.clientQuery);
+
+  return dateScopedBookings
+    .filter((booking) =>
+      isWithinLookupRange(booking.serviceId, services, filters.serviceFrom, filters.serviceTo)
+    )
+    .filter((booking) =>
+      isWithinLookupRange(
+        booking.professionalId,
+        professionals,
+        filters.professionalFrom,
+        filters.professionalTo
+      )
+    )
+    .filter((booking) => {
+      if (!normalizedClientQuery) {
+        return true;
+      }
+
+      const client = clients.find((item) => item.id === booking.clientId);
+      if (!client) {
+        return false;
+      }
+
+      return [client.nome, client.telefone, client.id, `${client.nome} | ${client.telefone}`].some((term) =>
+        normalizeLookupValue(term).includes(normalizedClientQuery)
+      );
+    })
+    .sort((left, right) => right.startAt.localeCompare(left.startAt));
+}
+
 function DashboardChart({
   data
 }: {
@@ -862,9 +1055,18 @@ export function App() {
   const [reportsWorkspaceTab, setReportsWorkspaceTab] = useState<ReportsWorkspaceTab>("overview");
   const [reportsOpenTabs, setReportsOpenTabs] = useState<ReportsWorkspaceTab[]>(["overview"]);
   const [isReportsMenuOpen, setIsReportsMenuOpen] = useState(false);
+  const [isSidebarReportsFlyoutOpen, setIsSidebarReportsFlyoutOpen] = useState(false);
   const [isReportsContextVisible, setIsReportsContextVisible] = useState(false);
   const [reportsAgendaWorkspaceTab, setReportsAgendaWorkspaceTab] =
     useState<ReportsAgendaWorkspaceTab>("week");
+  const [reportsFiltersByTab, setReportsFiltersByTab] = useState<
+    Partial<Record<ReportsWorkspaceTab, ReportsPaneFilters>>
+  >({});
+  const [reportsFilterDraft, setReportsFilterDraft] = useState<ReportsPaneFilters | null>(null);
+  const [isReportsFilterModalOpen, setIsReportsFilterModalOpen] = useState(false);
+  const [reportsLookupFieldId, setReportsLookupFieldId] = useState<string | null>(null);
+  const [reportsLookupQuery, setReportsLookupQuery] = useState("");
+  const [isCompactShell, setIsCompactShell] = useState(false);
 
   useEffect(() => {
     storeValue(API_BASE_STORAGE_KEY, apiBaseUrl);
@@ -897,11 +1099,19 @@ export function App() {
   }, [reportsWorkspaceTab]);
 
   useEffect(() => {
+    setIsReportsFilterModalOpen(false);
+    setReportsFilterDraft(null);
+    setReportsLookupFieldId(null);
+    setReportsLookupQuery("");
+  }, [reportsWorkspaceTab]);
+
+  useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
     let isCompactShell = window.innerWidth <= ADMIN_SHELL_COMPACT_BREAKPOINT;
+    setIsCompactShell(isCompactShell);
     if (isCompactShell) {
       setIsSidebarOpen(false);
     }
@@ -913,6 +1123,7 @@ export function App() {
       }
 
       isCompactShell = nextCompactShell;
+      setIsCompactShell(nextCompactShell);
       setIsSidebarOpen(false);
     };
 
@@ -2019,8 +2230,10 @@ export function App() {
     setCurrentRoute(route);
     setIsShellContextOpen(false);
     setIsShellPulseOpen(false);
+    setIsReportsMenuOpen(false);
     setIsAgendaBookingModalOpen(false);
     setIsSidebarOpen(false);
+    setIsSidebarReportsFlyoutOpen(false);
   }
 
   function closeWorkspaceTab(route: AdminRoute): void {
@@ -2043,6 +2256,8 @@ export function App() {
     setReportsWorkspaceTab(tab);
     setReportsOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
     setIsReportsMenuOpen(false);
+    setIsSidebarReportsFlyoutOpen(false);
+    navigateTo("relatorios");
   }
 
   function closeReportsWorkspaceTab(tab: ReportsWorkspaceTab): void {
@@ -2059,6 +2274,80 @@ export function App() {
 
       return nextTabs;
     });
+  }
+
+  function resolveReportsPaneFilters(tab: ReportsWorkspaceTab = reportsWorkspaceTab): ReportsPaneFilters {
+    return reportsFiltersByTab[tab] ?? createDefaultReportsPaneFilters(clientReturnWindow);
+  }
+
+  function openReportsFilterModal(): void {
+    setReportsFilterDraft(resolveReportsPaneFilters());
+    setIsReportsFilterModalOpen(true);
+    setReportsLookupFieldId(null);
+    setReportsLookupQuery("");
+  }
+
+  function closeReportsFilterModal(): void {
+    setIsReportsFilterModalOpen(false);
+    setReportsFilterDraft(null);
+    setReportsLookupFieldId(null);
+    setReportsLookupQuery("");
+  }
+
+  function updateReportsFilterDraft(fieldId: string, value: string): void {
+    setReportsFilterDraft((current) =>
+      current
+        ? ({
+            ...current,
+            [fieldId]: value
+          } as ReportsPaneFilters)
+        : current
+    );
+  }
+
+  function applyReportsFilterDraft(): void {
+    if (!reportsFilterDraft) {
+      return;
+    }
+
+    setReportsFiltersByTab((current) => ({
+      ...current,
+      [reportsWorkspaceTab]: reportsFilterDraft
+    }));
+    setIsReportsFilterModalOpen(false);
+    setReportsLookupFieldId(null);
+    setReportsLookupQuery("");
+  }
+
+  function clearReportsFilters(): void {
+    const cleared = createDefaultReportsPaneFilters(clientReturnWindow);
+    setReportsFilterDraft(cleared);
+    setReportsFiltersByTab((current) => ({
+      ...current,
+      [reportsWorkspaceTab]: cleared
+    }));
+    setIsReportsFilterModalOpen(false);
+    setReportsLookupFieldId(null);
+    setReportsLookupQuery("");
+  }
+
+  function openReportsLookup(fieldId: string): void {
+    setReportsLookupFieldId(fieldId);
+    setReportsLookupQuery("");
+  }
+
+  function closeReportsLookup(): void {
+    setReportsLookupFieldId(null);
+    setReportsLookupQuery("");
+  }
+
+  function selectReportsLookupValue(value: string): void {
+    if (!reportsLookupFieldId) {
+      return;
+    }
+
+    updateReportsFilterDraft(reportsLookupFieldId, value);
+    closeReportsLookup();
   }
 
   function scrollProfessionalsWorkspaceIntoView(): void {
@@ -5574,12 +5863,67 @@ export function App() {
 
     const workspaceMeta = reportsWorkspaceItems.find((item) => item.key === reportsWorkspaceTab) ?? reportsWorkspaceItems[0];
     const workspaceGroups = groupReportsWorkspaceItems(reportsWorkspaceItems);
-    const recentRevenueFeed = [...reportRevenueEntries]
+    const paymentIntentByBookingId = new Map(
+      paymentIntents
+        .filter((paymentIntent) => paymentIntent.bookingId)
+        .map((paymentIntent) => [paymentIntent.bookingId, paymentIntent] as const)
+    );
+    const activePaneFilters = resolveReportsPaneFilters();
+    const serviceLookupItems = [...services]
+      .sort((left, right) => left.nome.localeCompare(right.nome))
+      .map((service) => ({
+        value: service.id,
+        label: buildLookupDisplay(service.nome, service.id),
+        searchTerms: [service.nome, service.id, buildLookupDisplay(service.nome, service.id)]
+      }));
+    const professionalLookupItems = [...professionals]
+      .sort((left, right) => left.nome.localeCompare(right.nome))
+      .map((professional) => ({
+        value: professional.id,
+        label: buildLookupDisplay(professional.nome, professional.id),
+        searchTerms: [professional.nome, professional.id, buildLookupDisplay(professional.nome, professional.id)]
+      }));
+    const clientLookupItems = [...clients]
+      .sort((left, right) => left.nome.localeCompare(right.nome))
+      .map((client) => ({
+        value: client.id,
+        label: `${client.nome} | ${client.telefone}`,
+        searchTerms: [client.nome, client.telefone, client.id]
+      }));
+    const activePaneFilterCount = [
+      activePaneFilters.dateFrom,
+      activePaneFilters.dateTo,
+      activePaneFilters.serviceFrom,
+      activePaneFilters.serviceTo,
+      activePaneFilters.professionalFrom,
+      activePaneFilters.professionalTo,
+      activePaneFilters.clientQuery,
+      activePaneFilters.returnWindow !== clientReturnWindow ? activePaneFilters.returnWindow : ""
+    ].filter(Boolean).length;
+    const customReportBookings = filterBookingsByDetailedReportsFilters(
+      bookings,
+      activePaneFilters,
+      serviceLookupItems,
+      professionalLookupItems,
+      clients,
+      reportsRange
+    );
+    const customRevenueEntries = buildRevenueEntries(
+      customReportBookings,
+      services,
+      professionals,
+      clients,
+      paymentIntents,
+      cashEntries
+    );
+    const customCurrentMetric = buildReportMetricSummary(
+      customReportBookings,
+      services,
+      paymentIntents,
+      cashEntries
+    );
+    const customRevenueFeed = [...customRevenueEntries]
       .filter((entry) => entry.recognizedAmount > 0 || entry.approvedOnlineAmount > 0)
-      .sort(
-        (left, right) =>
-          new Date(right.booking.startAt).getTime() - new Date(left.booking.startAt).getTime()
-      )
       .slice(0, 6)
       .map((entry) => ({
         id: entry.booking.id,
@@ -5588,69 +5932,225 @@ export function App() {
         value: formatCurrency(entry.recognizedAmount || entry.approvedOnlineAmount),
         meta: formatDateTime(entry.booking.startAt)
       }));
-    const operationalQueue = [...reportBookings]
+    const customOpenBookingCount = customReportBookings.filter((booking) =>
+      isOpenBookingStatus(booking.status)
+    ).length;
+    const operationalQueue = [...customReportBookings]
       .filter((booking) => isOpenBookingStatus(booking.status))
       .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime())
       .slice(0, 10);
-    const paymentIntentByBookingId = new Map(
-      paymentIntents
-        .filter((paymentIntent) => paymentIntent.bookingId)
-        .map((paymentIntent) => [paymentIntent.bookingId, paymentIntent] as const)
-    );
-    const weekProfessionalLookup = new Map(
-      reportsInsightWeekProfessionalSummaries.map((summary) => [summary.professionalId, summary] as const)
-    );
-    const pendingCount = reportBookings.filter((booking) => booking.status === "pendente").length;
-    const awaitingPaymentCount = reportBookings.filter(
+    const pendingCount = customReportBookings.filter((booking) => booking.status === "pendente").length;
+    const awaitingPaymentCount = customReportBookings.filter(
       (booking) => booking.status === "aguardando pagamento"
     ).length;
-    const confirmedCount = reportBookings.filter((booking) => booking.status === "confirmado").length;
+    const confirmedCount = customReportBookings.filter((booking) => booking.status === "confirmado").length;
+    const customServiceSummaries = buildServiceReportSummaries(
+      customReportBookings,
+      services,
+      paymentIntents,
+      cashEntries
+    );
+    const customProfessionalSummaries = buildProfessionalReportSummaries(
+      customReportBookings,
+      professionals,
+      services,
+      paymentIntents,
+      cashEntries
+    );
+    const customClientInsights = buildClientInsights(clients, customReportBookings, services, cashEntries);
+    const customClientPortfolio = summarizeClientPortfolio(customClientInsights, activePaneFilters.returnWindow);
+    const customInactiveClientInsights = filterClientInsights(
+      customClientInsights,
+      "inactive",
+      activePaneFilters.returnWindow
+    );
+    const customRecurrenceLabel =
+      activePaneFilterCount === 0 && activeClientRecurrence.averageRecurrenceDays !== null
+        ? `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`
+        : "n/d";
+    const customCurrentNoShowRate =
+      customCurrentMetric.bookingsCount > 0 ? customCurrentMetric.noShowCount / customCurrentMetric.bookingsCount : 0;
+    const comparisonMetric = activePaneFilterCount === 0 ? activeReportPrevious : undefined;
+    const comparisonNoShowRate =
+      comparisonMetric && comparisonMetric.bookingsCount > 0
+        ? comparisonMetric.noShowCount / comparisonMetric.bookingsCount
+        : 0;
+    const reportMetricCurrent = customCurrentMetric;
+    const reportMetricPrevious = comparisonMetric;
+    const reportServiceSummaryRows = customServiceSummaries;
+    const reportProfessionalSummaryRows = customProfessionalSummaries;
+    const reportRecurrenceInactiveRows = customInactiveClientInsights;
+    const reportRecurrenceSummary = customClientPortfolio;
+    const reportRecurrenceLabel = customRecurrenceLabel;
+    const reportRevenueFeed = customRevenueFeed;
+    const insightFilters = {
+      ...activePaneFilters,
+      dateFrom: "",
+      dateTo: ""
+    };
+    const customInsightBookings = filterBookingsByDetailedReportsFilters(
+      bookings,
+      insightFilters,
+      serviceLookupItems,
+      professionalLookupItems,
+      clients,
+      "all"
+    );
+    const customInsightProfessionals = professionals.filter((professional) =>
+      isWithinLookupRange(
+        professional.id,
+        professionalLookupItems,
+        activePaneFilters.professionalFrom,
+        activePaneFilters.professionalTo
+      )
+    );
+    const customWeekBookings = filterBookingsByDates(customInsightBookings, reportsInsightWeekDates);
+    const customWeekCapacitySummary = summarizeWeekCapacity(
+      customWeekBookings,
+      reportsInsightWeekDates,
+      customInsightProfessionals,
+      weeklyAvailabilityByProfessional
+    );
+    const customWeekDaySummaries = buildWeekDaySummaries(
+      customWeekBookings,
+      reportsInsightWeekDates,
+      customInsightProfessionals,
+      weeklyAvailabilityByProfessional
+    );
+    const customWeekProfessionalSummaries = buildWeekProfessionalSummaries(
+      customWeekBookings,
+      reportsInsightWeekDates,
+      customInsightProfessionals,
+      weeklyAvailabilityByProfessional
+    );
+    const customMonthCells = buildAgendaMonthCells(
+      reportsInsightAnchorDate,
+      customInsightBookings,
+      customInsightProfessionals,
+      weeklyAvailabilityByProfessional,
+      "all"
+    );
+    const customCurrentMonthCells = customMonthCells.filter((cell) => cell.inCurrentMonth);
+    const customMonthCapacitySummary = summarizeMonthCapacity(customCurrentMonthCells);
+    const customMonthHighlights = customCurrentMonthCells.filter((cell) => cell.bookingsCount > 0);
+    const weekProfessionalLookup = new Map(
+      customWeekProfessionalSummaries.map((summary) => [summary.professionalId, summary] as const)
+    );
     const workspaceContextItems = [
-      { id: "range", label: "Periodo", value: resolveDashboardRangeLabel(reportsRange) },
-      { id: "service", label: "Servico", value: selectedReportService?.nome ?? "Todos os servicos" },
-      { id: "professional", label: "Profissional", value: selectedReportProfessional?.nome ?? "Todos os profissionais" },
-      { id: "window", label: "Janela de retorno", value: resolveClientReturnWindowLabel(activeClientRecurrence.window) },
-      { id: "comparison", label: "Comparativo", value: reportsComparisonEnabled ? "Periodo anterior" : "Historico total" },
-      { id: "source", label: "Fonte", value: reportsSourceLabel }
-    ] as const;
-    const workspaceFilters = [
       {
-        id: "range",
-        label: "Recorte",
-        value: reportsRange,
-        options: [
-          { value: "7d", label: "7 dias" },
-          { value: "30d", label: "30 dias" },
-          { value: "all", label: "Todo o historico" }
-        ],
-        onChange: (value: string) => setReportsRange(value as DashboardRange)
+        id: "period",
+        label: "Periodo",
+        value: describeDateWindow(
+          activePaneFilters.dateFrom,
+          activePaneFilters.dateTo,
+          resolveDashboardRangeLabel(reportsRange)
+        )
       },
       {
         id: "service",
         label: "Servico",
-        value: reportsServiceFilter,
-        options: [{ value: "all", label: "Todos os servicos" }, ...services.map((service) => ({ value: service.id, label: service.nome }))],
-        onChange: (value: string) => setReportsServiceFilter(value)
+        value: describeLookupRange(
+          activePaneFilters.serviceFrom,
+          activePaneFilters.serviceTo,
+          "Todos os servicos"
+        )
       },
       {
         id: "professional",
         label: "Profissional",
-        value: reportsProfessionalFilter,
-        options: [{ value: "all", label: "Todos os profissionais" }, ...professionals.map((professional) => ({ value: professional.id, label: professional.nome }))],
-        onChange: (value: string) => setReportsProfessionalFilter(value)
+        value: describeLookupRange(
+          activePaneFilters.professionalFrom,
+          activePaneFilters.professionalTo,
+          "Todos os profissionais"
+        )
       },
       {
         id: "return-window",
         label: "Janela de retorno",
-        value: clientReturnWindow,
-        options: [
-          { value: "30d", label: "30 dias" },
-          { value: "60d", label: "60 dias" },
-          { value: "90d", label: "90 dias" }
-        ],
-        onChange: (value: string) => setClientReturnWindow(value as ClientReturnWindow)
+        value: resolveClientReturnWindowLabel(activePaneFilters.returnWindow)
+      },
+      ...(activePaneFilters.clientQuery
+        ? [
+            {
+              id: "client",
+              label: "Cliente",
+              value: activePaneFilters.clientQuery
+            }
+          ]
+        : []),
+      {
+        id: "source",
+        label: "Fonte",
+        value: activePaneFilterCount > 0 ? "Runtime filtrado localmente" : reportsSourceLabel
       }
-    ] as const;
+    ];
+    const serviceLookupOptions = mapLookupOptions(serviceLookupItems);
+    const professionalLookupOptions = mapLookupOptions(professionalLookupItems);
+    const clientLookupOptions = mapLookupOptions(clientLookupItems);
+    const serviceLookupRows = services
+      .map((service) => ({
+        id: service.id,
+        value: buildLookupDisplay(service.nome, service.id),
+        cells: [formatLookupCode(service.id), service.nome],
+        searchText: `${formatLookupCode(service.id)} ${service.nome} ${service.id}`
+      }))
+      .sort((left, right) => left.cells[1].localeCompare(right.cells[1]));
+    const professionalLookupRows = professionals
+      .map((professional) => ({
+        id: professional.id,
+        value: buildLookupDisplay(professional.nome, professional.id),
+        cells: [formatLookupCode(professional.id), professional.nome],
+        searchText: `${formatLookupCode(professional.id)} ${professional.nome} ${professional.id}`
+      }))
+      .sort((left, right) => left.cells[1].localeCompare(right.cells[1]));
+    const clientLookupRows = clients
+      .map((client) => ({
+        id: client.id,
+        value: `${client.nome} | ${client.telefone}`,
+        cells: [formatLookupCode(client.id), client.nome, client.telefone],
+        searchText: `${formatLookupCode(client.id)} ${client.nome} ${client.telefone} ${client.id}`
+      }))
+      .sort((left, right) => left.cells[1].localeCompare(right.cells[1]));
+
+    const lookupQuery = normalizeLookupValue(reportsLookupQuery);
+    const activeLookupConfig =
+      reportsLookupFieldId === "serviceFrom" || reportsLookupFieldId === "serviceTo"
+        ? {
+            title: "Consulta de servicos",
+            description: "Selecione um servico para usar no filtro do relatorio.",
+            columns: [
+              { id: "code", label: "Codigo" },
+              { id: "description", label: "Descricao" }
+            ],
+            rows: serviceLookupRows
+          }
+        : reportsLookupFieldId === "professionalFrom" || reportsLookupFieldId === "professionalTo"
+          ? {
+              title: "Consulta de profissionais",
+              description: "Selecione um profissional para usar no filtro do relatorio.",
+              columns: [
+                { id: "code", label: "Codigo" },
+                { id: "name", label: "Nome" }
+              ],
+              rows: professionalLookupRows
+            }
+          : reportsLookupFieldId === "clientQuery"
+            ? {
+                title: "Consulta de clientes",
+                description: "Selecione um cliente pelo nome, telefone ou identificador atual.",
+                columns: [
+                  { id: "code", label: "Codigo" },
+                  { id: "name", label: "Nome" },
+                  { id: "phone", label: "Telefone" }
+                ],
+                rows: clientLookupRows
+              }
+            : null;
+    const visibleLookupRows = activeLookupConfig
+      ? activeLookupConfig.rows.filter((row) =>
+          lookupQuery ? normalizeLookupValue(row.searchText).includes(lookupQuery) : true
+        )
+      : [];
     let workspacePane: ReportsWorkspacePane = {
       title: "Visao executiva",
       description: "Primeira leitura do periodo para receita, demanda, ticket e fila que ainda pede acao.",
@@ -5658,115 +6158,121 @@ export function App() {
         {
           id: "recognized",
           label: "Receita reconhecida",
-          value: formatCurrency(activeReportCurrent.recognizedRevenue),
+          value: formatCurrency(reportMetricCurrent.recognizedRevenue),
           helper: resolveReportComparisonLabel(
-            activeReportCurrent.recognizedRevenue,
-            activeReportPrevious?.recognizedRevenue ?? 0,
+            reportMetricCurrent.recognizedRevenue,
+            reportMetricPrevious?.recognizedRevenue ?? 0,
             "currency",
-            reportsComparisonEnabled
+            activePaneFilterCount === 0 && reportsComparisonEnabled
           )
         },
         {
           id: "bookings",
           label: "Bookings no periodo",
-          value: activeReportCurrent.bookingsCount,
+          value: reportMetricCurrent.bookingsCount,
           helper: resolveReportComparisonLabel(
-            activeReportCurrent.bookingsCount,
-            activeReportPrevious?.bookingsCount ?? 0,
+            reportMetricCurrent.bookingsCount,
+            reportMetricPrevious?.bookingsCount ?? 0,
             "count",
-            reportsComparisonEnabled
+            activePaneFilterCount === 0 && reportsComparisonEnabled
           )
         },
         {
           id: "ticket",
           label: "Ticket medio",
-          value: formatCurrency(activeReportCurrent.averageTicket),
-          helper: `${activeReportCurrent.completedCount} concluido(s) no recorte.`
+          value: formatCurrency(reportMetricCurrent.averageTicket),
+          helper: `${reportMetricCurrent.completedCount} concluido(s) no recorte.`
         },
         {
           id: "clients",
           label: "Clientes unicos",
-          value: activeReportCurrent.uniqueClients,
+          value: reportMetricCurrent.uniqueClients,
           helper: "Base distinta atendida no periodo."
         },
         {
           id: "completed",
           label: "Concluidos",
-          value: activeReportCurrent.completedCount,
+          value: reportMetricCurrent.completedCount,
           helper: "Atendimentos finalizados."
         },
         {
           id: "open",
           label: "Em aberto",
-          value: reportOpenBookings,
+          value: customOpenBookingCount,
           helper: "Pendentes, confirmados e aguardando pagamento."
         },
         {
           id: "noshow",
           label: "Taxa de no-show",
-          value: formatPercentage(currentNoShowRate),
+          value: formatPercentage(customCurrentNoShowRate),
           helper: resolveReportComparisonLabel(
-            currentNoShowRate,
-            previousNoShowRate,
+            customCurrentNoShowRate,
+            comparisonNoShowRate,
             "percentage",
-            reportsComparisonEnabled
+            activePaneFilterCount === 0 && reportsComparisonEnabled
           )
         },
         {
           id: "inactive",
           label: "Sem retorno",
-          value: activeClientRecurrence.inactiveCount,
-          helper: `Janela ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`
+          value: reportRecurrenceSummary.inactiveCount,
+          helper: `Janela ${resolveClientReturnWindowLabel(activePaneFilters.returnWindow)}.`
         }
       ],
       panels: [
         {
           id: "comparison",
           title: "Comparativo rapido",
-          caption: reportsComparisonEnabled ? "Periodo anterior" : "Sem comparativo",
+          caption:
+            activePaneFilterCount === 0 && reportsComparisonEnabled
+              ? "Periodo anterior"
+              : "Comparativo pausado por filtro detalhado",
           metricRows: [
             {
               id: "recognized",
               label: "Receita reconhecida",
-              current: formatCurrency(activeReportCurrent.recognizedRevenue),
-              previous: formatCurrency(activeReportPrevious?.recognizedRevenue ?? 0)
+              current: formatCurrency(reportMetricCurrent.recognizedRevenue),
+              previous: activePaneFilterCount === 0 ? formatCurrency(reportMetricPrevious?.recognizedRevenue ?? 0) : "--"
             },
             {
               id: "bookings",
               label: "Bookings",
-              current: String(activeReportCurrent.bookingsCount),
-              previous: String(activeReportPrevious?.bookingsCount ?? 0)
+              current: String(reportMetricCurrent.bookingsCount),
+              previous: activePaneFilterCount === 0 ? String(reportMetricPrevious?.bookingsCount ?? 0) : "--"
             },
             {
               id: "ticket",
               label: "Ticket medio",
-              current: formatCurrency(activeReportCurrent.averageTicket),
-              previous: formatCurrency(activeReportPrevious?.averageTicket ?? 0)
+              current: formatCurrency(reportMetricCurrent.averageTicket),
+              previous: activePaneFilterCount === 0 ? formatCurrency(reportMetricPrevious?.averageTicket ?? 0) : "--"
             },
             {
               id: "online",
               label: "Entrada online aprovada",
-              current: formatCurrency(activeReportCurrent.approvedOnlineRevenue),
-              previous: formatCurrency(activeReportPrevious?.approvedOnlineRevenue ?? 0)
+              current: formatCurrency(reportMetricCurrent.approvedOnlineRevenue),
+              previous:
+                activePaneFilterCount === 0
+                  ? formatCurrency(reportMetricPrevious?.approvedOnlineRevenue ?? 0)
+                  : "--"
             }
           ]
         },
         {
           id: "queue",
           title: "Fila operacional",
-          caption: `${reportOpenBookings} em aberto`,
+          caption: `${customOpenBookingCount} em aberto`,
           miniCards: [
             { id: "pending", label: "Pendentes", value: pendingCount },
             { id: "awaiting", label: "Aguardando pagamento", value: awaitingPaymentCount },
             { id: "confirmed", label: "Confirmados", value: confirmedCount },
-            { id: "week-open", label: "Abertos na semana", value: reportsInsightWeekCapacitySummary.openBookings }
+            { id: "week-open", label: "Abertos na semana", value: customWeekCapacitySummary.openBookings }
           ]
         },
         {
           id: "feed",
           title: "Movimentos recentes",
           actions: [{ label: "Abrir agenda", onClick: () => navigateTo("agenda") }],
-          feed: recentRevenueFeed,
+          feed: reportRevenueFeed,
           emptyMessage: "Nenhum movimento de receita encontrado para este recorte."
         },
         {
@@ -5774,10 +6280,10 @@ export function App() {
           title: "Retorno resumido",
           actions: [{ label: "Abrir clientes", onClick: () => navigateTo("clientes") }],
           miniCards: [
-            { id: "returning", label: "Com retorno", value: activeClientRecurrence.returningCount },
-            { id: "inactive", label: "Sem retorno", value: activeClientRecurrence.inactiveCount },
-            { id: "never", label: "Nunca concluiu", value: activeClientRecurrence.neverCompletedCount },
-            { id: "recurrence", label: "Recorrencia media", value: recurrenceAverageLabel }
+            { id: "returning", label: "Com retorno", value: reportRecurrenceSummary.returningCount },
+            { id: "inactive", label: "Sem retorno", value: reportRecurrenceSummary.inactiveCount },
+            { id: "never", label: "Nunca concluiu", value: reportRecurrenceSummary.neverCompletedCount },
+            { id: "recurrence", label: "Recorrencia media", value: reportRecurrenceLabel }
           ]
         }
       ]
@@ -5792,10 +6298,10 @@ export function App() {
             id: "services-kpis",
             title: "Resumo comercial",
             miniCards: [
-              { id: "groups", label: "Grupos no recorte", value: activeReportServiceSummaries.length },
-              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(reportRevenueSummary.recognizedRevenue) },
-              { id: "online", label: "Entrada online", value: formatCurrency(reportRevenueSummary.approvedOnlineRevenue) },
-              { id: "clients", label: "Clientes unicos", value: reportRevenueSummary.uniqueClients }
+              { id: "groups", label: "Grupos no recorte", value: reportServiceSummaryRows.length },
+              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(reportMetricCurrent.recognizedRevenue) },
+              { id: "online", label: "Entrada online", value: formatCurrency(reportMetricCurrent.approvedOnlineRevenue) },
+              { id: "clients", label: "Clientes unicos", value: reportMetricCurrent.uniqueClients }
             ]
           }
         ],
@@ -5811,7 +6317,7 @@ export function App() {
               { id: "clients", label: "Clientes" },
               { id: "ticket", label: "Ticket" }
             ],
-            rows: activeReportServiceSummaries.map((entry) => ({
+            rows: reportServiceSummaryRows.map((entry) => ({
               id: entry.id,
               cells: [
                 entry.label,
@@ -5838,10 +6344,10 @@ export function App() {
             id: "team-kpis",
             title: "Resumo da equipe",
             miniCards: [
-              { id: "people", label: "Profissionais no recorte", value: activeReportProfessionalSummaries.length },
-              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(activeReportCurrent.recognizedRevenue) },
-              { id: "completed", label: "Concluidos", value: activeReportCurrent.completedCount },
-              { id: "clients", label: "Clientes unicos", value: activeReportCurrent.uniqueClients }
+              { id: "people", label: "Profissionais no recorte", value: reportProfessionalSummaryRows.length },
+              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(reportMetricCurrent.recognizedRevenue) },
+              { id: "completed", label: "Concluidos", value: reportMetricCurrent.completedCount },
+              { id: "clients", label: "Clientes unicos", value: reportMetricCurrent.uniqueClients }
             ]
           }
         ],
@@ -5857,7 +6363,7 @@ export function App() {
               { id: "ticket", label: "Ticket" },
               { id: "week", label: "Radar semanal" }
             ],
-            rows: activeReportProfessionalSummaries.map((entry) => ({
+            rows: reportProfessionalSummaryRows.map((entry) => ({
               id: entry.id,
               cells: [
                 entry.label,
@@ -5883,25 +6389,28 @@ export function App() {
     if (reportsWorkspaceTab === "retention") {
       workspacePane = {
         title: "Retorno e retencao",
-        description: `Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
+        description: `Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activePaneFilters.returnWindow)}.`,
         actions: [{ label: "Abrir clientes", onClick: () => navigateTo("clientes") }],
         panels: [
           {
             id: "retention-kpis",
             title: "Resumo da base",
             miniCards: [
-              { id: "returning", label: "Com retorno", value: activeClientRecurrence.returningCount },
-              { id: "inactive", label: "Sem retorno", value: activeClientRecurrence.inactiveCount },
-              { id: "never", label: "Nunca concluiu", value: activeClientRecurrence.neverCompletedCount },
-              { id: "recurrence", label: "Recorrencia media", value: recurrenceAverageLabel }
+              { id: "returning", label: "Com retorno", value: reportRecurrenceSummary.returningCount },
+              { id: "inactive", label: "Sem retorno", value: reportRecurrenceSummary.inactiveCount },
+              { id: "never", label: "Nunca concluiu", value: reportRecurrenceSummary.neverCompletedCount },
+              { id: "recurrence", label: "Recorrencia media", value: reportRecurrenceLabel }
             ]
           }
         ],
-        bucketCards: activeClientRecurrence.returnBuckets.map((bucket) => ({
-          id: bucket.id,
-          label: bucket.label,
-          value: bucket.clientsCount
-        })),
+        bucketCards:
+          activePaneFilterCount === 0
+            ? activeClientRecurrence.returnBuckets.map((bucket) => ({
+                id: bucket.id,
+                label: bucket.label,
+                value: bucket.clientsCount
+              }))
+            : undefined,
         tables: [
           {
             id: "retention-table",
@@ -5913,18 +6422,18 @@ export function App() {
               { id: "revenue", label: "Receita" },
               { id: "recurrence", label: "Recorrencia" }
             ],
-            rows: activeClientRecurrence.inactiveClients.map((entry) => ({
-              id: entry.clientId,
+            rows: reportRecurrenceInactiveRows.map((entry) => ({
+              id: entry.client.id,
               cells: [
-                entry.nome,
-                entry.origem || "n/d",
-                entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "Nunca",
-                entry.daysSinceLastCompleted ?? "n/d",
+                entry.client.nome,
+                entry.client.origem || "n/d",
+                entry.lastCompletedBooking ? formatDateTime(entry.lastCompletedBooking.endAt) : "Nunca",
+                entry.lastCompletedBooking ? calculateDaysSinceIso(entry.lastCompletedBooking.endAt) : "n/d",
                 formatCurrency(entry.recognizedRevenue),
-                entry.averageRecurrenceDays === null ? "n/d" : `${Math.round(entry.averageRecurrenceDays)} dias`
+                "n/d"
               ]
             })),
-            emptyMessage: `Nenhum cliente sem retorno identificado em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`
+            emptyMessage: `Nenhum cliente sem retorno identificado em ${resolveClientReturnWindowLabel(activePaneFilters.returnWindow)}.`
           }
         ]
       };
@@ -5949,10 +6458,10 @@ export function App() {
             id: "week-kpis",
             title: "Resumo semanal",
             miniCards: [
-              { id: "capacity", label: "Capacidade total", value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.totalMinutes) },
-              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.bookedMinutes) },
-              { id: "free", label: "Horas livres", value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.freeMinutes) },
-              { id: "open", label: "Em aberto", value: reportsInsightWeekCapacitySummary.openBookings }
+              { id: "capacity", label: "Capacidade total", value: formatMinutesAsHours(customWeekCapacitySummary.totalMinutes) },
+              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(customWeekCapacitySummary.bookedMinutes) },
+              { id: "free", label: "Horas livres", value: formatMinutesAsHours(customWeekCapacitySummary.freeMinutes) },
+              { id: "open", label: "Em aberto", value: customWeekCapacitySummary.openBookings }
             ]
           }
         ],
@@ -5968,7 +6477,7 @@ export function App() {
               { id: "total", label: "Capacidade" },
               { id: "open", label: "Em aberto" }
             ],
-            rows: reportsInsightWeekDaySummaries.map((summary) => ({
+            rows: customWeekDaySummaries.map((summary) => ({
               id: summary.date,
               cells: [
                 formatAgendaDayLabel(summary.date),
@@ -5992,7 +6501,7 @@ export function App() {
               { id: "total", label: "Capacidade" },
               { id: "open", label: "Em aberto" }
             ],
-            rows: reportsInsightWeekProfessionalSummaries.map((summary) => ({
+            rows: customWeekProfessionalSummaries.map((summary) => ({
               id: summary.professionalId,
               cells: [
                 summary.professionalName,
@@ -6028,10 +6537,10 @@ export function App() {
             id: "month-kpis",
             title: "Resumo do mes",
             miniCards: [
-              { id: "bookings", label: "Bookings no mes", value: reportsInsightMonthCapacitySummary.bookingsCount },
-              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.bookedMinutes) },
-              { id: "free", label: "Horas livres", value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.freeMinutes) },
-              { id: "open", label: "Em aberto", value: reportsInsightMonthCapacitySummary.openBookings }
+              { id: "bookings", label: "Bookings no mes", value: customMonthCapacitySummary.bookingsCount },
+              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(customMonthCapacitySummary.bookedMinutes) },
+              { id: "free", label: "Horas livres", value: formatMinutesAsHours(customMonthCapacitySummary.freeMinutes) },
+              { id: "open", label: "Em aberto", value: customMonthCapacitySummary.openBookings }
             ]
           }
         ],
@@ -6046,7 +6555,7 @@ export function App() {
               { id: "completed", label: "Concluidos" },
               { id: "load", label: "Carga" }
             ],
-            rows: reportsInsightMonthHighlights.slice(0, 12).map((cell) => ({
+            rows: customMonthHighlights.slice(0, 12).map((cell) => ({
               id: cell.date,
               cells: [
                 formatAgendaDayLabel(cell.date),
@@ -6081,7 +6590,7 @@ export function App() {
               { id: "pending", label: "Pendentes", value: pendingCount },
               { id: "awaiting", label: "Aguardando pagamento", value: awaitingPaymentCount },
               { id: "confirmed", label: "Confirmados", value: confirmedCount },
-              { id: "open", label: "Em aberto", value: reportOpenBookings }
+              { id: "open", label: "Em aberto", value: customOpenBookingCount }
             ]
           }
         ],
@@ -6115,24 +6624,138 @@ export function App() {
       };
     }
 
+    const activeFilterDraft = reportsFilterDraft ?? activePaneFilters;
+    const filterModalFields: ReportsWorkspaceFilterField[] = [];
+    const supportsDateRange =
+      reportsWorkspaceTab === "overview" ||
+      reportsWorkspaceTab === "services" ||
+      reportsWorkspaceTab === "team" ||
+      reportsWorkspaceTab === "retention" ||
+      reportsWorkspaceTab === "operations";
+
+    if (supportsDateRange) {
+      filterModalFields.push(
+        {
+          id: "dateFrom",
+          type: "date",
+          label: "Data de",
+          value: activeFilterDraft.dateFrom
+        },
+        {
+          id: "dateTo",
+          type: "date",
+          label: "Ate data",
+          value: activeFilterDraft.dateTo
+        }
+      );
+    }
+
+    filterModalFields.push(
+      {
+        id: "serviceFrom",
+        type: "lookup",
+        label: "Do servico",
+        value: activeFilterDraft.serviceFrom,
+        placeholder: "Nome ou codigo",
+        options: serviceLookupOptions
+      },
+      {
+        id: "serviceTo",
+        type: "lookup",
+        label: "Ate o servico",
+        value: activeFilterDraft.serviceTo,
+        placeholder: "Nome ou codigo",
+        options: serviceLookupOptions
+      },
+      {
+        id: "professionalFrom",
+        type: "lookup",
+        label: "Do profissional",
+        value: activeFilterDraft.professionalFrom,
+        placeholder: "Nome ou codigo",
+        options: professionalLookupOptions
+      },
+      {
+        id: "professionalTo",
+        type: "lookup",
+        label: "Ate o profissional",
+        value: activeFilterDraft.professionalTo,
+        placeholder: "Nome ou codigo",
+        options: professionalLookupOptions
+      }
+    );
+
+    if (reportsWorkspaceTab === "overview" || reportsWorkspaceTab === "retention") {
+      filterModalFields.push({
+        id: "returnWindow",
+        type: "select",
+        label: "Janela de retorno",
+        value: activeFilterDraft.returnWindow,
+        options: [
+          { value: "30d", label: "30 dias" },
+          { value: "60d", label: "60 dias" },
+          { value: "90d", label: "90 dias" }
+        ]
+      });
+    }
+
+    if (reportsWorkspaceTab === "retention" || reportsWorkspaceTab === "operations") {
+      filterModalFields.push({
+        id: "clientQuery",
+        type: "lookup",
+        label: "Cliente",
+        value: activeFilterDraft.clientQuery,
+        placeholder: "Nome ou telefone",
+        options: clientLookupOptions
+      });
+    }
+
+    const filterModal = {
+      appliedCount: activePaneFilterCount,
+      fields: filterModalFields,
+      isOpen: isReportsFilterModalOpen,
+      lookupDialog: {
+        columns: activeLookupConfig?.columns ?? [],
+        description: activeLookupConfig?.description ?? "Consulta padrao do filtro atual.",
+        emptyMessage: "Nenhum registro encontrado para a busca informada.",
+        isOpen: Boolean(reportsLookupFieldId && activeLookupConfig),
+        onClose: closeReportsLookup,
+        onOpen: openReportsLookup,
+        onQueryChange: setReportsLookupQuery,
+        onSelect: selectReportsLookupValue,
+        query: reportsLookupQuery,
+        rows: visibleLookupRows,
+        title: activeLookupConfig?.title ?? "Consulta"
+      },
+      onApply: applyReportsFilterDraft,
+      onChangeField: updateReportsFilterDraft,
+      onClear: clearReportsFilters,
+      onClose: closeReportsFilterModal,
+      onOpen: openReportsFilterModal,
+      title: `Filtros | ${workspaceMeta.label}`
+    } as const;
+
     return (
       <ReportsWorkspace
         activeMeta={workspaceMeta}
         activeTab={reportsWorkspaceTab}
         contextItems={workspaceContextItems}
         error={reportsReadModelError}
-        filters={workspaceFilters}
+        filterModal={filterModal}
         isContextVisible={isReportsContextVisible}
         isLoading={isLoadingReportsReadModel}
         isMenuOpen={isReportsMenuOpen}
         menuGroups={workspaceGroups}
         onActivateTab={setReportsWorkspaceTab}
         onCloseTab={closeReportsWorkspaceTab}
+        onCloseMenu={() => setIsReportsMenuOpen(false)}
+        onOpenMenu={() => setIsReportsMenuOpen(true)}
         onOpenTab={openReportsWorkspaceTab}
         onToggleContext={() => setIsReportsContextVisible((current) => !current)}
         onToggleMenu={() => setIsReportsMenuOpen((current) => !current)}
         openTabs={reportsOpenTabs.filter((tab) => tab !== "agenda")}
         pane={workspacePane}
+        showMenuButton={isCompactShell}
       />
     );
 
@@ -7297,6 +7920,7 @@ export function App() {
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
   const showTopbarEyebrow = currentRoute !== "profissionais" && currentRoute !== "dashboard";
+  const sidebarReportsMenuGroups = groupReportsWorkspaceItems(reportsWorkspaceItems);
 
   if (!sessionToken) {
     return (
@@ -7512,7 +8136,7 @@ export function App() {
               {section.routes.map((route) => {
                 const definition = adminRouteDefinitions[route];
                 const Icon = definition.icon;
-                return (
+                const sidebarButton = (
                   <button
                     className={currentRoute === route ? "admin-sidebar-link is-active" : "admin-sidebar-link"}
                     key={route}
@@ -7527,6 +8151,59 @@ export function App() {
                       <strong>{definition.label}</strong>
                     </span>
                   </button>
+                );
+
+                if (route !== "relatorios") {
+                  return sidebarButton;
+                }
+
+                return (
+                  <div
+                    className="admin-sidebar-flyout-anchor"
+                    key={route}
+                    onMouseEnter={() => {
+                      if (!isCompactShell) {
+                        setIsSidebarReportsFlyoutOpen(true);
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (!isCompactShell) {
+                        setIsSidebarReportsFlyoutOpen(false);
+                      }
+                    }}
+                  >
+                    {sidebarButton}
+                    {!isCompactShell && isSidebarReportsFlyoutOpen ? (
+                      <div className="admin-sidebar-flyout admin-sidebar-flyout-reports">
+                        <div className="admin-sidebar-flyout-header">
+                          <strong>Relatorios</strong>
+                          <span>Escolha a visao gerencial que quer abrir no workspace.</span>
+                        </div>
+
+                        {sidebarReportsMenuGroups.map(([group, items]) => (
+                          <section className="admin-sidebar-flyout-group" key={group}>
+                            <span className="admin-sidebar-flyout-group-title">{group}</span>
+                            <div className="admin-sidebar-flyout-items">
+                              {items.map((item) => (
+                                <button
+                                  className="admin-sidebar-flyout-item"
+                                  key={item.key}
+                                  onClick={() => openReportsWorkspaceTab(item.key)}
+                                  type="button"
+                                >
+                                  <div className="admin-sidebar-flyout-item-row">
+                                    <strong>{item.label}</strong>
+                                    {item.badge ? <span className="reports-menu-badge">{item.badge}</span> : null}
+                                  </div>
+                                  <span>{item.description}</span>
+                                </button>
+                              ))}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
             </div>
@@ -8673,6 +9350,12 @@ function formatAgendaDayLabel(value: string): string {
 
 function formatAgendaMonthLabel(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(
+    new Date(`${value}T12:00:00`)
+  );
+}
+
+function formatDateShort(value: string): string {
+  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
     new Date(`${value}T12:00:00`)
   );
 }
