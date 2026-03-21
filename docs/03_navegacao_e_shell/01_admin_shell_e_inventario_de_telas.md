@@ -107,7 +107,7 @@ No chrome global do shell:
 - em viewport compacto, a rota pode manter um disclosure proprio como fallback para quem nao possui hover;
 - o builder precisa priorizar a largura do resultado; definicao, filtros e ordenacao devem operar em faixas horizontais no topo, e nao como coluna lateral que espreme a leitura;
 - `ocultar builder` deve esconder apenas a area de montagem do relatorio, nunca as dock tabs, o contexto da tela ou o resultado executado;
-- o cabeçalho do modulo, incluindo acoes e builder aberto, deve permanecer fixo ou `sticky` durante a rolagem desktop para evitar perda de contexto da consulta;
+- o modulo pode manter acoes locais visiveis durante a rolagem, mas nunca ao custo de sobrepor dock tabs, esconder conteudo ou criar a sensacao de painel flutuando fora do fluxo;
 - filtros devem ser locais a cada visao e abrir em modal proprio via botao `filtrar`, nunca como faixa fixa ocupando o topo inteiro do modulo;
 - o modulo deve trabalhar com `modelos salvos`, nunca com `snapshots` persistidos dos resultados executados;
 - o botao `modelos salvos` deve listar tanto modelos do usuario quanto definicoes predefinidas do sistema, abrindo sempre em `dock tab` dedicada;

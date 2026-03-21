@@ -6,7 +6,7 @@
   Search,
   X
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNode } from "react";
+import { Fragment, useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
 
 import type {
   ReportBuilderCatalog,
@@ -177,9 +177,6 @@ export function ReportsBuilderWorkspace({
   );
   const [sortEditor, setSortEditor] = useState<SortEditorState>(() => createDefaultSortEditor(null, null));
   const [saveDraft, setSaveDraft] = useState({ name: "", description: "" });
-  const shellRef = useRef<HTMLElement | null>(null);
-  const topbarRef = useRef<HTMLElement | null>(null);
-  const dockTabsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!activeDefinition) {
@@ -213,44 +210,6 @@ export function ReportsBuilderWorkspace({
       description: activeDefinition.description ?? ""
     });
   }, [activeDefinition, catalog]);
-
-  useEffect(() => {
-    const shellElement = shellRef.current;
-    const topbarElement = topbarRef.current;
-    const dockTabsElement = dockTabsRef.current;
-
-    if (!shellElement || !topbarElement || !dockTabsElement) {
-      return;
-    }
-
-    const syncStickyOffsets = (): void => {
-      shellElement.style.setProperty(
-        "--reports-builder-topbar-height",
-        `${Math.ceil(topbarElement.getBoundingClientRect().height)}px`
-      );
-      shellElement.style.setProperty(
-        "--reports-builder-dock-tabs-height",
-        `${Math.ceil(dockTabsElement.getBoundingClientRect().height)}px`
-      );
-    };
-
-    syncStickyOffsets();
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", syncStickyOffsets);
-      return () => window.removeEventListener("resize", syncStickyOffsets);
-    }
-
-    const observer = new ResizeObserver(syncStickyOffsets);
-    observer.observe(topbarElement);
-    observer.observe(dockTabsElement);
-    window.addEventListener("resize", syncStickyOffsets);
-
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", syncStickyOffsets);
-    };
-  }, [activeDefinition, activeTabId, isBuilderCollapsed, openTabs.length]);
 
   const activeField = activeDefinition
     ? catalogFields.find(
@@ -453,8 +412,8 @@ export function ReportsBuilderWorkspace({
   }
 
   return (
-    <section className="reports-builder-shell" ref={shellRef}>
-      <header className="reports-builder-topbar" ref={topbarRef}>
+    <section className="reports-builder-shell">
+      <header className="reports-builder-topbar">
         <div className="reports-builder-heading">
           <span className="eyebrow">Relatorios</span>
           <h1>Relatorios personalizados</h1>
@@ -535,7 +494,7 @@ export function ReportsBuilderWorkspace({
         </div>
       </header>
 
-      <div className="reports-builder-dock-tabs" ref={dockTabsRef}>
+      <div className="reports-builder-dock-tabs">
         {openTabs.length > 0 ? (
           openTabs.map((tab) => (
             <button

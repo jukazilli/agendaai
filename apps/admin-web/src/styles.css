@@ -8,15 +8,9 @@
 .reports-builder-shell {
   display: grid;
   gap: 16px;
-  --reports-builder-sticky-top: 12px;
-  --reports-builder-topbar-height: 0px;
-  --reports-builder-dock-tabs-height: 0px;
 }
 
 .reports-builder-topbar {
-  position: sticky;
-  top: var(--reports-builder-sticky-top);
-  z-index: 24;
   display: grid;
   gap: 14px;
   padding: 28px 30px;
@@ -55,9 +49,6 @@
 }
 
 .reports-builder-dock-tabs {
-  position: sticky;
-  top: calc(var(--reports-builder-sticky-top) + var(--reports-builder-topbar-height) + 12px);
-  z-index: 23;
   display: flex;
   gap: 10px;
   overflow-x: auto;
@@ -145,14 +136,6 @@
 
 .reports-builder-panel {
   grid-column: 1;
-  position: sticky;
-  top: calc(
-    var(--reports-builder-sticky-top) +
-    var(--reports-builder-topbar-height) +
-    var(--reports-builder-dock-tabs-height) +
-    24px
-  );
-  z-index: 22;
 }
 
 .reports-builder-results-panel {
