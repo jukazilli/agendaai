@@ -674,7 +674,7 @@ export function ReportsBuilderWorkspace({
 
                   <div className="reports-builder-grid reports-builder-grid-2">
                     <label className="field">
-                      <span>Quebrar por</span>
+                      <span>Agrupar / quebrar por</span>
                       <select
                         value={activeDefinition.groupBy[0] ?? ""}
                         onChange={(event) =>
@@ -684,7 +684,7 @@ export function ReportsBuilderWorkspace({
                           })
                         }
                       >
-                        <option value="">Sem quebra</option>
+                        <option value="">Sem agrupamento</option>
                         {groupableOptions
                           .map((option) => (
                             <option key={option.id} value={option.id}>

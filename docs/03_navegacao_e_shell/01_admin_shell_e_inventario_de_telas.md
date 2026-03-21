@@ -117,6 +117,14 @@ No chrome global do shell:
 - o shell deve listar as visoes de sistema no proprio flyout lateral de `relatorios`, como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `pendencias operacionais`, `retorno e retencao`, `radar semanal` e `visao mensal`;
 - o builder v1 tambem deve expor bases cadastrais e financeiras reais quando o backend suportar, incluindo `cadastro de servicos`, `cadastro de profissionais` e `pagamentos`;
 - o builder precisa operar com `catalogo efetivo`, mesclando fallback local e catalogo remoto para nao desaparecer campo, filtro, agrupamento ou rotulo quando o backend expuser uma versao parcial ou antiga;
+- `group by` deve existir como capacidade formal do builder, mas sempre materializado em linguagem literal como `agrupar / quebrar por`;
+- cada `objeto de negocio` precisa expor apenas os agrupamentos semanticamente validos para sua base real:
+  - `atendimentos`: cliente, servico, profissional, status, dia e mes;
+  - `clientes`: sem agrupamento livre na v1, priorizando leitura direta e filtros;
+  - `cadastro de servicos`: situacao do cadastro e forma de cobranca;
+  - `cadastro de profissionais`: situacao do cadastro;
+  - `agenda e capacidade`: profissional, dia e mes;
+  - `pagamentos`: situacao do pagamento, cliente, servico, profissional, dia e mes da cobranca;
 - `atendimentos` tambem precisa aceitar relacoes controladas com `clientes`, `servicos` e `profissionais`, sempre com modos literais de combinacao e sem expor SQL cru;
 - agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em definicoes dedicadas, sem empilhar todas as leituras na mesma pagina;
 - quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;
