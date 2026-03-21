@@ -8,6 +8,24 @@
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState, type JSX, type ReactNode } from "react";
 
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  PolarAngleAxis,
+  RadialBar,
+  RadialBarChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis
+} from "recharts";
+
 import type {
   ReportBuilderCatalog,
   ReportCatalogField,
@@ -99,11 +117,61 @@ interface SortEditorState {
   readonly priority: string;
 }
 
+type ChartValueFormat = "currency" | "count" | "hours" | "minutes" | "percent";
+
+interface CartesianChartModel {
+  readonly kind: "bar" | "line";
+  readonly title: string;
+  readonly format: ChartValueFormat;
+  readonly categories: readonly string[];
+  readonly series: ReadonlyArray<{
+    readonly id: string;
+    readonly label: string;
+    readonly values: readonly number[];
+    readonly color: string;
+  }>;
+}
+
+interface PieChartModel {
+  readonly kind: "pie";
+  readonly title: string;
+  readonly format: ChartValueFormat;
+  readonly slices: ReadonlyArray<{
+    readonly id: string;
+    readonly label: string;
+    readonly value: number;
+    readonly color: string;
+  }>;
+}
+
+interface GaugeChartModel {
+  readonly kind: "gauge";
+  readonly title: string;
+  readonly format: ChartValueFormat;
+  readonly value: number;
+  readonly maxValue: number;
+  readonly helper?: string;
+}
+
+type ReportChartModel = CartesianChartModel | PieChartModel | GaugeChartModel;
+type ParsedChartNumber = { readonly value: number; readonly format: ChartValueFormat };
+type NumericChartColumn = {
+  readonly index: number;
+  readonly label: string;
+  readonly values: readonly number[];
+  readonly format: ChartValueFormat;
+  readonly score: number;
+};
+
+const chartPalette = ["#5c5cff", "#0f8a88", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6"] as const;
+
 const visualizationOptions: ReadonlyArray<ReportDefinition["visualization"]> = [
   "kpi_table",
   "kpi",
-  "time_series",
-  "ranking"
+  "bar",
+  "line",
+  "pie",
+  "gauge"
 ];
 
 const metricOperationOptions: ReadonlyArray<ReportDefinition["metric"]["operation"]> = [
@@ -125,6 +193,26 @@ const sortDirectionOptions: ReadonlyArray<ReportSortDirection> = [
   "az",
   "za"
 ];
+
+const visualizationLabels: Record<ReportDefinition["visualization"], string> = {
+  kpi_table: "Resumo com tabela",
+  kpi: "Resumo",
+  bar: "Barras",
+  line: "Linhas",
+  pie: "Pizza",
+  gauge: "Medidor",
+  time_series: "Linhas",
+  ranking: "Barras"
+};
+
+const metricOperationLabels: Record<ReportDefinition["metric"]["operation"], string> = {
+  sum: "Soma",
+  count: "Quantidade",
+  count_distinct: "Quantidade unica",
+  avg: "Media",
+  max: "Maior valor",
+  min: "Menor valor"
+};
 
 export function ReportsBuilderWorkspace({
   menuGroups,
@@ -282,6 +370,13 @@ export function ReportsBuilderWorkspace({
   );
 
   const payloadPreview = activeDefinition ? JSON.stringify(activeDefinition, null, 2) : "";
+  const activeChartModel = useMemo(
+    () =>
+      activeTab?.result && activeDefinition
+        ? buildChartModel(activeDefinition, activeTab.result)
+        : null,
+    [activeDefinition, activeTab?.result]
+  );
   const canAddLookup =
     activeField?.lookupKind === "service" ||
     activeField?.lookupKind === "professional" ||
@@ -413,12 +508,40 @@ export function ReportsBuilderWorkspace({
 
   return (
     <section className="reports-builder-shell">
-      <header className="reports-builder-topbar">
-        <div className="reports-builder-heading">
-          <span className="eyebrow">Relatorios</span>
-          <h1>Relatorios personalizados</h1>
-          <p>Monte, execute e salve modelos reutilizaveis sem misturar os filtros da consulta com a leitura do resultado.</p>
-        </div>
+      <div className="reports-builder-dock-tabs">
+        {openTabs.length > 0 ? (
+          openTabs.map((tab) => (
+            <button
+              className={tab.id === activeTabId ? "reports-builder-dock-tab is-active" : "reports-builder-dock-tab"}
+              key={tab.id}
+              onClick={() => onActivateTab(tab.id)}
+              type="button"
+            >
+              <div className="reports-builder-dock-copy">
+                <strong>{tab.label}</strong>
+                <small>{tab.dirty ? "Alterado" : tab.definition.source === "saved" ? "Modelo salvo" : "Sistema"}</small>
+              </div>
+              {openTabs.length > 1 ? (
+                <span
+                  className="reports-builder-dock-close"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onCloseTab(tab.id);
+                  }}
+                >
+                  <X className="w-3 h-3" />
+                </span>
+              ) : null}
+            </button>
+          ))
+        ) : (
+          <div className="reports-builder-dock-empty">
+            Passe o mouse em <strong>Relatorios</strong> no shell lateral e abra uma visao dedicada.
+          </div>
+        )}
+      </div>
+
+      <section className="reports-builder-topbar">
         <div className="reports-builder-actions">
           <button
             className={isBuilderCollapsed ? "secondary-button is-active" : "secondary-button"}
@@ -426,7 +549,7 @@ export function ReportsBuilderWorkspace({
             onClick={() => setIsBuilderCollapsed((current) => !current)}
             type="button"
           >
-            {isBuilderCollapsed ? "Mostrar builder" : "Ocultar builder"}
+            {isBuilderCollapsed ? "Mostrar montagem" : "Ocultar montagem"}
           </button>
           {showMenuButton && onToggleMenu ? (
             <div
@@ -492,519 +615,304 @@ export function ReportsBuilderWorkspace({
             {activeTab?.isLoading ? "Executando..." : "Executar"}
           </button>
         </div>
-      </header>
 
-      <div className="reports-builder-dock-tabs">
-        {openTabs.length > 0 ? (
-          openTabs.map((tab) => (
-            <button
-              className={tab.id === activeTabId ? "reports-builder-dock-tab is-active" : "reports-builder-dock-tab"}
-              key={tab.id}
-              onClick={() => onActivateTab(tab.id)}
-              type="button"
-            >
-              <div className="reports-builder-dock-copy">
-                <strong>{tab.label}</strong>
-                <small>{tab.dirty ? "Alterado" : tab.definition.source === "saved" ? "Modelo salvo" : "Sistema"}</small>
-              </div>
-              {openTabs.length > 1 ? (
-                <span
-                  className="reports-builder-dock-close"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    onCloseTab(tab.id);
+        {activeDefinition && !isBuilderCollapsed ? (
+          <div className="reports-builder-inline-builder">
+            <div className="reports-builder-grid reports-builder-grid-4">
+              <label className="field">
+                <span>Nome</span>
+                <input
+                  type="text"
+                  value={activeDefinition.name}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      name: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Visualizacao</span>
+                <select
+                  value={normalizeVisualization(activeDefinition.visualization)}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      visualization: event.target.value as ReportDefinition["visualization"]
+                    })
+                  }
+                >
+                  {visualizationOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {resolveVisualizationLabel(option)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Objeto de negocio</span>
+                <div className="reports-builder-input-with-action">
+                  <input
+                    type="text"
+                    readOnly
+                    value={resolveBaseLabel(catalog, activeDefinition.base)}
+                  />
+                  <button
+                    className="icon-button"
+                    onClick={() => setLookupState({ kind: "base" })}
+                    type="button"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                </div>
+              </label>
+              <label className="field">
+                <span>Indicador</span>
+                <input
+                  type="text"
+                  value={activeDefinition.metric.name}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      metric: {
+                        ...activeDefinition.metric,
+                        name: event.target.value
+                      }
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="reports-builder-grid reports-builder-grid-4">
+              <label className="field">
+                <span>Calculo</span>
+                <select
+                  value={activeDefinition.metric.operation}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      metric: {
+                        ...activeDefinition.metric,
+                        operation: event.target.value as ReportDefinition["metric"]["operation"]
+                      }
+                    })
+                  }
+                >
+                  {metricOperationOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {resolveMetricOperationLabel(option)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Campo do indicador</span>
+                <select
+                  value={activeDefinition.metric.field}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      metric: {
+                        ...activeDefinition.metric,
+                        field: event.target.value
+                      }
+                    })
+                  }
+                >
+                  {catalogFields
+                    .filter((field) => field.bases.includes(activeDefinition.base))
+                    .map((field) => (
+                      <option key={field.id} value={field.id}>
+                        {field.label}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Agrupar / quebrar por</span>
+                <select
+                  value={activeDefinition.groupBy[0] ?? ""}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      groupBy: event.target.value ? [event.target.value] : []
+                    })
+                  }
+                >
+                  <option value="">Sem agrupamento</option>
+                  {groupableOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Descricao</span>
+                <input
+                  type="text"
+                  value={activeDefinition.description ?? ""}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      description: event.target.value
+                    })
+                  }
+                />
+              </label>
+            </div>
+
+            <div className="reports-builder-grid reports-builder-grid-4">
+              <label className="field">
+                <span>Relacionar com</span>
+                <select
+                  disabled={relationOptions.length === 0}
+                  value={activeDefinition.relation?.relationId ?? ""}
+                  onChange={(event) => {
+                    const relationId = event.target.value;
+                    if (!relationId) {
+                      onUpdateDefinition(activeTabId, {
+                        ...activeDefinition,
+                        relation: null
+                      });
+                      return;
+                    }
+
+                    const relation = relationOptions.find((option) => option.id === relationId);
+                    if (!relation) {
+                      return;
+                    }
+
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      relation: {
+                        relationId: relation.id,
+                        targetBase: relation.targetBase,
+                        mode: relation.modes[0] as ReportRelationMode
+                      }
+                    });
                   }}
                 >
-                  <X className="w-3 h-3" />
-                </span>
-              ) : null}
-            </button>
-          ))
-        ) : (
-          <div className="reports-builder-dock-empty">
-            Passe o mouse em <strong>Relatorios</strong> no shell lateral e abra uma visao dedicada.
-          </div>
-        )}
-      </div>
-
-      <div className={`reports-builder-workspace${isBuilderCollapsed ? " is-collapsed" : ""}`}>
-        <section className="reports-builder-panel">
-          <div className="reports-builder-panel-header">
-            <div>
-              <h2>Montagem do relatorio</h2>
-              <p>Escolha o objeto de negocio, o indicador, os filtros e a ordenacao desta leitura.</p>
-            </div>
-          </div>
-
-          {activeDefinition ? (
-            <div className="reports-builder-panel-body">
-              <section className="reports-builder-section-card">
-                <div className="reports-builder-section-head">
-                  <h3>Definicao</h3>
-                </div>
-                <div className="reports-builder-section-body">
-                  <div className="reports-builder-grid reports-builder-grid-2">
-                    <label className="field">
-                      <span>Titulo do relatorio</span>
-                      <input
-                        type="text"
-                        value={activeDefinition.name}
-                        onChange={(event) =>
-                          onUpdateDefinition(activeTabId, {
-                            ...activeDefinition,
-                            name: event.target.value
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Visualizacao</span>
-                      <select
-                        value={activeDefinition.visualization}
-                        onChange={(event) =>
-                          onUpdateDefinition(activeTabId, {
-                            ...activeDefinition,
-                            visualization: event.target.value as ReportDefinition["visualization"]
-                          })
-                        }
-                      >
-                        {visualizationOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <label className="field">
-                    <span>Descricao</span>
-                    <textarea
-                      rows={3}
-                      value={activeDefinition.description ?? ""}
-                      onChange={(event) =>
-                        onUpdateDefinition(activeTabId, {
-                          ...activeDefinition,
-                          description: event.target.value
-                        })
-                      }
-                    />
-                  </label>
-
-                  <div className="reports-builder-grid reports-builder-grid-4">
-                    <label className="field">
-                      <span>Objeto de negocio</span>
-                      <div className="reports-builder-input-with-action">
-                        <input
-                          type="text"
-                          readOnly
-                          value={resolveBaseLabel(catalog, activeDefinition.base)}
-                        />
-                        <button
-                          className="icon-button"
-                          onClick={() => setLookupState({ kind: "base" })}
-                          type="button"
-                        >
-                          <Search className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </label>
-                    <label className="field">
-                      <span>Indicador</span>
-                      <input
-                        type="text"
-                        value={activeDefinition.metric.name}
-                        onChange={(event) =>
-                          onUpdateDefinition(activeTabId, {
-                            ...activeDefinition,
-                            metric: {
-                              ...activeDefinition.metric,
-                              name: event.target.value
-                            }
-                          })
-                        }
-                      />
-                    </label>
-                    <label className="field">
-                      <span>Calculo</span>
-                      <select
-                        value={activeDefinition.metric.operation}
-                        onChange={(event) =>
-                          onUpdateDefinition(activeTabId, {
-                            ...activeDefinition,
-                            metric: {
-                              ...activeDefinition.metric,
-                              operation: event.target.value as ReportDefinition["metric"]["operation"]
-                            }
-                          })
-                        }
-                      >
-                        {metricOperationOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Campo do indicador</span>
-                      <select
-                        value={activeDefinition.metric.field}
-                        onChange={(event) =>
-                          onUpdateDefinition(activeTabId, {
-                            ...activeDefinition,
-                            metric: {
-                              ...activeDefinition.metric,
-                              field: event.target.value
-                            }
-                          })
-                        }
-                      >
-                        {catalogFields
-                          .filter((field) => field.bases.includes(activeDefinition.base))
-                          .map((field) => (
-                            <option key={field.id} value={field.id}>
-                              {field.label}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="reports-builder-grid reports-builder-grid-2">
-                    <label className="field">
-                      <span>Agrupar / quebrar por</span>
-                      <select
-                        value={activeDefinition.groupBy[0] ?? ""}
-                        onChange={(event) =>
-                          onUpdateDefinition(activeTabId, {
-                            ...activeDefinition,
-                            groupBy: event.target.value ? [event.target.value] : []
-                          })
-                        }
-                      >
-                        <option value="">Sem agrupamento</option>
-                        {groupableOptions
-                          .map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <div className="reports-builder-code-card">
-                      <span className="eyebrow">Identificacao</span>
-                      <strong>{activeDefinition.code}</strong>
-                      <small>{activeDefinition.source === "saved" ? "Modelo salvo" : "Modelo do sistema"}</small>
-                    </div>
-                  </div>
-
-                  {relationOptions.length > 0 ? (
-                    <div className="reports-builder-grid reports-builder-grid-2">
-                      <label className="field">
-                        <span>Relacionar com</span>
-                        <select
-                          value={activeDefinition.relation?.relationId ?? ""}
-                          onChange={(event) => {
-                            const relationId = event.target.value;
-                            if (!relationId) {
-                              onUpdateDefinition(activeTabId, {
-                                ...activeDefinition,
-                                relation: null
-                              });
-                              return;
-                            }
-
-                            const relation = relationOptions.find((option) => option.id === relationId);
-                            if (!relation) {
-                              return;
-                            }
-
-                            onUpdateDefinition(activeTabId, {
-                              ...activeDefinition,
-                              relation: {
-                                relationId: relation.id,
-                                targetBase: relation.targetBase,
-                                mode: relation.modes[0] as ReportRelationMode
-                              }
-                            });
-                          }}
-                        >
-                          <option value="">Sem relacionamento adicional</option>
-                          {relationOptions.map((option) => (
-                            <option key={option.id} value={option.id}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="field">
-                        <span>Como trazer os registros</span>
-                        <select
-                          disabled={!activeDefinition.relation}
-                          value={activeDefinition.relation?.mode ?? "inner"}
-                          onChange={(event) =>
-                            onUpdateDefinition(activeTabId, {
-                              ...activeDefinition,
-                              relation: activeDefinition.relation
-                                ? {
-                                    ...activeDefinition.relation,
-                                    mode: event.target.value as ReportRelationMode
-                                  }
-                                : null
-                            })
+                  <option value="">Sem vinculo extra</option>
+                  {relationOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Modo do vinculo</span>
+                <select
+                  disabled={!activeDefinition.relation}
+                  value={activeDefinition.relation?.mode ?? "inner"}
+                  onChange={(event) =>
+                    onUpdateDefinition(activeTabId, {
+                      ...activeDefinition,
+                      relation: activeDefinition.relation
+                        ? {
+                            ...activeDefinition.relation,
+                            mode: event.target.value as ReportRelationMode
                           }
-                        >
-                          {resolveRelationModeOptions(
-                            relationOptions.find((option) => option.id === activeDefinition.relation?.relationId)
-                          ).map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
+                        : null
+                    })
+                  }
+                >
+                  {resolveRelationModeOptions(
+                    relationOptions.find((option) => option.id === activeDefinition.relation?.relationId)
+                  ).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Ordenar por</span>
+                <select
+                  value={sortEditor.field}
+                  onChange={(event) =>
+                    setSortEditor((current) => ({
+                      ...current,
+                      field: event.target.value
+                    }))
+                  }
+                >
+                  {sortableFields.map((field) => (
+                    <option key={field.id} value={field.id}>
+                      {field.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Direcao</span>
+                <select
+                  value={sortEditor.direction}
+                  onChange={(event) =>
+                    setSortEditor((current) => ({
+                      ...current,
+                      direction: event.target.value as ReportSortDirection
+                    }))
+                  }
+                >
+                  {sortDirectionOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {resolveSortDirectionLabel(option)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div className="reports-builder-order-row">
+              <label className="field reports-builder-order-priority">
+                <span>Ordem</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={sortEditor.priority}
+                  onChange={(event) =>
+                    setSortEditor((current) => ({
+                      ...current,
+                      priority: event.target.value
+                    }))
+                  }
+                />
+              </label>
+              <button className="secondary-button" onClick={handleAddSort} type="button">
+                Adicionar ordenacao
+              </button>
+            </div>
+
+            {activeDefinition.orderBy.length > 0 ? (
+              <div className="reports-builder-tree-list">
+                {activeDefinition.orderBy
+                  .slice()
+                  .sort((left, right) => left.priority - right.priority)
+                  .map((entry) => (
+                    <div className="reports-builder-tree-node" key={entry.id}>
+                      <div>
+                        <strong>{resolveFieldLabel(catalog, entry.field)}</strong>
+                        <span>{resolveSortDirectionLabel(entry.direction)} • ordem {entry.priority}</span>
+                      </div>
+                      <button className="icon-button" onClick={() => handleRemoveSort(entry.id)} type="button">
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
-                  ) : null}
-                </div>
-              </section>
+                  ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
 
-              <section className="reports-builder-section-card">
-                <div className="reports-builder-section-head">
-                  <h3>Filtros do contexto</h3>
-                </div>
-                <div className="reports-builder-section-body">
-                  {filterableFields.length > 0 ? (
-                    <>
-                      <div className="reports-builder-grid reports-builder-grid-4">
-                        <label className="field">
-                          <span>Conectar com</span>
-                          <select
-                            value={filterEditor.connective}
-                            onChange={(event) =>
-                              setFilterEditor((current) => ({
-                                ...current,
-                                connective: event.target.value as "AND" | "OR"
-                              }))
-                            }
-                          >
-                            <option value="AND">E</option>
-                            <option value="OR">OU</option>
-                          </select>
-                        </label>
-                        <label className="field">
-                          <span>Campo</span>
-                          <select
-                            value={filterEditor.field}
-                            onChange={(event) => {
-                              const field = event.target.value;
-                              setFilterEditor((current) => ({
-                                ...current,
-                                field,
-                                operator: resolveDefaultOperator(catalog, field),
-                                valuePrimary: "",
-                                valueSecondary: ""
-                              }));
-                            }}
-                          >
-                            {filterableFields.map((field) => (
-                              <option key={field.id} value={field.id}>
-                                {field.label}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="field">
-                          <span>Operador</span>
-                          <select
-                            value={filterEditor.operator}
-                            onChange={(event) =>
-                              setFilterEditor((current) => ({
-                                ...current,
-                                operator: event.target.value as ReportOperator,
-                                valuePrimary: "",
-                                valueSecondary: ""
-                              }))
-                            }
-                          >
-                            {(activeField?.operators ?? []).map((operator) => (
-                              <option key={operator} value={operator}>
-                                {resolveOperatorLabel(operator)}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
-                        <label className="field">
-                          <span>Modo do valor</span>
-                          <select
-                            value={filterEditor.valueMode}
-                            onChange={(event) =>
-                              setFilterEditor((current) => ({
-                                ...current,
-                                valueMode: event.target.value as FilterEditorState["valueMode"]
-                              }))
-                            }
-                          >
-                            <option value="value">Valor fixo</option>
-                            <option value="parameter">Parametro</option>
-                          </select>
-                        </label>
-                      </div>
-
-                      {renderFilterValueEditor({
-                        activeField,
-                        activeFieldOptions,
-                        canAddLookup,
-                        filterEditor,
-                        lookupKind: activeField?.lookupKind as LookupKind | undefined,
-                        onLookup: (kind) => setLookupState({ kind }),
-                        onChangePrimary: (value) =>
-                          setFilterEditor((current) => ({
-                            ...current,
-                            valuePrimary: value
-                          })),
-                        onChangeSecondary: (value) =>
-                          setFilterEditor((current) => ({
-                            ...current,
-                            valueSecondary: value
-                          })),
-                        onChangeParameterName: (value) =>
-                          setFilterEditor((current) => ({
-                            ...current,
-                            parameterName: value
-                          }))
-                      })}
-
-                      <div className="button-row">
-                        <button className="secondary-button" onClick={handleAddCondition} type="button">
-                          Adicionar filtro
-                        </button>
-                      </div>
-
-                      <div className="reports-builder-tree-list">
-                        {activeDefinition.filters.length > 0 ? (
-                          activeDefinition.filters.map((node) => (
-                            <FilterNodeView
-                              catalog={catalog}
-                              key={node.id}
-                              node={node}
-                              onRemove={handleRemoveFilter}
-                            />
-                          ))
-                        ) : (
-                          <div className="empty-state">Nenhum filtro aplicado ainda.</div>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="empty-state">Esse objeto de negocio ainda nao tem filtros disponiveis.</div>
-                  )}
-                </div>
-              </section>
-
-              <section className="reports-builder-section-card">
-                <div className="reports-builder-section-head">
-                  <h3>Ordenacao</h3>
-                </div>
-                <div className="reports-builder-section-body">
-                  <div className="reports-builder-grid reports-builder-grid-3">
-                    <label className="field">
-                      <span>Ordenar por</span>
-                      <select
-                        value={sortEditor.field}
-                        onChange={(event) =>
-                          setSortEditor((current) => ({
-                            ...current,
-                            field: event.target.value
-                          }))
-                        }
-                      >
-                        {sortableFields
-                          .map((field) => (
-                            <option key={field.id} value={field.id}>
-                              {field.label}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Sentido</span>
-                      <select
-                        value={sortEditor.direction}
-                        onChange={(event) =>
-                          setSortEditor((current) => ({
-                            ...current,
-                            direction: event.target.value as ReportSortDirection
-                          }))
-                        }
-                      >
-                        {sortDirectionOptions.map((option) => (
-                          <option key={option} value={option}>
-                            {resolveSortDirectionLabel(option)}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Prioridade</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={sortEditor.priority}
-                        onChange={(event) =>
-                          setSortEditor((current) => ({
-                            ...current,
-                            priority: event.target.value
-                          }))
-                        }
-                      />
-                    </label>
-                  </div>
-
-                  <div className="button-row">
-                    <button className="secondary-button" onClick={handleAddSort} type="button">
-                      Adicionar ordenacao
-                    </button>
-                  </div>
-
-                  <div className="reports-builder-tree-list">
-                    {activeDefinition.orderBy.length > 0 ? (
-                      activeDefinition.orderBy
-                        .slice()
-                        .sort((left, right) => left.priority - right.priority)
-                        .map((entry) => (
-                          <div className="reports-builder-tree-node" key={entry.id}>
-                            <div>
-                              <strong>{resolveFieldLabel(catalog, entry.field)}</strong>
-                              <span>{resolveSortDirectionLabel(entry.direction)} • prioridade {entry.priority}</span>
-                            </div>
-                            <button className="icon-button" onClick={() => handleRemoveSort(entry.id)} type="button">
-                              <X className="w-4 h-4" />
-                            </button>
-                          </div>
-                        ))
-                    ) : (
-                      <div className="empty-state">Nenhuma ordenacao adicionada.</div>
-                    )}
-                  </div>
-                </div>
-              </section>
-            </div>
-          ) : (
-            <div className="empty-state">
-              Abra uma visao do shell lateral para iniciar o builder.
-            </div>
-          )}
-        </section>
-
-        <section className="reports-builder-results-panel">
+      <section className="reports-builder-results-panel">
           <div className="reports-builder-results-header">
             <div>
               <h2>{activeTab?.label ?? "Relatorio"}</h2>
-              <p>
-                {activeDefinition?.description ??
-                  "Abra uma visao do shell lateral para criar ou editar um relatorio dedicado."}
-              </p>
             </div>
             {activeTab?.error ? <div className="feedback-banner is-error">{activeTab.error}</div> : null}
             {error ? <div className="feedback-banner is-error">{error}</div> : null}
@@ -1013,10 +921,7 @@ export function ReportsBuilderWorkspace({
           {!activeTab && !isLoading ? (
             <div className="reports-builder-empty-route">
               <article className="reports-builder-preview-card">
-                <h3>Nenhuma dock tab aberta</h3>
-                <p>
-                  Passe o mouse em <strong>Relatorios</strong> no shell lateral e abra uma das visoes gerenciais.
-                </p>
+                <h3>Abra um relatorio</h3>
                 <div className="reports-builder-empty-actions">
                   {menuGroups
                     .flatMap(([, items]) => items)
@@ -1053,30 +958,37 @@ export function ReportsBuilderWorkspace({
               <div className="reports-builder-kpi-grid">
                 {activeTab.result.kpis.map((item) => (
                   <article className="reports-builder-kpi-card" key={item.id}>
-                    <label>{item.label}</label>
+                    <label>{resolveResultLabel(item.label)}</label>
                     <strong>{item.value}</strong>
                     <span>{item.helper}</span>
                   </article>
                 ))}
               </div>
 
-              <section className="reports-builder-preview-card">
+              <section className="reports-builder-preview-card reports-builder-preview-card-compact">
                 <h3>Expressao literal</h3>
                 <p>{activeTab.result.previewExpression}</p>
               </section>
 
+              {activeChartModel ? <ReportChart model={activeChartModel} /> : null}
+              {!activeChartModel && isChartVisualization(activeTab.definition.visualization) ? (
+                <section className="reports-builder-preview-card reports-builder-chart-empty">
+                  <h3>Grafico</h3>
+                  <p>Esse visual precisa de dados comparaveis no resultado atual. Ajuste o indicador ou o agrupamento e execute novamente.</p>
+                </section>
+              ) : null}
+
               {activeTab.result.table ? <ResultsTable table={activeTab.result.table} /> : null}
 
-              <section className="reports-builder-preview-card">
-                <h3>Definicao do modelo</h3>
+              <details className="reports-builder-technical-details">
+                <summary>Detalhes tecnicos</summary>
                 <pre>{payloadPreview}</pre>
-              </section>
+              </details>
             </div>
           ) : activeTab && !activeTab.isLoading ? (
-            <div className="empty-state">Execute o relatorio para ver o resultado real do backend.</div>
+            <div className="empty-state">Execute para ver o resultado.</div>
           ) : null}
-        </section>
-      </div>
+      </section>
 
       {isModelsModalOpen ? (
         <Modal
@@ -1541,6 +1453,20 @@ function resolveSortDirectionLabel(direction: ReportSortDirection): string {
   return "A para Z";
 }
 
+function resolveVisualizationLabel(visualization: ReportDefinition["visualization"]): string {
+  return visualizationLabels[visualization];
+}
+
+function resolveMetricOperationLabel(operation: ReportDefinition["metric"]["operation"]): string {
+  return metricOperationLabels[operation];
+}
+
+function resolveResultLabel(label: string): string {
+  if (label === "Booking") return "Atendimento";
+  if (label === "Bookings") return "Atendimentos";
+  return label;
+}
+
 function resolveLookupColumns(kind: LookupKind): readonly string[] {
   if (kind === "base") {
     return ["Codigo", "Base", "Descricao"];
@@ -1563,15 +1489,15 @@ function resolveRelationModeOptions(
     | ReportBuilderCatalog["relationOptions"][number]
     | undefined
 ): ReadonlyArray<{ readonly value: ReportRelationMode; readonly label: string }> {
-  const modes = relation?.modes ?? ["inner", "left", "right"];
+  const modes = (relation?.modes ?? ["inner", "left"]).filter(
+    (mode): mode is ReportRelationMode => mode === "inner" || mode === "left"
+  );
   return modes.map((mode) => ({
     value: mode,
     label:
       mode === "inner"
         ? "Somente quando houver vinculo"
-        : mode === "left"
-          ? "Manter o item principal mesmo sem vinculo"
-          : "Trazer tambem itens do outro lado sem vinculo"
+        : "Manter o item principal mesmo sem vinculo"
   }));
 }
 
@@ -1805,6 +1731,440 @@ function FilterNodeView({
   );
 }
 
+function normalizeVisualization(
+  visualization: ReportDefinition["visualization"]
+): "kpi" | "kpi_table" | "bar" | "line" | "pie" | "gauge" {
+  if (visualization === "ranking") {
+    return "bar";
+  }
+  if (visualization === "time_series") {
+    return "line";
+  }
+  return visualization;
+}
+
+function isChartVisualization(visualization: ReportDefinition["visualization"]): boolean {
+  const normalized = normalizeVisualization(visualization);
+  return normalized === "bar" || normalized === "line" || normalized === "pie" || normalized === "gauge";
+}
+
+function buildChartModel(
+  definition: ReportDefinition,
+  result: ReportExecutionResponse
+): ReportChartModel | null {
+  const visualization = normalizeVisualization(definition.visualization);
+  if (visualization === "kpi" || visualization === "kpi_table") {
+    return null;
+  }
+  if (visualization === "gauge") {
+    return buildGaugeChartModel(result);
+  }
+  const tableModel = buildTableChartModel(visualization, result.table);
+  if (tableModel) {
+    return tableModel;
+  }
+  if (visualization === "bar" || visualization === "pie") {
+    return buildKpiChartModel(visualization, result);
+  }
+  return null;
+}
+
+function buildTableChartModel(
+  kind: "bar" | "line" | "pie",
+  table: ReportExecutionTable | undefined
+): ReportChartModel | null {
+  if (!table || table.rows.length === 0 || table.columns.length < 2) {
+    return null;
+  }
+
+  const numericColumns = analyzeNumericColumns(table);
+  if (numericColumns.length === 0) {
+    return null;
+  }
+
+  const categories = table.rows.map((row) => String(row.cells[0]));
+  const title = kind === "pie" ? "Distribuicao do resultado" : kind === "line" ? "Evolucao do resultado" : "Comparativo do resultado";
+
+  if (kind === "pie") {
+    const mainColumn = numericColumns[0];
+    return {
+      kind: "pie",
+      title,
+      format: mainColumn.format,
+      slices: categories.map((label, index) => ({
+        id: `${mainColumn.label}:${index}`,
+        label,
+        value: mainColumn.values[index] ?? 0,
+        color: chartPalette[index % chartPalette.length]
+      }))
+    };
+  }
+
+  const selectedColumns = kind === "line" ? numericColumns.slice(0, 3) : numericColumns.slice(0, 2);
+  return {
+    kind,
+    title,
+    format: selectedColumns[0]?.format ?? "count",
+    categories,
+    series: selectedColumns.map((column, index) => ({
+      id: column.label,
+      label: column.label,
+      values: column.values,
+      color: chartPalette[index % chartPalette.length]
+    }))
+  };
+}
+
+function buildKpiChartModel(
+  kind: "bar" | "pie",
+  result: ReportExecutionResponse
+): ReportChartModel | null {
+  const numericKpis = result.kpis
+    .map((item, index) => {
+      const parsed = parseChartNumber(item.value);
+      if (!parsed) {
+        return null;
+      }
+      return {
+        id: item.id || `kpi-${index}`,
+        label: resolveResultLabel(item.label),
+        value: parsed.value,
+        format: parsed.format
+      };
+    })
+    .filter((item): item is { id: string; label: string; value: number; format: ChartValueFormat } => Boolean(item));
+
+  if (numericKpis.length < 2) {
+    return null;
+  }
+
+  const format = numericKpis[0]?.format ?? "count";
+  if (kind === "pie") {
+    return {
+      kind: "pie",
+      title: "Distribuicao dos indicadores",
+      format,
+      slices: numericKpis.map((item, index) => ({
+        id: item.id,
+        label: item.label,
+        value: item.value,
+        color: chartPalette[index % chartPalette.length]
+      }))
+    };
+  }
+
+  return {
+    kind: "bar",
+    title: "Comparativo dos indicadores",
+    format,
+    categories: numericKpis.map((item) => item.label),
+    series: [
+      {
+        id: "Indicadores",
+        label: "Indicadores",
+        values: numericKpis.map((item) => item.value),
+        color: chartPalette[0]
+      }
+    ]
+  };
+}
+
+function buildGaugeChartModel(result: ReportExecutionResponse): ReportChartModel | null {
+  const occupiedKpi = findKpiByLabel(result, /(horas ocupadas|ocupado)/i);
+  const capacityKpi = findKpiByLabel(result, /(capacidade total|capacidade)/i);
+  if (occupiedKpi && capacityKpi && capacityKpi.value > 0) {
+    return {
+      kind: "gauge",
+      title: "Ocupacao da capacidade",
+      format: occupiedKpi.format,
+      value: occupiedKpi.value,
+      maxValue: capacityKpi.value,
+      helper: `${formatChartValue((occupiedKpi.value / capacityKpi.value) * 100, "percent")} da capacidade usada`
+    };
+  }
+
+  const percentKpi = result.kpis.find((item) => parseChartNumber(item.value)?.format === "percent");
+  if (!percentKpi) {
+    return null;
+  }
+  const parsed = parseChartNumber(percentKpi.value);
+  if (!parsed) {
+    return null;
+  }
+  return {
+    kind: "gauge",
+    title: resolveResultLabel(percentKpi.label),
+    format: "percent",
+    value: parsed.value,
+    maxValue: 100,
+    helper: percentKpi.helper ?? undefined
+  };
+}
+
+function findKpiByLabel(
+  result: ReportExecutionResponse,
+  pattern: RegExp
+): { readonly value: number; readonly format: ChartValueFormat } | null {
+  for (const item of result.kpis) {
+    if (!pattern.test(item.label)) {
+      continue;
+    }
+    const parsed = parseChartNumber(item.value);
+    if (parsed) {
+      return parsed;
+    }
+  }
+  return null;
+}
+
+function analyzeNumericColumns(
+  table: ReportExecutionTable
+): ReadonlyArray<NumericChartColumn> {
+  const minimumValidRows = Math.max(1, Math.floor(table.rows.length * 0.6));
+  const columns = table.columns
+    .map((column, index) => {
+      if (index === 0) {
+        return null;
+      }
+      const parsedValues = table.rows.map((row) => parseChartNumber(row.cells[index]));
+      const validValues = parsedValues.filter((entry): entry is ParsedChartNumber => Boolean(entry));
+      if (validValues.length < minimumValidRows) {
+        return null;
+      }
+      const nextColumn: NumericChartColumn = {
+        index,
+        label: resolveResultLabel(column.label),
+        values: parsedValues.map((entry) => entry?.value ?? 0),
+        format: detectColumnFormat(resolveResultLabel(column.label), validValues.map((entry) => entry.format)),
+        score: scoreColumnForChart(resolveResultLabel(column.label), index)
+      };
+      return nextColumn;
+    })
+    .filter((column): column is NumericChartColumn => column !== null);
+
+  return columns.sort((left, right) => right.score - left.score || left.index - right.index);
+}
+
+function detectColumnFormat(label: string, formats: readonly ChartValueFormat[]): ChartValueFormat {
+  const lowered = label.toLowerCase();
+  if (lowered.includes("receita") || lowered.includes("valor") || lowered.includes("faturamento") || lowered.includes("preco")) {
+    return "currency";
+  }
+  if (lowered.includes("capacidade") || lowered.includes("ocupado") || lowered.includes("livre")) {
+    return "hours";
+  }
+  if (lowered.includes("taxa") || lowered.includes("%")) {
+    return "percent";
+  }
+  const first = formats[0];
+  return first ?? "count";
+}
+
+function scoreColumnForChart(label: string, index: number): number {
+  const lowered = label.toLowerCase();
+  let score = Math.max(0, 10 - index);
+  if (lowered.includes("metrica")) score += 40;
+  if (lowered.includes("receita") || lowered.includes("valor") || lowered.includes("faturamento") || lowered.includes("preco")) score += 32;
+  if (lowered.includes("capacidade") || lowered.includes("ocupado") || lowered.includes("livre")) score += 26;
+  if (lowered.includes("quantidade") || lowered.includes("atendimentos") || lowered.includes("pagamentos") || lowered.includes("clientes")) score += 20;
+  return score;
+}
+
+function parseChartNumber(cell: string | number): ParsedChartNumber | null {
+  if (typeof cell === "number" && Number.isFinite(cell)) {
+    return { value: cell, format: "count" };
+  }
+
+  const raw = String(cell ?? "").trim();
+  if (!raw || raw === "-" || raw.toLowerCase() === "n/d") {
+    return null;
+  }
+
+  if (raw.includes("R$")) {
+    const parsed = parseLocaleNumber(raw);
+    return Number.isFinite(parsed) ? { value: parsed, format: "currency" } : null;
+  }
+
+  const hourMatch = raw.match(/^(\d+)h(?:(\d{1,2}))?$/i);
+  if (hourMatch) {
+    const hours = Number(hourMatch[1]);
+    const minutes = Number(hourMatch[2] ?? "0");
+    return { value: hours + minutes / 60, format: "hours" };
+  }
+
+  const minutesMatch = raw.match(/^(\d+)\s*min$/i);
+  if (minutesMatch) {
+    return { value: Number(minutesMatch[1]), format: "minutes" };
+  }
+
+  if (raw.endsWith("%")) {
+    const parsed = parseLocaleNumber(raw.slice(0, -1));
+    return Number.isFinite(parsed) ? { value: parsed, format: "percent" } : null;
+  }
+
+  const parsed = parseLocaleNumber(raw);
+  return Number.isFinite(parsed) ? { value: parsed, format: "count" } : null;
+}
+
+function parseLocaleNumber(raw: string): number {
+  const cleaned = raw.replace(/[^\d,.-]/g, "");
+  if (!cleaned) {
+    return Number.NaN;
+  }
+  const normalized = cleaned.includes(",")
+    ? cleaned.replace(/\./g, "").replace(",", ".")
+    : cleaned;
+  return Number(normalized);
+}
+
+function formatChartValue(value: number, format: ChartValueFormat): string {
+  if (format === "currency") {
+    return new Intl.NumberFormat("pt-BR", {
+      style: "currency",
+      currency: "BRL",
+      maximumFractionDigits: 2
+    }).format(value);
+  }
+  if (format === "percent") {
+    return `${Math.round(value)}%`;
+  }
+  if (format === "hours") {
+    const totalMinutes = Math.round(value * 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return minutes === 0 ? `${hours}h` : `${hours}h${String(minutes).padStart(2, "0")}`;
+  }
+  if (format === "minutes") {
+    return `${Math.round(value)} min`;
+  }
+  return new Intl.NumberFormat("pt-BR").format(value);
+}
+
+function formatTooltipValue(format: ChartValueFormat) {
+  return (value: string | number | readonly (string | number)[] | undefined): string => {
+    const source = Array.isArray(value) ? value[0] : value;
+    return formatChartValue(Number(source ?? 0), format);
+  };
+}
+
+function ReportChart({ model }: { readonly model: ReportChartModel }): JSX.Element {
+  if (model.kind === "pie") {
+    return (
+      <section className="reports-builder-preview-card reports-builder-chart-card">
+        <h3>{model.title}</h3>
+        <div className="reports-builder-chart-frame">
+          <ResponsiveContainer width="100%" height={340}>
+            <PieChart>
+              <Pie
+                data={model.slices}
+                dataKey="value"
+                nameKey="label"
+                innerRadius={64}
+                outerRadius={112}
+                paddingAngle={2}
+              >
+                {model.slices.map((slice) => (
+                  <Cell fill={slice.color} key={slice.id} />
+                ))}
+              </Pie>
+              <Tooltip formatter={formatTooltipValue(model.format)} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+    );
+  }
+
+  if (model.kind === "gauge") {
+    const percent = model.maxValue > 0 ? Math.min(100, (model.value / model.maxValue) * 100) : 0;
+    return (
+      <section className="reports-builder-preview-card reports-builder-chart-card">
+        <h3>{model.title}</h3>
+        <div className="reports-builder-gauge-wrap">
+          <div className="reports-builder-chart-frame reports-builder-chart-frame-gauge">
+            <ResponsiveContainer width="100%" height={280}>
+              <RadialBarChart
+                cx="50%"
+                cy="75%"
+                innerRadius="58%"
+                outerRadius="100%"
+                barSize={20}
+                data={[{ name: "Valor", value: percent }]}
+                startAngle={180}
+                endAngle={0}
+              >
+                <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
+                <RadialBar background dataKey="value" fill={chartPalette[0]} cornerRadius={16} />
+                <Tooltip formatter={formatTooltipValue("percent")} />
+              </RadialBarChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="reports-builder-gauge-copy">
+            <strong>{formatChartValue(model.value, model.format)}</strong>
+            <span>{model.helper ?? `Limite ${formatChartValue(model.maxValue, model.format)}`}</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const data = model.categories.map((category, index) =>
+    model.series.reduce<Record<string, string | number>>(
+      (current, series) => ({
+        ...current,
+        category,
+        [series.id]: series.values[index] ?? 0
+      }),
+      { category }
+    )
+  );
+
+  return (
+    <section className="reports-builder-preview-card reports-builder-chart-card">
+      <h3>{model.title}</h3>
+      <div className="reports-builder-chart-frame">
+        <ResponsiveContainer width="100%" height={340}>
+          {model.kind === "bar" ? (
+            <BarChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 12 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7edf6" />
+              <XAxis dataKey="category" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={(value: number) => formatChartValue(Number(value), model.format)} />
+              <Tooltip formatter={formatTooltipValue(model.format)} />
+              {model.series.map((series) => (
+                <Bar
+                  dataKey={series.id}
+                  fill={series.color}
+                  key={series.id}
+                  name={series.label}
+                  radius={[10, 10, 0, 0]}
+                />
+              ))}
+            </BarChart>
+          ) : (
+            <LineChart data={data} margin={{ top: 12, right: 12, left: 0, bottom: 12 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e7edf6" />
+              <XAxis dataKey="category" tickLine={false} axisLine={false} />
+              <YAxis tickLine={false} axisLine={false} tickFormatter={(value: number) => formatChartValue(Number(value), model.format)} />
+              <Tooltip formatter={formatTooltipValue(model.format)} />
+              {model.series.map((series) => (
+                <Line
+                  dataKey={series.id}
+                  dot={false}
+                  key={series.id}
+                  name={series.label}
+                  stroke={series.color}
+                  strokeWidth={3}
+                  type="monotone"
+                />
+              ))}
+            </LineChart>
+          )}
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
 function ResultsTable({ table }: { readonly table: ReportExecutionTable }): JSX.Element {
   return (
     <section className="reports-builder-preview-card">
@@ -1815,7 +2175,7 @@ function ResultsTable({ table }: { readonly table: ReportExecutionTable }): JSX.
             <thead>
               <tr>
                 {table.columns.map((column) => (
-                  <th key={column.id}>{column.label}</th>
+                  <th key={column.id}>{resolveResultLabel(column.label)}</th>
                 ))}
               </tr>
             </thead>

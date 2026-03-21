@@ -156,7 +156,7 @@ const reportRelationOptions = [
     targetBase: "clients",
     label: "Cliente do atendimento",
     description: "Anexa o cadastro do cliente a cada atendimento do recorte.",
-    modes: ["inner", "left", "right"]
+    modes: ["inner", "left"]
   },
   {
     id: "booking_services",
@@ -164,7 +164,7 @@ const reportRelationOptions = [
     targetBase: "services",
     label: "Servico do atendimento",
     description: "Anexa o servico comercial ligado a cada atendimento.",
-    modes: ["inner", "left", "right"]
+    modes: ["inner", "left"]
   },
   {
     id: "booking_professionals",
@@ -172,7 +172,7 @@ const reportRelationOptions = [
     targetBase: "professionals",
     label: "Profissional do atendimento",
     description: "Anexa a equipe responsavel por cada atendimento.",
-    modes: ["inner", "left", "right"]
+    modes: ["inner", "left"]
   },
   {
     id: "service_professionals",
@@ -180,7 +180,7 @@ const reportRelationOptions = [
     targetBase: "professionals",
     label: "Equipe que atende o servico",
     description: "Cruza o cadastro comercial com a equipe vinculada.",
-    modes: ["inner", "left", "right"]
+    modes: ["inner", "left"]
   },
   {
     id: "professional_services",
@@ -188,7 +188,7 @@ const reportRelationOptions = [
     targetBase: "services",
     label: "Servicos atendidos pela equipe",
     description: "Mostra os servicos que cada profissional pode atender.",
-    modes: ["inner", "left", "right"]
+    modes: ["inner", "left"]
   },
   {
     id: "payment_booking",
@@ -196,7 +196,7 @@ const reportRelationOptions = [
     targetBase: "bookings",
     label: "Atendimento que originou o pagamento",
     description: "Relaciona cobranca, booking, cliente e agenda.",
-    modes: ["inner", "left", "right"]
+    modes: ["inner", "left"]
   },
   {
     id: "availability_professionals",
@@ -204,7 +204,7 @@ const reportRelationOptions = [
     targetBase: "professionals",
     label: "Equipe da agenda",
     description: "Liga capacidade publicada e equipe ativa.",
-    modes: ["inner", "left", "right"]
+    modes: ["inner", "left"]
   }
 ] as const;
 
@@ -213,7 +213,7 @@ const reportFieldCatalog: readonly ReportCatalogField[] = [
   { id: "approved_online_revenue", label: "Entrada online aprovada", type: "number", bases: ["bookings"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "service_value", label: "Valor do servico", type: "number", bases: ["bookings"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "duration_minutes", label: "Duracao", type: "number", bases: ["bookings"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
-  { id: "booking_id", label: "Booking", type: "text", bases: ["bookings"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "in"], aggregations: ["count", "count_distinct"] },
+  { id: "booking_id", label: "Atendimento", type: "text", bases: ["bookings"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "in"], aggregations: ["count", "count_distinct"] },
   { id: "client_id", label: "Cliente", type: "lookup", bases: ["bookings", "clients"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "client" },
   { id: "service_id", label: "Servico", type: "lookup", bases: ["bookings"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "service" },
   { id: "professional_id", label: "Profissional", type: "lookup", bases: ["bookings", "availability"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "professional" },
@@ -235,13 +235,13 @@ const reportFieldCatalog: readonly ReportCatalogField[] = [
   { id: "service_collection_mode", label: "Forma de cobranca", type: "enum", bases: ["services"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in"], aggregations: ["count"], options: [...collectionModeOptions] },
   { id: "service_requires_signal", label: "Pede sinal", type: "enum", bases: ["services"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals"], aggregations: ["count"], options: [...yesNoOptions] },
   { id: "linked_professionals_count", label: "Profissionais vinculados", type: "number", bases: ["services"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
-  { id: "service_bookings_count", label: "Bookings do servico", type: "number", bases: ["services"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "service_bookings_count", label: "Atendimentos do servico", type: "number", bases: ["services"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "professional_lookup_id", label: "Profissional", type: "lookup", bases: ["professionals"], filterable: true, groupable: false, sortable: false, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "professional" },
   { id: "professional_code", label: "Codigo do profissional", type: "text", bases: ["professionals"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "between"], aggregations: ["count"] },
   { id: "professional_name", label: "Nome do profissional", type: "text", bases: ["professionals"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "between"], aggregations: ["count"] },
   { id: "professional_status", label: "Situacao do cadastro", type: "enum", bases: ["professionals"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in"], aggregations: ["count"], options: [...professionalStatusOptions] },
   { id: "linked_services_count", label: "Servicos vinculados", type: "number", bases: ["professionals"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
-  { id: "professional_bookings_count", label: "Bookings do profissional", type: "number", bases: ["professionals"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "professional_bookings_count", label: "Atendimentos do profissional", type: "number", bases: ["professionals"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "weekly_capacity_minutes", label: "Capacidade semanal", type: "number", bases: ["professionals"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "capacity_minutes", label: "Capacidade", type: "number", bases: ["availability"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "booked_minutes", label: "Horas ocupadas", type: "number", bases: ["availability"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
@@ -277,15 +277,15 @@ const reportGroupByOptions = [
 
 const systemDefinitionsSeed = [
   { code: "RPT-EXECUTIVE", name: "Visao executiva", description: "Resumo do negocio no recorte ativo.", base: "bookings", visualization: "kpi_table", metric: { name: "faturamento", operation: "sum", field: "recognized_revenue" }, groupBy: [] },
-  { code: "RPT-REVENUE", name: "Receita e servicos", description: "Faturamento, ticket e mix de servicos.", base: "bookings", visualization: "ranking", metric: { name: "faturamento", operation: "sum", field: "recognized_revenue" }, groupBy: ["service_id"] },
-  { code: "RPT-TEAM", name: "Equipe e produtividade", description: "Leitura por profissional e capacidade entregue.", base: "bookings", visualization: "ranking", metric: { name: "faturamento", operation: "sum", field: "recognized_revenue" }, groupBy: ["professional_id"] },
-  { code: "RPT-OPERATIONS", name: "Pendencias operacionais", description: "Fila que ainda pede tratamento operacional.", base: "bookings", visualization: "kpi_table", metric: { name: "bookings_abertas", operation: "count", field: "booking_id" }, groupBy: [] },
+  { code: "RPT-REVENUE", name: "Receita e servicos", description: "Faturamento, ticket e mix de servicos.", base: "bookings", visualization: "bar", metric: { name: "faturamento", operation: "sum", field: "recognized_revenue" }, groupBy: ["service_id"] },
+  { code: "RPT-TEAM", name: "Equipe e produtividade", description: "Leitura por profissional e capacidade entregue.", base: "bookings", visualization: "bar", metric: { name: "faturamento", operation: "sum", field: "recognized_revenue" }, groupBy: ["professional_id"] },
+  { code: "RPT-OPERATIONS", name: "Pendencias operacionais", description: "Fila que ainda pede tratamento operacional.", base: "bookings", visualization: "pie", metric: { name: "bookings_abertas", operation: "count", field: "booking_id" }, groupBy: ["status"] },
   { code: "RPT-RETENTION", name: "Retorno e retencao", description: "Clientes com retorno, sem retorno e recorrencia.", base: "clients", visualization: "kpi_table", metric: { name: "clientes", operation: "count_distinct", field: "client_id" }, groupBy: [] },
-  { code: "RPT-WEEK", name: "Radar semanal", description: "Capacidade, ocupacao e carga por dia e profissional.", base: "availability", visualization: "time_series", metric: { name: "capacidade", operation: "sum", field: "capacity_minutes" }, groupBy: ["booking_date"] },
-  { code: "RPT-MONTH", name: "Visao mensal", description: "Carga agregada do mes por dia.", base: "availability", visualization: "time_series", metric: { name: "carga_mensal", operation: "sum", field: "booked_minutes" }, groupBy: ["booking_date"] },
-  { code: "RPT-SERVICE-CATALOG", name: "Cadastro de servicos", description: "Lista comercial do catalogo com preco, duracao e forma de cobranca.", base: "services", visualization: "kpi_table", metric: { name: "servicos", operation: "count", field: "service_code" }, groupBy: [] },
-  { code: "RPT-PROFESSIONAL-REGISTRY", name: "Cadastro de profissionais", description: "Equipe cadastrada, situacao e servicos vinculados.", base: "professionals", visualization: "kpi_table", metric: { name: "profissionais", operation: "count", field: "professional_code" }, groupBy: [] },
-  { code: "RPT-PAYMENTS", name: "Pagamentos e cobranca", description: "Cobrancas online e situacao de pagamento por atendimento.", base: "payments", visualization: "kpi_table", metric: { name: "pagamentos", operation: "sum", field: "payment_amount" }, groupBy: [] }
+  { code: "RPT-WEEK", name: "Radar semanal", description: "Capacidade, ocupacao e carga por dia e profissional.", base: "availability", visualization: "line", metric: { name: "capacidade", operation: "sum", field: "capacity_minutes" }, groupBy: ["booking_date"] },
+  { code: "RPT-MONTH", name: "Visao mensal", description: "Carga agregada do mes por dia.", base: "availability", visualization: "line", metric: { name: "carga_mensal", operation: "sum", field: "booked_minutes" }, groupBy: ["booking_date"] },
+  { code: "RPT-SERVICE-CATALOG", name: "Cadastro de servicos", description: "Lista comercial do catalogo com preco, duracao e forma de cobranca.", base: "services", visualization: "pie", metric: { name: "servicos", operation: "count", field: "service_code" }, groupBy: ["service_collection_mode"] },
+  { code: "RPT-PROFESSIONAL-REGISTRY", name: "Cadastro de profissionais", description: "Equipe cadastrada, situacao e servicos vinculados.", base: "professionals", visualization: "pie", metric: { name: "profissionais", operation: "count", field: "professional_code" }, groupBy: ["professional_status"] },
+  { code: "RPT-PAYMENTS", name: "Pagamentos e cobranca", description: "Cobrancas online e situacao de pagamento por atendimento.", base: "payments", visualization: "pie", metric: { name: "pagamentos", operation: "sum", field: "payment_amount" }, groupBy: ["payment_status"] }
 ] as const;
 
 export function createReportBuilderCatalog(input: CreateReportBuilderCatalogInput): ReportBuilderCatalog {
@@ -378,7 +378,7 @@ function executeBookingDefinition(input: ExecuteReportDefinitionInput): ReportEx
     kpis: [
       kpi("metric", input.definition.metric.name, formatMetricValue(aggregateBookingMetric(records, input.definition.metric.operation, input.definition.metric.field)), "Metrica principal executada."),
       kpi("recognized", "Receita reconhecida", formatCurrency(summary.recognizedRevenue), "Leitura financeira consolidada."),
-      kpi("bookings", "Bookings", summary.bookingsCount, "Registros considerados no recorte."),
+      kpi("bookings", "Atendimentos", summary.bookingsCount, "Registros considerados no recorte."),
       kpi("clients", "Clientes unicos", summary.uniqueClients, "Base distinta atendida."),
       kpi("completed", "Concluidos", summary.completedCount, "Atendimentos finalizados."),
       kpi("open", "Em aberto", summary.openBookings, "Pendencias operacionais ainda vivas.")
@@ -435,7 +435,7 @@ function executeAvailabilityDefinition(
       kpi("capacity", "Capacidade total", formatMinutesAsHours(summary.capacityMinutes), "Disponibilidade derivada da agenda publicada."),
       kpi("booked", "Horas ocupadas", formatMinutesAsHours(summary.bookedMinutes), "Carga reservada no recorte."),
       kpi("free", "Horas livres", formatMinutesAsHours(summary.freeMinutes), "Capacidade ainda aberta."),
-      kpi("bookings", "Bookings", summary.bookingsCount, "Total de bookings no recorte."),
+      kpi("bookings", "Atendimentos", summary.bookingsCount, "Total de registros no recorte."),
       kpi("open", "Em aberto", summary.openBookings, "Pendencias ainda abertas.")
     ],
     table
@@ -651,7 +651,7 @@ function buildBookingClientsRelationTable(
 
   return {
     columns: [
-      { id: "booking", label: "Booking" },
+      { id: "booking", label: "Atendimento" },
       { id: "date", label: "Data" },
       { id: "client_code", label: "Cod. cliente" },
       { id: "client_name", label: "Nome do cliente" },
@@ -708,7 +708,7 @@ function buildBookingServicesRelationTable(
 
   return {
     columns: [
-      { id: "booking", label: "Booking" },
+      { id: "booking", label: "Atendimento" },
       { id: "date", label: "Data" },
       { id: "service_code", label: "Cod. servico" },
       { id: "service_name", label: "Descricao do servico" },
@@ -765,7 +765,7 @@ function buildBookingProfessionalsRelationTable(
 
   return {
     columns: [
-      { id: "booking", label: "Booking" },
+      { id: "booking", label: "Atendimento" },
       { id: "date", label: "Data" },
       { id: "professional_code", label: "Cod. profissional" },
       { id: "professional_name", label: "Nome do profissional" },
@@ -1152,7 +1152,7 @@ function buildGroupedBookingTable(grouped: ReturnType<typeof groupBookingRecords
     columns: [
       ...(showCode ? [{ id: "code", label: "Codigo" }] : []),
       { id: "group", label: labelColumn },
-      { id: "bookings", label: "Bookings" },
+      { id: "bookings", label: "Atendimentos" },
       { id: "completed", label: "Concluidos" },
       { id: "recognized", label: "Receita" },
       { id: "metric", label: "Metrica" }
@@ -1168,7 +1168,7 @@ function buildGroupedBookingTable(grouped: ReturnType<typeof groupBookingRecords
 function buildOperationalTable(records: readonly BookingAnalyticsRecord[]): ReportExecutionTable {
   return {
     columns: [
-      { id: "booking", label: "Booking" },
+      { id: "booking", label: "Atendimento" },
       { id: "client", label: "Cliente" },
       { id: "service", label: "Servico" },
       { id: "professional", label: "Profissional" },
@@ -1220,7 +1220,7 @@ function buildMonthlyCapacityTable(records: readonly AvailabilityAnalyticsRecord
   return {
     columns: [
       { id: "day", label: "Dia" },
-      { id: "bookings", label: "Bookings" },
+      { id: "bookings", label: "Atendimentos" },
       { id: "capacity", label: "Capacidade" },
       { id: "booked", label: "Ocupado" },
       { id: "free", label: "Livre" }
@@ -1417,7 +1417,7 @@ function buildPaymentBookingsRelationTable(
       { id: "payment_code", label: "Cod. pagamento" },
       { id: "payment_status", label: "Situacao do pagamento" },
       { id: "payment_amount", label: "Valor" },
-      { id: "booking", label: "Booking" },
+      { id: "booking", label: "Atendimento" },
       { id: "client", label: "Cliente" },
       { id: "service", label: "Servico" },
       { id: "professional", label: "Profissional" }
@@ -1510,7 +1510,7 @@ function buildProfessionalTable(records: readonly ProfessionalAnalyticsRecord[])
       { id: "status", label: "Situacao" },
       { id: "services", label: "Servicos" },
       { id: "capacity", label: "Capacidade semanal" },
-      { id: "bookings", label: "Bookings" }
+      { id: "bookings", label: "Atendimentos" }
     ],
     rows: records.map((record) => ({
       id: record.professional.id,
@@ -1561,7 +1561,7 @@ function buildGroupedServiceTable(
       { id: "group", label: resolveGroupFieldLabel(groupField) },
       { id: "records", label: "Servicos" },
       { id: "linked", label: "Profissionais" },
-      { id: "bookings", label: "Bookings" },
+      { id: "bookings", label: "Atendimentos" },
       { id: "metric", label: "Metrica" }
     ],
     rows: grouped.map((row) => ({
@@ -1581,7 +1581,7 @@ function buildGroupedProfessionalTable(
       { id: "group", label: resolveGroupFieldLabel(groupField) },
       { id: "records", label: "Profissionais" },
       { id: "services", label: "Servicos" },
-      { id: "bookings", label: "Bookings" },
+      { id: "bookings", label: "Atendimentos" },
       { id: "metric", label: "Metrica" }
     ],
     rows: grouped.map((row) => ({

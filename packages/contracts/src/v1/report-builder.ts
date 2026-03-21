@@ -22,7 +22,16 @@ export const reportBuilderBaseValues = [
 ] as const;
 export const reportBuilderBaseSchema = z.enum(reportBuilderBaseValues);
 
-export const reportVisualizationValues = ["kpi", "kpi_table", "time_series", "ranking"] as const;
+export const reportVisualizationValues = [
+  "kpi",
+  "kpi_table",
+  "bar",
+  "line",
+  "pie",
+  "gauge",
+  "time_series",
+  "ranking"
+] as const;
 export const reportVisualizationSchema = z.enum(reportVisualizationValues);
 
 export const reportMetricOperationValues = [

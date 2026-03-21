@@ -105,8 +105,9 @@ No chrome global do shell:
 - cada relatorio deve abrir em `dock tab` dedicada, preservando edicao, preview e execucao no mesmo stage;
 - no desktop, a abertura das visoes deve preferir hover ou flyout no proprio item lateral `relatorios`, evitando um segundo menu redundante dentro da tela;
 - em viewport compacto, a rota pode manter um disclosure proprio como fallback para quem nao possui hover;
-- o builder precisa priorizar a largura do resultado; definicao, filtros e ordenacao devem operar em faixas horizontais no topo, e nao como coluna lateral que espreme a leitura;
-- `ocultar builder` deve esconder apenas a area de montagem do relatorio, nunca as dock tabs, o contexto da tela ou o resultado executado;
+- o modulo nao deve repetir hero textual grande; a tela deve abrir direto com `dock tabs`, acoes curtas e o resultado;
+- o builder precisa priorizar a largura do resultado; definicao, filtros e ordenacao devem operar em faixas horizontais compactas no topo, e nao como coluna lateral que espreme a leitura;
+- `ocultar montagem` deve esconder apenas a area de montagem do relatorio, nunca as dock tabs, o contexto da tela ou o resultado executado;
 - o modulo pode manter acoes locais visiveis durante a rolagem, mas nunca ao custo de sobrepor dock tabs, esconder conteudo ou criar a sensacao de painel flutuando fora do fluxo;
 - filtros devem ser locais a cada visao e abrir em modal proprio via botao `filtrar`, nunca como faixa fixa ocupando o topo inteiro do modulo;
 - o modulo deve trabalhar com `modelos salvos`, nunca com `snapshots` persistidos dos resultados executados;
@@ -117,10 +118,14 @@ No chrome global do shell:
   - `codigo` + `nome` para pessoas;
   - colunas complementares como `telefone` podem aparecer quando o contrato real ja fornecer esse dado.
 - a escolha da `base` do relatorio tambem deve operar por consulta padrao com lupa, evitando codigo digitado manualmente;
+- a interface deve preferir linguagem literal e curta, evitando termos tecnicos crus como `group by`, `payload`, `join`, `inner`, `left` e `right`;
 - o shell deve listar as visoes de sistema no proprio flyout lateral de `relatorios`, como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `pendencias operacionais`, `retorno e retencao`, `radar semanal` e `visao mensal`;
 - o builder v1 tambem deve expor bases cadastrais e financeiras reais quando o backend suportar, incluindo `cadastro de servicos`, `cadastro de profissionais` e `pagamentos`;
 - o builder precisa operar com `catalogo efetivo`, mesclando fallback local e catalogo remoto para nao desaparecer campo, filtro, agrupamento ou rotulo quando o backend expuser uma versao parcial ou antiga;
 - `group by` deve existir como capacidade formal do builder, mas sempre materializado em linguagem literal como `agrupar / quebrar por`;
+- as relacoes devem operar em linguagem literal e enxuta, expondo na v1 apenas:
+  - `somente quando houver vinculo`;
+  - `manter o item principal mesmo sem vinculo`;
 - cada `objeto de negocio` precisa expor apenas os agrupamentos semanticamente validos para sua base real:
   - `atendimentos`: cliente, servico, profissional, status, dia e mes;
   - `clientes`: sem agrupamento livre na v1, priorizando leitura direta e filtros;
@@ -133,6 +138,15 @@ No chrome global do shell:
 - quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;
 - contexto tecnico do recorte, fonte e comparativo nao deve competir com KPI e listas principais no mesmo viewport;
 - o resultado executado deve ser derivado do backend real no momento da execucao; apenas a definicao reutilizavel pode ser persistida;
+- o resultado pode combinar `kpis`, `grafico` e `tabela` no mesmo stage, desde que a leitura principal continue clara e sem competir com a montagem;
+- a escolha de visualizacao deve operar em linguagem literal e cobrir pelo menos:
+  - `resumo`;
+  - `resumo com tabela`;
+  - `barras`;
+  - `linhas`;
+  - `pizza`;
+  - `medidor`;
+- graficos devem nascer apenas de dados reais ja disponiveis na execucao do builder, sem inventar series ou metricas fora do contrato do backend;
 - acoes operacionais continuam em `operacao diaria`, `agenda` e `clientes`.
 
 ### Clientes
@@ -171,6 +185,7 @@ Em `21/03/2026`, `Relatorios` deixou de ser uma tela fixa de cards e visoes inte
 - o modulo salva apenas a definicao reutilizavel do relatorio, nunca snapshot do resultado encontrado.
 - o workspace de `relatorios` passou a mesclar catalogo local e catalogo remoto, evitando que backends antigos eliminem filtros ou rotulos nas bases novas;
 - `atendimentos` passou a suportar relacoes controladas com `clientes`, `servicos` e `profissionais`, alem das relacoes ja abertas em `servicos`, `profissionais`, `agenda` e `pagamentos`.
+- o builder passou a suportar modelos de visualizacao grafica com biblioteca React dedicada, cobrindo `barras`, `linhas`, `pizza` e `medidor`, sempre somados a `kpis` e `tabela` quando a leitura pedir.
 
 Ainda em `21/03/2026`, os cadastros operacionais foram realinhados ao shell oficial:
 
