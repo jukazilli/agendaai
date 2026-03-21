@@ -22,6 +22,8 @@ import type {
   ReportSortDirection
 } from "@agendaai/contracts";
 
+import { createFallbackReportBuilderCatalog } from "./lib/report-builder-fallback";
+
 export interface ReportsBuilderMenuItem {
   readonly code: string;
   readonly label: string;
@@ -124,20 +126,11 @@ const sortDirectionOptions: ReadonlyArray<ReportSortDirection> = [
   "za"
 ];
 
-const fallbackBaseOptions = [
-  { id: "bookings", label: "Atendimentos", description: "Agenda, cliente, servico e resultado financeiro." },
-  { id: "clients", label: "Clientes", description: "Relacionamento, retorno e recorrencia." },
-  { id: "services", label: "Cadastro de servicos", description: "Catalogo comercial, preco, duracao e cobranca." },
-  { id: "professionals", label: "Cadastro de profissionais", description: "Equipe, situacao e servicos vinculados." },
-  { id: "availability", label: "Agenda e capacidade", description: "Capacidade, ocupacao e horas livres." },
-  { id: "payments", label: "Pagamentos", description: "Cobranca ligada aos atendimentos." }
-] as const;
-
 export function ReportsBuilderWorkspace({
   menuGroups,
   openTabs,
   activeTabId,
-  catalog,
+  catalog: rawCatalog,
   savedModels,
   lookupRows,
   isLoading,
@@ -157,11 +150,22 @@ export function ReportsBuilderWorkspace({
 }: ReportsBuilderWorkspaceProps): JSX.Element {
   const activeTab = openTabs.find((tab) => tab.id === activeTabId) ?? null;
   const activeDefinition = activeTab?.definition ?? null;
-  const catalogFields = catalog?.fields ?? [];
-  const catalogBaseOptions = catalog?.baseOptions?.length ? catalog.baseOptions : fallbackBaseOptions;
-  const catalogGroupByOptions = catalog?.groupByOptions ?? [];
-  const catalogRelationOptions = catalog?.relationOptions ?? [];
-  const catalogSystemDefinitions = catalog?.systemDefinitions ?? [];
+  const fallbackCatalog = useMemo(
+    () =>
+      createFallbackReportBuilderCatalog(
+        activeDefinition?.tenantId ?? savedModels[0]?.tenantId ?? "fallback-tenant"
+      ),
+    [activeDefinition?.tenantId, savedModels]
+  );
+  const catalog = useMemo(
+    () => mergeReportBuilderCatalog(rawCatalog, fallbackCatalog),
+    [fallbackCatalog, rawCatalog]
+  );
+  const catalogFields = catalog.fields;
+  const catalogBaseOptions = catalog.baseOptions;
+  const catalogGroupByOptions = catalog.groupByOptions;
+  const catalogRelationOptions = catalog.relationOptions;
+  const catalogSystemDefinitions = catalog.systemDefinitions;
   const [isBuilderCollapsed, setIsBuilderCollapsed] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isModelsModalOpen, setIsModelsModalOpen] = useState(false);
@@ -176,7 +180,7 @@ export function ReportsBuilderWorkspace({
   const filtersSectionRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!activeDefinition || !catalog) {
+    if (!activeDefinition) {
       return;
     }
 
@@ -208,35 +212,35 @@ export function ReportsBuilderWorkspace({
     });
   }, [activeDefinition, catalog]);
 
-  const activeField = catalog && activeDefinition
+  const activeField = activeDefinition
     ? catalogFields.find(
         (field) => field.id === filterEditor.field && field.bases.includes(activeDefinition.base)
       ) ?? null
     : null;
   const filterableFields = useMemo(
     () =>
-      catalog && activeDefinition
+      activeDefinition
         ? catalogFields.filter((field) => field.filterable && field.bases.includes(activeDefinition.base))
         : [],
     [activeDefinition, catalog, catalogFields]
   );
   const sortableFields = useMemo(
     () =>
-      catalog && activeDefinition
+      activeDefinition
         ? catalogFields.filter((field) => field.sortable && field.bases.includes(activeDefinition.base))
         : [],
     [activeDefinition, catalog, catalogFields]
   );
   const groupableOptions = useMemo(
     () =>
-      catalog && activeDefinition
+      activeDefinition
         ? catalogGroupByOptions.filter((option) => option.bases.includes(activeDefinition.base))
         : [],
     [activeDefinition, catalog, catalogGroupByOptions]
   );
   const relationOptions = useMemo(
     () =>
-      catalog && activeDefinition
+      activeDefinition
         ? catalogRelationOptions.filter((option) => option.base === activeDefinition.base)
         : [],
     [activeDefinition, catalog, catalogRelationOptions]
@@ -285,7 +289,7 @@ export function ReportsBuilderWorkspace({
     activeField?.lookupKind === "client";
 
   function handleAddCondition(): void {
-    if (!activeDefinition || !catalog || !filterEditor.field || !activeTab) {
+    if (!activeDefinition || !filterEditor.field || !activeTab) {
       return;
     }
 
@@ -371,7 +375,7 @@ export function ReportsBuilderWorkspace({
   }
 
   function handleLookupSelect(value: string): void {
-    if (lookupState?.kind === "base" && activeDefinition && catalog) {
+    if (lookupState?.kind === "base" && activeDefinition) {
       const nextBase = value as ReportDefinition["base"];
       const nextDefinition = normalizeDefinitionForBase(catalog, activeDefinition, nextBase);
       onUpdateDefinition(activeTabId, nextDefinition);
@@ -533,7 +537,7 @@ export function ReportsBuilderWorkspace({
             </div>
           </div>
 
-          {activeDefinition && catalog ? (
+          {activeDefinition ? (
             <div className="reports-builder-panel-body">
               <section className="reports-builder-section-card">
                 <div className="reports-builder-section-head">
@@ -657,7 +661,7 @@ export function ReportsBuilderWorkspace({
                           })
                         }
                       >
-                        {catalog.fields
+                        {catalogFields
                           .filter((field) => field.bases.includes(activeDefinition.base))
                           .map((field) => (
                             <option key={field.id} value={field.id}>
@@ -1141,7 +1145,7 @@ export function ReportsBuilderWorkspace({
         </Modal>
       ) : null}
 
-      {isFilterModalOpen && activeDefinition && catalog ? (
+      {isFilterModalOpen && activeDefinition ? (
         <Modal
           title={`Filtros | ${activeDefinition.name}`}
           subtitle={`Preencha os filtros do objeto de negocio ${resolveBaseLabel(catalog, activeDefinition.base)} e aplique apenas neste relatorio.`}
@@ -1552,7 +1556,7 @@ function resolveLookupColumns(kind: LookupKind): readonly string[] {
 }
 
 function resolveBaseLabel(catalog: ReportBuilderCatalog, base: ReportDefinition["base"]): string {
-  return (catalog.baseOptions?.length ? catalog.baseOptions : fallbackBaseOptions).find((option) => option.id === base)?.label ?? base;
+  return catalog.baseOptions.find((option) => option.id === base)?.label ?? base;
 }
 
 function resolveRelationModeOptions(
@@ -1565,11 +1569,78 @@ function resolveRelationModeOptions(
     value: mode,
     label:
       mode === "inner"
-        ? "Somente registros com vinculo"
+        ? "Somente quando houver vinculo"
         : mode === "left"
-          ? "Trazer mesmo sem vinculo do lado principal"
-          : "Trazer mesmo sem vinculo do lado relacionado"
+          ? "Manter o item principal mesmo sem vinculo"
+          : "Trazer tambem itens do outro lado sem vinculo"
   }));
+}
+
+function mergeReportBuilderCatalog(
+  primary: ReportBuilderCatalog | null,
+  fallback: ReportBuilderCatalog
+): ReportBuilderCatalog {
+  if (!primary) {
+    return fallback;
+  }
+
+  return {
+    ...fallback,
+    ...primary,
+    baseOptions: mergeEntriesById(fallback.baseOptions, primary.baseOptions),
+    fields: mergeEntriesById(fallback.fields, primary.fields),
+    relationOptions: mergeEntriesById(fallback.relationOptions, primary.relationOptions),
+    groupByOptions: mergeEntriesById(fallback.groupByOptions, primary.groupByOptions),
+    systemDefinitions: mergeDefinitionsByCode(fallback.systemDefinitions, primary.systemDefinitions)
+  };
+}
+
+function mergeEntriesById<T extends { readonly id: string }>(
+  fallback: readonly T[],
+  primary: readonly T[] | undefined
+): T[] {
+  const orderedIds = new Set<string>();
+  const merged = new Map<string, T>();
+
+  for (const entry of fallback) {
+    orderedIds.add(entry.id);
+    merged.set(entry.id, entry);
+  }
+
+  for (const entry of primary ?? []) {
+    orderedIds.add(entry.id);
+    merged.set(entry.id, {
+      ...entry,
+      ...(merged.get(entry.id) ?? {})
+    } as T);
+  }
+
+  return [...orderedIds].map((id) => merged.get(id)).filter((entry): entry is T => Boolean(entry));
+}
+
+function mergeDefinitionsByCode(
+  fallback: readonly ReportDefinition[],
+  primary: readonly ReportDefinition[] | undefined
+): ReportDefinition[] {
+  const orderedCodes = new Set<string>();
+  const merged = new Map<string, ReportDefinition>();
+
+  for (const definition of fallback) {
+    orderedCodes.add(definition.code);
+    merged.set(definition.code, definition);
+  }
+
+  for (const definition of primary ?? []) {
+    orderedCodes.add(definition.code);
+    merged.set(definition.code, {
+      ...definition,
+      ...(merged.get(definition.code) ?? {})
+    });
+  }
+
+  return [...orderedCodes]
+    .map((code) => merged.get(code))
+    .filter((definition): definition is ReportDefinition => Boolean(definition));
 }
 
 function renderFilterValueEditor({

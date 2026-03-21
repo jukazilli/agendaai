@@ -116,6 +116,8 @@ No chrome global do shell:
 - a escolha da `base` do relatorio tambem deve operar por consulta padrao com lupa, evitando codigo digitado manualmente;
 - o shell deve listar as visoes de sistema no proprio flyout lateral de `relatorios`, como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `pendencias operacionais`, `retorno e retencao`, `radar semanal` e `visao mensal`;
 - o builder v1 tambem deve expor bases cadastrais e financeiras reais quando o backend suportar, incluindo `cadastro de servicos`, `cadastro de profissionais` e `pagamentos`;
+- o builder precisa operar com `catalogo efetivo`, mesclando fallback local e catalogo remoto para nao desaparecer campo, filtro, agrupamento ou rotulo quando o backend expuser uma versao parcial ou antiga;
+- `atendimentos` tambem precisa aceitar relacoes controladas com `clientes`, `servicos` e `profissionais`, sempre com modos literais de combinacao e sem expor SQL cru;
 - agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em definicoes dedicadas, sem empilhar todas as leituras na mesma pagina;
 - quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;
 - contexto tecnico do recorte, fonte e comparativo nao deve competir com KPI e listas principais no mesmo viewport;
@@ -154,6 +156,8 @@ Em `21/03/2026`, `Relatorios` deixou de ser uma tela fixa de cards e visoes inte
 - `services`, `professionals` e `clients` agora expõem `codigo` persistido para lookup e indexacao operacional;
 - `report_definitions` foram persistidas no store local e em Postgres quando `DATABASE_URL` existe;
 - o modulo salva apenas a definicao reutilizavel do relatorio, nunca snapshot do resultado encontrado.
+- o workspace de `relatorios` passou a mesclar catalogo local e catalogo remoto, evitando que backends antigos eliminem filtros ou rotulos nas bases novas;
+- `atendimentos` passou a suportar relacoes controladas com `clientes`, `servicos` e `profissionais`, alem das relacoes ja abertas em `servicos`, `profissionais`, `agenda` e `pagamentos`.
 
 Ainda em `21/03/2026`, os cadastros operacionais foram realinhados ao shell oficial:
 

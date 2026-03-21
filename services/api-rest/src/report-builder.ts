@@ -151,10 +151,34 @@ const paymentStatusOptions = [
 
 const reportRelationOptions = [
   {
+    id: "booking_clients",
+    base: "bookings",
+    targetBase: "clients",
+    label: "Cliente do atendimento",
+    description: "Anexa o cadastro do cliente a cada atendimento do recorte.",
+    modes: ["inner", "left", "right"]
+  },
+  {
+    id: "booking_services",
+    base: "bookings",
+    targetBase: "services",
+    label: "Servico do atendimento",
+    description: "Anexa o servico comercial ligado a cada atendimento.",
+    modes: ["inner", "left", "right"]
+  },
+  {
+    id: "booking_professionals",
+    base: "bookings",
+    targetBase: "professionals",
+    label: "Profissional do atendimento",
+    description: "Anexa a equipe responsavel por cada atendimento.",
+    modes: ["inner", "left", "right"]
+  },
+  {
     id: "service_professionals",
     base: "services",
     targetBase: "professionals",
-    label: "Servicos x profissionais",
+    label: "Equipe que atende o servico",
     description: "Cruza o cadastro comercial com a equipe vinculada.",
     modes: ["inner", "left", "right"]
   },
@@ -162,7 +186,7 @@ const reportRelationOptions = [
     id: "professional_services",
     base: "professionals",
     targetBase: "services",
-    label: "Profissionais x servicos",
+    label: "Servicos atendidos pela equipe",
     description: "Mostra os servicos que cada profissional pode atender.",
     modes: ["inner", "left", "right"]
   },
@@ -170,7 +194,7 @@ const reportRelationOptions = [
     id: "payment_booking",
     base: "payments",
     targetBase: "bookings",
-    label: "Pagamentos x atendimentos",
+    label: "Atendimento que originou o pagamento",
     description: "Relaciona cobranca, booking, cliente e agenda.",
     modes: ["inner", "left", "right"]
   },
@@ -178,7 +202,7 @@ const reportRelationOptions = [
     id: "availability_professionals",
     base: "availability",
     targetBase: "professionals",
-    label: "Agenda x profissionais",
+    label: "Equipe da agenda",
     description: "Liga capacidade publicada e equipe ativa.",
     modes: ["inner", "left", "right"]
   }
@@ -190,7 +214,7 @@ const reportFieldCatalog: readonly ReportCatalogField[] = [
   { id: "service_value", label: "Valor do servico", type: "number", bases: ["bookings"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "duration_minutes", label: "Duracao", type: "number", bases: ["bookings"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "booking_id", label: "Booking", type: "text", bases: ["bookings"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "in"], aggregations: ["count", "count_distinct"] },
-  { id: "client_id", label: "Cliente", type: "lookup", bases: ["bookings", "clients"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "client" },
+  { id: "client_id", label: "Cliente", type: "lookup", bases: ["bookings", "clients"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "client" },
   { id: "service_id", label: "Servico", type: "lookup", bases: ["bookings"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "service" },
   { id: "professional_id", label: "Profissional", type: "lookup", bases: ["bookings", "availability"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "professional" },
   { id: "status", label: "Status", type: "enum", bases: ["bookings"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in"], aggregations: ["count"], lookupKind: "status", options: [...bookingStatusOptions] },
@@ -230,10 +254,11 @@ const reportFieldCatalog: readonly ReportCatalogField[] = [
   { id: "payment_month", label: "Mes da cobranca", type: "date", bases: ["payments"], filterable: false, groupable: true, sortable: true, operators: ["equals", "gte", "lte", "between"], aggregations: ["count"] },
   { id: "payment_service_id", label: "Servico cobrado", type: "lookup", bases: ["payments"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "service" },
   { id: "payment_professional_id", label: "Profissional ligado", type: "lookup", bases: ["payments"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "professional" },
-  { id: "payment_client_id", label: "Cliente ligado", type: "lookup", bases: ["payments"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "client" }
+  { id: "payment_client_id", label: "Cliente ligado", type: "lookup", bases: ["payments"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "client" }
 ] as const;
 
 const reportGroupByOptions = [
+  { id: "client_id", label: "Cliente", bases: ["bookings"] },
   { id: "service_id", label: "Servico", bases: ["bookings"] },
   { id: "professional_id", label: "Profissional", bases: ["bookings", "availability"] },
   { id: "booking_date", label: "Dia", bases: ["bookings", "availability"] },
@@ -243,6 +268,7 @@ const reportGroupByOptions = [
   { id: "service_collection_mode", label: "Forma de cobranca", bases: ["services"] },
   { id: "professional_status", label: "Situacao do cadastro", bases: ["professionals"] },
   { id: "payment_status", label: "Situacao do pagamento", bases: ["payments"] },
+  { id: "payment_client_id", label: "Cliente ligado", bases: ["payments"] },
   { id: "payment_service_id", label: "Servico cobrado", bases: ["payments"] },
   { id: "payment_professional_id", label: "Profissional ligado", bases: ["payments"] },
   { id: "payment_date", label: "Dia da cobranca", bases: ["payments"] },
@@ -342,6 +368,7 @@ export function executeReportDefinition(input: ExecuteReportDefinitionInput): Re
 function executeBookingDefinition(input: ExecuteReportDefinitionInput): ReportExecutionResponse {
   const records = applyBookingFilters(buildBookingRecords(input), input.definition.filters, input);
   const summary = summarizeBookingRecords(records);
+  const relationTable = buildRelationTableIfNeeded(input, records);
   const grouped = input.definition.groupBy[0]
     ? groupBookingRecords(records, input.definition.groupBy[0], input)
     : [];
@@ -356,7 +383,7 @@ function executeBookingDefinition(input: ExecuteReportDefinitionInput): ReportEx
       kpi("completed", "Concluidos", summary.completedCount, "Atendimentos finalizados."),
       kpi("open", "Em aberto", summary.openBookings, "Pendencias operacionais ainda vivas.")
     ],
-    table: grouped.length > 0 ? buildGroupedBookingTable(grouped, input.definition.groupBy[0]) : buildOperationalTable(records)
+    table: grouped.length > 0 ? buildGroupedBookingTable(grouped, input.definition.groupBy[0]) : relationTable ?? buildOperationalTable(records)
   });
 }
 
@@ -506,6 +533,7 @@ function buildExecutionResponse(
 function buildRelationTableIfNeeded(
   input: ExecuteReportDefinitionInput,
   records:
+    | readonly BookingAnalyticsRecord[]
     | readonly ServiceAnalyticsRecord[]
     | readonly ProfessionalAnalyticsRecord[]
     | readonly PaymentAnalyticsRecord[]
@@ -514,6 +542,30 @@ function buildRelationTableIfNeeded(
   const relation = input.definition.relation;
   if (!relation) {
     return undefined;
+  }
+
+  if (input.definition.base === "bookings" && relation.relationId === "booking_clients") {
+    return buildBookingClientsRelationTable(
+      records as readonly BookingAnalyticsRecord[],
+      input.clients,
+      relation.mode
+    );
+  }
+
+  if (input.definition.base === "bookings" && relation.relationId === "booking_services") {
+    return buildBookingServicesRelationTable(
+      records as readonly BookingAnalyticsRecord[],
+      input.services,
+      relation.mode
+    );
+  }
+
+  if (input.definition.base === "bookings" && relation.relationId === "booking_professionals") {
+    return buildBookingProfessionalsRelationTable(
+      records as readonly BookingAnalyticsRecord[],
+      input.professionals,
+      relation.mode
+    );
   }
 
   if (input.definition.base === "services" && relation.relationId === "service_professionals") {
@@ -552,6 +604,177 @@ function buildRelationTableIfNeeded(
   }
 
   return undefined;
+}
+
+function buildBookingClientsRelationTable(
+  records: readonly BookingAnalyticsRecord[],
+  clients: readonly Client[],
+  mode: ReportRelationMode
+): ReportExecutionTable {
+  const rows: ReportExecutionTable["rows"] = [];
+  const linkedClientIds = new Set<string>();
+
+  for (const record of records) {
+    if (record.client) {
+      linkedClientIds.add(record.client.id);
+    }
+
+    if (!record.client && mode === "inner") {
+      continue;
+    }
+
+    rows.push({
+      id: `${record.booking.id}:${record.client?.id ?? "none"}`,
+      cells: [
+        record.booking.id.slice(0, 8).toUpperCase(),
+        formatAgendaDayLabel(record.bookingDate),
+        record.client?.codigo ?? "-",
+        record.client?.nome ?? "Sem cliente",
+        record.client?.telefone ?? "-",
+        record.client ? "Vinculado" : "Atendimento sem cliente"
+      ]
+    });
+  }
+
+  if (mode === "right") {
+    for (const client of clients) {
+      if (linkedClientIds.has(client.id)) {
+        continue;
+      }
+
+      rows.push({
+        id: `client-only:${client.id}`,
+        cells: ["-", "-", client.codigo, client.nome, client.telefone, "Cliente sem atendimento no recorte"]
+      });
+    }
+  }
+
+  return {
+    columns: [
+      { id: "booking", label: "Booking" },
+      { id: "date", label: "Data" },
+      { id: "client_code", label: "Cod. cliente" },
+      { id: "client_name", label: "Nome do cliente" },
+      { id: "client_phone", label: "Telefone" },
+      { id: "relation", label: "Situacao do vinculo" }
+    ],
+    rows,
+    emptyMessage: "Nenhum vinculo entre atendimentos e clientes foi encontrado."
+  };
+}
+
+function buildBookingServicesRelationTable(
+  records: readonly BookingAnalyticsRecord[],
+  services: readonly Service[],
+  mode: ReportRelationMode
+): ReportExecutionTable {
+  const rows: ReportExecutionTable["rows"] = [];
+  const linkedServiceIds = new Set<string>();
+
+  for (const record of records) {
+    if (record.service) {
+      linkedServiceIds.add(record.service.id);
+    }
+
+    if (!record.service && mode === "inner") {
+      continue;
+    }
+
+    rows.push({
+      id: `${record.booking.id}:${record.service?.id ?? "none"}`,
+      cells: [
+        record.booking.id.slice(0, 8).toUpperCase(),
+        formatAgendaDayLabel(record.bookingDate),
+        record.service?.codigo ?? "-",
+        record.service?.nome ?? "Sem servico",
+        record.service ? formatCurrency(record.service.precoBase) : formatCurrency(0),
+        record.service ? "Vinculado" : "Atendimento sem servico"
+      ]
+    });
+  }
+
+  if (mode === "right") {
+    for (const service of services) {
+      if (linkedServiceIds.has(service.id)) {
+        continue;
+      }
+
+      rows.push({
+        id: `service-only:${service.id}`,
+        cells: ["-", "-", service.codigo, service.nome, formatCurrency(service.precoBase), "Servico sem atendimento no recorte"]
+      });
+    }
+  }
+
+  return {
+    columns: [
+      { id: "booking", label: "Booking" },
+      { id: "date", label: "Data" },
+      { id: "service_code", label: "Cod. servico" },
+      { id: "service_name", label: "Descricao do servico" },
+      { id: "service_price", label: "Preco base" },
+      { id: "relation", label: "Situacao do vinculo" }
+    ],
+    rows,
+    emptyMessage: "Nenhum vinculo entre atendimentos e servicos foi encontrado."
+  };
+}
+
+function buildBookingProfessionalsRelationTable(
+  records: readonly BookingAnalyticsRecord[],
+  professionals: readonly Professional[],
+  mode: ReportRelationMode
+): ReportExecutionTable {
+  const rows: ReportExecutionTable["rows"] = [];
+  const linkedProfessionalIds = new Set<string>();
+
+  for (const record of records) {
+    if (record.professional) {
+      linkedProfessionalIds.add(record.professional.id);
+    }
+
+    if (!record.professional && mode === "inner") {
+      continue;
+    }
+
+    rows.push({
+      id: `${record.booking.id}:${record.professional?.id ?? "none"}`,
+      cells: [
+        record.booking.id.slice(0, 8).toUpperCase(),
+        formatAgendaDayLabel(record.bookingDate),
+        record.professional?.codigo ?? "-",
+        record.professional?.nome ?? "Sem profissional",
+        record.booking.status,
+        record.professional ? "Vinculado" : "Atendimento sem profissional"
+      ]
+    });
+  }
+
+  if (mode === "right") {
+    for (const professional of professionals) {
+      if (linkedProfessionalIds.has(professional.id)) {
+        continue;
+      }
+
+      rows.push({
+        id: `professional-only:${professional.id}`,
+        cells: ["-", "-", professional.codigo, professional.nome, "-", "Profissional sem atendimento no recorte"]
+      });
+    }
+  }
+
+  return {
+    columns: [
+      { id: "booking", label: "Booking" },
+      { id: "date", label: "Data" },
+      { id: "professional_code", label: "Cod. profissional" },
+      { id: "professional_name", label: "Nome do profissional" },
+      { id: "status", label: "Status do atendimento" },
+      { id: "relation", label: "Situacao do vinculo" }
+    ],
+    rows,
+    emptyMessage: "Nenhum vinculo entre atendimentos e profissionais foi encontrado."
+  };
 }
 
 function buildBookingRecords(input: ExecuteReportDefinitionInput): BookingAnalyticsRecord[] {
@@ -918,8 +1141,13 @@ function groupPaymentRecords(
 }
 
 function buildGroupedBookingTable(grouped: ReturnType<typeof groupBookingRecords>, groupField: string): ReportExecutionTable {
-  const labelColumn = groupField === "service_id" ? "Descricao" : groupField === "professional_id" ? "Nome" : resolveGroupFieldLabel(groupField);
-  const showCode = groupField === "service_id" || groupField === "professional_id";
+  const labelColumn =
+    groupField === "service_id"
+      ? "Descricao"
+      : groupField === "professional_id" || groupField === "client_id"
+        ? "Nome"
+        : resolveGroupFieldLabel(groupField);
+  const showCode = groupField === "service_id" || groupField === "professional_id" || groupField === "client_id";
   return {
     columns: [
       ...(showCode ? [{ id: "code", label: "Codigo" }] : []),
@@ -1462,6 +1690,9 @@ function aggregatePaymentMetric(records: readonly PaymentAnalyticsRecord[], oper
 }
 
 function resolveGroupingForBooking(record: BookingAnalyticsRecord, groupField: string): { key: string; code: string; label: string } {
+  if (groupField === "client_id") {
+    return { key: record.booking.clientId, code: record.client?.codigo ?? "CLI-????", label: record.client?.nome ?? "Cliente removido" };
+  }
   if (groupField === "service_id") {
     return { key: record.booking.serviceId, code: record.service?.codigo ?? "SRV-????", label: record.service?.nome ?? "Servico removido" };
   }
@@ -1649,12 +1880,12 @@ function resolveSortDirectionLabel(direction: string): string {
 
 function resolveRelationModeLabel(mode: ReportRelationMode): string {
   if (mode === "inner") {
-    return "somente registros com vinculo";
+    return "somente quando houver vinculo";
   }
   if (mode === "left") {
-    return "trazer mesmo sem vinculo do lado principal";
+    return "manter o item principal mesmo sem vinculo";
   }
-  return "trazer mesmo sem vinculo do lado relacionado";
+  return "trazer tambem itens do outro lado sem vinculo";
 }
 
 function resolveRelationLabel(relationId: string): string {
@@ -1681,6 +1912,9 @@ function resolveProfessionalGroupLabel(record: ProfessionalAnalyticsRecord, fiel
 function resolvePaymentGroupLabel(record: PaymentAnalyticsRecord, fieldId: string): string {
   if (fieldId === "payment_status") {
     return resolvePaymentStatusLabel(record.paymentIntent.status);
+  }
+  if (fieldId === "payment_client_id") {
+    return record.client?.nome ?? "Sem cliente";
   }
   if (fieldId === "payment_service_id") {
     return record.service?.nome ?? "Sem servico";
