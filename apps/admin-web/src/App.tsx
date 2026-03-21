@@ -1055,7 +1055,6 @@ export function App() {
   const [reportsWorkspaceTab, setReportsWorkspaceTab] = useState<ReportsWorkspaceTab>("overview");
   const [reportsOpenTabs, setReportsOpenTabs] = useState<ReportsWorkspaceTab[]>(["overview"]);
   const [isReportsMenuOpen, setIsReportsMenuOpen] = useState(false);
-  const [isSidebarReportsFlyoutOpen, setIsSidebarReportsFlyoutOpen] = useState(false);
   const [isReportsContextVisible, setIsReportsContextVisible] = useState(false);
   const [reportsAgendaWorkspaceTab, setReportsAgendaWorkspaceTab] =
     useState<ReportsAgendaWorkspaceTab>("week");
@@ -2233,7 +2232,6 @@ export function App() {
     setIsReportsMenuOpen(false);
     setIsAgendaBookingModalOpen(false);
     setIsSidebarOpen(false);
-    setIsSidebarReportsFlyoutOpen(false);
   }
 
   function closeWorkspaceTab(route: AdminRoute): void {
@@ -2256,7 +2254,6 @@ export function App() {
     setReportsWorkspaceTab(tab);
     setReportsOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
     setIsReportsMenuOpen(false);
-    setIsSidebarReportsFlyoutOpen(false);
     navigateTo("relatorios");
   }
 
@@ -8158,22 +8155,9 @@ export function App() {
                 }
 
                 return (
-                  <div
-                    className="admin-sidebar-flyout-anchor"
-                    key={route}
-                    onMouseEnter={() => {
-                      if (!isCompactShell) {
-                        setIsSidebarReportsFlyoutOpen(true);
-                      }
-                    }}
-                    onMouseLeave={() => {
-                      if (!isCompactShell) {
-                        setIsSidebarReportsFlyoutOpen(false);
-                      }
-                    }}
-                  >
+                  <div className="admin-sidebar-flyout-anchor" key={route}>
                     {sidebarButton}
-                    {!isCompactShell && isSidebarReportsFlyoutOpen ? (
+                    {!isCompactShell ? (
                       <div className="admin-sidebar-flyout admin-sidebar-flyout-reports">
                         <div className="admin-sidebar-flyout-header">
                           <strong>Relatorios</strong>

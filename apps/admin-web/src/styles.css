@@ -1059,6 +1059,22 @@ a {
   background: #242422;
   color: #ffffff;
   box-shadow: 0 20px 46px rgba(0, 0, 0, 0.34);
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateX(-6px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms ease,
+    visibility 140ms ease;
+}
+
+.admin-sidebar-flyout-anchor:hover .admin-sidebar-flyout,
+.admin-sidebar-flyout-anchor:focus-within .admin-sidebar-flyout {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateX(0);
 }
 
 .admin-sidebar-flyout-header,
