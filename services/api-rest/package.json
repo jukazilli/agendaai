@@ -11,6 +11,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "db:reset:staging": "node --import tsx scripts/reset-staging.ts",
     "db:seed:demo": "node --import tsx scripts/seed-demo.ts",
     "dev": "node --import tsx src/index.ts",
     "lint": "tsc --project tsconfig.json --noEmit",

@@ -1,4 +1,4 @@
-import { Pool } from "pg";
+import { Pool, type PoolClient } from "pg";
 
 import type {
   AvailabilityRuleInput,
@@ -43,6 +43,8 @@ interface PostgresApiRestStoreOptions {
   readonly connectionString: string;
 }
 
+type PostgresQueryable = Pool | PoolClient;
+
 const SNAPSHOT_KEY = "agendaai-primary";
 
 export class PostgresApiRestStore implements ApiRestStorePort {
@@ -58,6 +60,11 @@ export class PostgresApiRestStore implements ApiRestStorePort {
       max: 3
     });
     this.readyPromise = this.loadSnapshot();
+  }
+
+  async close(): Promise<void> {
+    await this.ensureReady().catch(() => undefined);
+    await this.pool.end();
   }
 
   async reset(): Promise<void> {
@@ -393,14 +400,31 @@ export class PostgresApiRestStore implements ApiRestStorePort {
   }
 
   private async loadSnapshot(): Promise<void> {
-    await this.pool.query(`
+    await this.ensureSchema();
+
+    const result = await this.pool.query<PostgresSnapshotRow>(
+      "select payload from agendaai_runtime_snapshots where store_key = $1",
+      [SNAPSHOT_KEY]
+    );
+
+    const reportDefinitions = await this.loadPersistedReportDefinitions();
+    const mergedSnapshot = mergeSnapshotWithPersistedDefinitions(
+      result.rows[0]?.payload,
+      reportDefinitions
+    );
+
+    this.store.restoreSnapshot(mergedSnapshot);
+  }
+
+  private async ensureSchema(queryable: PostgresQueryable = this.pool): Promise<void> {
+    await queryable.query(`
       create table if not exists agendaai_runtime_snapshots (
         store_key text primary key,
         payload jsonb not null,
         updated_at timestamptz not null default now()
       )
     `);
-    await this.pool.query(`
+    await queryable.query(`
       create table if not exists report_definitions (
         id text primary key,
         tenant_id text not null,
@@ -408,61 +432,73 @@ export class PostgresApiRestStore implements ApiRestStorePort {
         updated_at timestamptz not null default now()
       )
     `);
-    await this.pool.query(`
+    await queryable.query(`
       create index if not exists report_definitions_tenant_idx
         on report_definitions (tenant_id)
     `);
+  }
 
-    const result = await this.pool.query<PostgresSnapshotRow>(
-      "select payload from agendaai_runtime_snapshots where store_key = $1",
-      [SNAPSHOT_KEY]
+  private async loadPersistedReportDefinitions(
+    queryable: PostgresQueryable = this.pool
+  ): Promise<ReportDefinition[]> {
+    const result = await queryable.query<PostgresReportDefinitionRow>(
+      "select definition from report_definitions order by updated_at asc, id asc"
     );
-
-    const snapshot = result.rows[0]?.payload;
-    if (snapshot) {
-      this.store.restoreSnapshot(snapshot);
-    }
-
-    const reportDefinitions = await this.pool.query<PostgresReportDefinitionRow>(
-      "select definition from report_definitions"
-    );
-    for (const row of reportDefinitions.rows) {
-      this.store.saveReportDefinition(row.definition);
-    }
+    return result.rows.map((row) => row.definition);
   }
 
   private async persistSnapshot(): Promise<void> {
     const snapshot = this.store.exportSnapshot();
-    this.persistQueue = this.persistQueue.then(async () => {
-      await this.pool.query(
-        `
-          insert into agendaai_runtime_snapshots (store_key, payload, updated_at)
-          values ($1, $2::jsonb, now())
-          on conflict (store_key)
-          do update set payload = excluded.payload, updated_at = excluded.updated_at
-        `,
-        [SNAPSHOT_KEY, JSON.stringify(snapshot)]
-      );
+    const nextPersist = this.persistQueue.catch(() => undefined).then(async () => {
+      const client = await this.pool.connect();
+      try {
+        await client.query("begin");
+        await this.ensureSchema(client);
 
-      const definitions = snapshot.reportDefinitions ?? [];
-      await this.pool.query("delete from report_definitions");
-      for (const definition of definitions) {
-        await this.pool.query(
+        const definitions = snapshot.reportDefinitions ?? [];
+        for (const definition of definitions) {
+          await client.query(
+            `
+              insert into report_definitions (id, tenant_id, definition, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    definition = excluded.definition,
+                    updated_at = excluded.updated_at
+            `,
+            [definition.id, definition.tenantId, JSON.stringify(definition)]
+          );
+        }
+
+        if (definitions.length === 0) {
+          await client.query("delete from report_definitions");
+        } else {
+          await client.query("delete from report_definitions where not (id = any($1::text[]))", [
+            definitions.map((definition) => definition.id)
+          ]);
+        }
+
+        await client.query(
           `
-            insert into report_definitions (id, tenant_id, definition, updated_at)
-            values ($1, $2, $3::jsonb, now())
-            on conflict (id)
-            do update
-              set tenant_id = excluded.tenant_id,
-                  definition = excluded.definition,
-                  updated_at = excluded.updated_at
+            insert into agendaai_runtime_snapshots (store_key, payload, updated_at)
+            values ($1, $2::jsonb, now())
+            on conflict (store_key)
+            do update set payload = excluded.payload, updated_at = excluded.updated_at
           `,
-          [definition.id, definition.tenantId, JSON.stringify(definition)]
+          [SNAPSHOT_KEY, JSON.stringify(snapshot)]
         );
+        await client.query("commit");
+      } catch (error) {
+        await client.query("rollback").catch(() => undefined);
+        throw error;
+      } finally {
+        client.release();
       }
     });
 
-    await this.persistQueue;
+    this.persistQueue = nextPersist;
+    await nextPersist;
   }
 }
 
@@ -485,5 +521,23 @@ function emptySnapshot(): ApiRestStoreSnapshot {
     bookings: [],
     reportDefinitions: [],
     sessions: []
+  };
+}
+
+function mergeSnapshotWithPersistedDefinitions(
+  snapshot: ApiRestStoreSnapshot | undefined,
+  reportDefinitions: ReportDefinition[]
+): ApiRestStoreSnapshot {
+  const baseSnapshot = snapshot
+    ? {
+        ...snapshot,
+        reportDefinitions: [...(snapshot.reportDefinitions ?? [])]
+      }
+    : emptySnapshot();
+
+  return {
+    ...baseSnapshot,
+    reportDefinitions:
+      reportDefinitions.length > 0 ? reportDefinitions : (baseSnapshot.reportDefinitions ?? [])
   };
 }

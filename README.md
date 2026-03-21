@@ -46,6 +46,21 @@ Este repositorio foi estruturado a partir do ciclo:
 /.agents
 ```
 
+## Runtime Postgres
+
+Quando `DATABASE_URL` existe, o `api-rest` persiste o runtime operacional em Postgres usando:
+
+- `agendaai_runtime_snapshots`
+- `report_definitions`
+
+O reset controlado de staging fica em:
+
+```bash
+pnpm --filter @agendaai/api-rest db:reset:staging
+```
+
+O comando recria as tabelas do runtime, reseeda o tenant demo e valida o login administrativo basico no final da execucao.
+
 ## Leitura recomendada
 
 1. `docs/01_conceito_e_briefing/05_briefing_arquitetural_estruturado_mae.md`

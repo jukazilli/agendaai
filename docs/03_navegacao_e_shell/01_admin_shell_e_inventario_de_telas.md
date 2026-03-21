@@ -155,6 +155,8 @@ Em `21/03/2026`, `Relatorios` deixou de ser uma tela fixa de cards e visoes inte
 - filtros passaram a abrir em modal por relatorio, com lookup por lupa e popup tabular;
 - `services`, `professionals` e `clients` agora expõem `codigo` persistido para lookup e indexacao operacional;
 - `report_definitions` foram persistidas no store local e em Postgres quando `DATABASE_URL` existe;
+- a persistencia em Postgres passou a gravar `snapshot + report_definitions` em transacao unica;
+- o reset controlado de staging agora faz parte do runtime via `pnpm --filter @agendaai/api-rest db:reset:staging`, recriando tabelas e reseedando o tenant demo;
 - o modulo salva apenas a definicao reutilizavel do relatorio, nunca snapshot do resultado encontrado.
 - o workspace de `relatorios` passou a mesclar catalogo local e catalogo remoto, evitando que backends antigos eliminem filtros ou rotulos nas bases novas;
 - `atendimentos` passou a suportar relacoes controladas com `clientes`, `servicos` e `profissionais`, alem das relacoes ja abertas em `servicos`, `profissionais`, `agenda` e `pagamentos`.
