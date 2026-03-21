@@ -99,7 +99,9 @@ No chrome global do shell:
 ### Relatorios
 
 - deve concentrar apenas leitura gerencial, comparativos e recortes analiticos;
+- deve operar em workspace local proprio, com `filtros no topo`, `menu de visoes` e `abas abertas` sem misturar a navegacao do shell com os contextos internos do modulo;
 - agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em visoes dedicadas, preferencialmente via tab bar;
+- o workspace pode abrir visoes como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `retorno e retencao`, `radar semanal`, `visao mensal` e `pendencias operacionais`;
 - quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;
 - contexto tecnico do recorte, fonte e comparativo nao deve competir com KPI e listas principais no mesmo viewport;
 - acoes operacionais continuam em `operacao diaria`, `agenda` e `clientes`.

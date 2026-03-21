@@ -82,6 +82,7 @@ import {
   updateTenantBranding,
   updateTenantSlug
 } from "./lib/admin-api";
+import { ReportsWorkspace, type ReportsWorkspacePane } from "./reports-workspace";
 import {
   DocumentHeader,
   DocumentImpactPanel,
@@ -117,7 +118,15 @@ type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
 type CounterBookingStep = "service" | "professional" | "slot" | "client";
-type ReportsWorkspaceTab = "overview" | "services" | "team" | "retention" | "agenda";
+type ReportsWorkspaceTab =
+  | "overview"
+  | "services"
+  | "team"
+  | "retention"
+  | "agenda"
+  | "week"
+  | "month"
+  | "operations";
 type ReportsAgendaWorkspaceTab = "week" | "month";
 type PaymentCollectionMode = (typeof paymentCollectionModeValues)[number];
 type PaymentCheckoutMode = (typeof paymentCheckoutModeValues)[number];
@@ -191,6 +200,61 @@ interface CounterBookingReceipt {
   readonly service: Service;
   readonly professional: Professional;
 }
+
+interface ReportsWorkspaceItem {
+  readonly key: ReportsWorkspaceTab;
+  readonly label: string;
+  readonly group: string;
+  readonly description: string;
+  readonly badge?: string;
+}
+
+const reportsWorkspaceItems: readonly ReportsWorkspaceItem[] = [
+  {
+    key: "overview",
+    label: "Visao executiva",
+    group: "Visao gerencial",
+    description: "Resumo do periodo para receita, volume, ticket e fila em aberto.",
+    badge: "Core"
+  },
+  {
+    key: "services",
+    label: "Receita e servicos",
+    group: "Comercial",
+    description: "Mix de servicos, receita reconhecida, ticket e clientes unicos."
+  },
+  {
+    key: "team",
+    label: "Equipe e produtividade",
+    group: "Operacao",
+    description: "Leitura do resultado por profissional, sem misturar agenda diaria."
+  },
+  {
+    key: "retention",
+    label: "Retorno e retencao",
+    group: "Clientes",
+    description: "Base com retorno, sem retorno, recorrencia e clientes em risco."
+  },
+  {
+    key: "week",
+    label: "Radar semanal",
+    group: "Capacidade",
+    description: "Carga da semana para remanejamento e leitura de ocupacao."
+  },
+  {
+    key: "month",
+    label: "Visao mensal",
+    group: "Capacidade",
+    description: "Concentrado do mes para capacidade e sazonalidade."
+  },
+  {
+    key: "operations",
+    label: "Pendencias operacionais",
+    group: "Operacao",
+    description: "Fila de bookings abertos e itens que ainda pedem acao.",
+    badge: "Acao"
+  }
+] as const;
 
 interface BookingSummary {
   readonly today: number;
@@ -497,6 +561,20 @@ const defaultServiceForm: ServiceFormState = {
   acceptedMethods: [...defaultServicePaymentPolicy.acceptedMethods]
 };
 
+function groupReportsWorkspaceItems(
+  items: readonly ReportsWorkspaceItem[]
+): Array<[string, ReportsWorkspaceItem[]]> {
+  const grouped = new Map<string, ReportsWorkspaceItem[]>();
+
+  items.forEach((item) => {
+    const current = grouped.get(item.group) ?? [];
+    current.push(item);
+    grouped.set(item.group, current);
+  });
+
+  return Array.from(grouped.entries());
+}
+
 function DashboardChart({
   data
 }: {
@@ -782,9 +860,11 @@ export function App() {
   >({});
   const [isLoadingWeeklyAvailability, setIsLoadingWeeklyAvailability] = useState(false);
   const [reportsWorkspaceTab, setReportsWorkspaceTab] = useState<ReportsWorkspaceTab>("overview");
+  const [reportsOpenTabs, setReportsOpenTabs] = useState<ReportsWorkspaceTab[]>(["overview"]);
+  const [isReportsMenuOpen, setIsReportsMenuOpen] = useState(false);
+  const [isReportsContextVisible, setIsReportsContextVisible] = useState(false);
   const [reportsAgendaWorkspaceTab, setReportsAgendaWorkspaceTab] =
     useState<ReportsAgendaWorkspaceTab>("week");
-  const [isReportsContextVisible, setIsReportsContextVisible] = useState(false);
 
   useEffect(() => {
     storeValue(API_BASE_STORAGE_KEY, apiBaseUrl);
@@ -809,6 +889,12 @@ export function App() {
   useEffect(() => {
     setOpenRouteTabs((current) => (current.includes(currentRoute) ? current : [...current, currentRoute]));
   }, [currentRoute]);
+
+  useEffect(() => {
+    setReportsOpenTabs((current) =>
+      current.includes(reportsWorkspaceTab) ? current : [...current, reportsWorkspaceTab]
+    );
+  }, [reportsWorkspaceTab]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -1947,6 +2033,28 @@ export function App() {
       if (route === currentRoute) {
         const fallbackRoute = nextTabs[nextTabs.length - 1] ?? defaultAdminRoute;
         window.setTimeout(() => navigateTo(fallbackRoute), 0);
+      }
+
+      return nextTabs;
+    });
+  }
+
+  function openReportsWorkspaceTab(tab: ReportsWorkspaceTab): void {
+    setReportsWorkspaceTab(tab);
+    setReportsOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
+    setIsReportsMenuOpen(false);
+  }
+
+  function closeReportsWorkspaceTab(tab: ReportsWorkspaceTab): void {
+    setReportsOpenTabs((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+
+      const nextTabs = current.filter((item) => item !== tab);
+      if (tab === reportsWorkspaceTab) {
+        const fallbackTab = nextTabs[nextTabs.length - 1] ?? "overview";
+        window.setTimeout(() => setReportsWorkspaceTab(fallbackTab), 0);
       }
 
       return nextTabs;
@@ -5463,6 +5571,570 @@ export function App() {
       }
     ];
     const reportsInsightMonthHighlights = reportsInsightCurrentMonthCells.filter((cell) => cell.bookingsCount > 0);
+
+    const workspaceMeta = reportsWorkspaceItems.find((item) => item.key === reportsWorkspaceTab) ?? reportsWorkspaceItems[0];
+    const workspaceGroups = groupReportsWorkspaceItems(reportsWorkspaceItems);
+    const recentRevenueFeed = [...reportRevenueEntries]
+      .filter((entry) => entry.recognizedAmount > 0 || entry.approvedOnlineAmount > 0)
+      .sort(
+        (left, right) =>
+          new Date(right.booking.startAt).getTime() - new Date(left.booking.startAt).getTime()
+      )
+      .slice(0, 6)
+      .map((entry) => ({
+        id: entry.booking.id,
+        title: entry.service?.nome ?? resolveServiceName(entry.booking.serviceId, services),
+        subtitle: `${resolveClientName(entry.booking.clientId, clients)} com ${entry.professional?.nome ?? resolveProfessionalName(entry.booking.professionalId, professionals)}`,
+        value: formatCurrency(entry.recognizedAmount || entry.approvedOnlineAmount),
+        meta: formatDateTime(entry.booking.startAt)
+      }));
+    const operationalQueue = [...reportBookings]
+      .filter((booking) => isOpenBookingStatus(booking.status))
+      .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime())
+      .slice(0, 10);
+    const paymentIntentByBookingId = new Map(
+      paymentIntents
+        .filter((paymentIntent) => paymentIntent.bookingId)
+        .map((paymentIntent) => [paymentIntent.bookingId, paymentIntent] as const)
+    );
+    const weekProfessionalLookup = new Map(
+      reportsInsightWeekProfessionalSummaries.map((summary) => [summary.professionalId, summary] as const)
+    );
+    const pendingCount = reportBookings.filter((booking) => booking.status === "pendente").length;
+    const awaitingPaymentCount = reportBookings.filter(
+      (booking) => booking.status === "aguardando pagamento"
+    ).length;
+    const confirmedCount = reportBookings.filter((booking) => booking.status === "confirmado").length;
+    const workspaceContextItems = [
+      { id: "range", label: "Periodo", value: resolveDashboardRangeLabel(reportsRange) },
+      { id: "service", label: "Servico", value: selectedReportService?.nome ?? "Todos os servicos" },
+      { id: "professional", label: "Profissional", value: selectedReportProfessional?.nome ?? "Todos os profissionais" },
+      { id: "window", label: "Janela de retorno", value: resolveClientReturnWindowLabel(activeClientRecurrence.window) },
+      { id: "comparison", label: "Comparativo", value: reportsComparisonEnabled ? "Periodo anterior" : "Historico total" },
+      { id: "source", label: "Fonte", value: reportsSourceLabel }
+    ] as const;
+    const workspaceFilters = [
+      {
+        id: "range",
+        label: "Recorte",
+        value: reportsRange,
+        options: [
+          { value: "7d", label: "7 dias" },
+          { value: "30d", label: "30 dias" },
+          { value: "all", label: "Todo o historico" }
+        ],
+        onChange: (value: string) => setReportsRange(value as DashboardRange)
+      },
+      {
+        id: "service",
+        label: "Servico",
+        value: reportsServiceFilter,
+        options: [{ value: "all", label: "Todos os servicos" }, ...services.map((service) => ({ value: service.id, label: service.nome }))],
+        onChange: (value: string) => setReportsServiceFilter(value)
+      },
+      {
+        id: "professional",
+        label: "Profissional",
+        value: reportsProfessionalFilter,
+        options: [{ value: "all", label: "Todos os profissionais" }, ...professionals.map((professional) => ({ value: professional.id, label: professional.nome }))],
+        onChange: (value: string) => setReportsProfessionalFilter(value)
+      },
+      {
+        id: "return-window",
+        label: "Janela de retorno",
+        value: clientReturnWindow,
+        options: [
+          { value: "30d", label: "30 dias" },
+          { value: "60d", label: "60 dias" },
+          { value: "90d", label: "90 dias" }
+        ],
+        onChange: (value: string) => setClientReturnWindow(value as ClientReturnWindow)
+      }
+    ] as const;
+    let workspacePane: ReportsWorkspacePane = {
+      title: "Visao executiva",
+      description: "Primeira leitura do periodo para receita, demanda, ticket e fila que ainda pede acao.",
+      kpis: [
+        {
+          id: "recognized",
+          label: "Receita reconhecida",
+          value: formatCurrency(activeReportCurrent.recognizedRevenue),
+          helper: resolveReportComparisonLabel(
+            activeReportCurrent.recognizedRevenue,
+            activeReportPrevious?.recognizedRevenue ?? 0,
+            "currency",
+            reportsComparisonEnabled
+          )
+        },
+        {
+          id: "bookings",
+          label: "Bookings no periodo",
+          value: activeReportCurrent.bookingsCount,
+          helper: resolveReportComparisonLabel(
+            activeReportCurrent.bookingsCount,
+            activeReportPrevious?.bookingsCount ?? 0,
+            "count",
+            reportsComparisonEnabled
+          )
+        },
+        {
+          id: "ticket",
+          label: "Ticket medio",
+          value: formatCurrency(activeReportCurrent.averageTicket),
+          helper: `${activeReportCurrent.completedCount} concluido(s) no recorte.`
+        },
+        {
+          id: "clients",
+          label: "Clientes unicos",
+          value: activeReportCurrent.uniqueClients,
+          helper: "Base distinta atendida no periodo."
+        },
+        {
+          id: "completed",
+          label: "Concluidos",
+          value: activeReportCurrent.completedCount,
+          helper: "Atendimentos finalizados."
+        },
+        {
+          id: "open",
+          label: "Em aberto",
+          value: reportOpenBookings,
+          helper: "Pendentes, confirmados e aguardando pagamento."
+        },
+        {
+          id: "noshow",
+          label: "Taxa de no-show",
+          value: formatPercentage(currentNoShowRate),
+          helper: resolveReportComparisonLabel(
+            currentNoShowRate,
+            previousNoShowRate,
+            "percentage",
+            reportsComparisonEnabled
+          )
+        },
+        {
+          id: "inactive",
+          label: "Sem retorno",
+          value: activeClientRecurrence.inactiveCount,
+          helper: `Janela ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`
+        }
+      ],
+      panels: [
+        {
+          id: "comparison",
+          title: "Comparativo rapido",
+          caption: reportsComparisonEnabled ? "Periodo anterior" : "Sem comparativo",
+          metricRows: [
+            {
+              id: "recognized",
+              label: "Receita reconhecida",
+              current: formatCurrency(activeReportCurrent.recognizedRevenue),
+              previous: formatCurrency(activeReportPrevious?.recognizedRevenue ?? 0)
+            },
+            {
+              id: "bookings",
+              label: "Bookings",
+              current: String(activeReportCurrent.bookingsCount),
+              previous: String(activeReportPrevious?.bookingsCount ?? 0)
+            },
+            {
+              id: "ticket",
+              label: "Ticket medio",
+              current: formatCurrency(activeReportCurrent.averageTicket),
+              previous: formatCurrency(activeReportPrevious?.averageTicket ?? 0)
+            },
+            {
+              id: "online",
+              label: "Entrada online aprovada",
+              current: formatCurrency(activeReportCurrent.approvedOnlineRevenue),
+              previous: formatCurrency(activeReportPrevious?.approvedOnlineRevenue ?? 0)
+            }
+          ]
+        },
+        {
+          id: "queue",
+          title: "Fila operacional",
+          caption: `${reportOpenBookings} em aberto`,
+          miniCards: [
+            { id: "pending", label: "Pendentes", value: pendingCount },
+            { id: "awaiting", label: "Aguardando pagamento", value: awaitingPaymentCount },
+            { id: "confirmed", label: "Confirmados", value: confirmedCount },
+            { id: "week-open", label: "Abertos na semana", value: reportsInsightWeekCapacitySummary.openBookings }
+          ]
+        },
+        {
+          id: "feed",
+          title: "Movimentos recentes",
+          actions: [{ label: "Abrir agenda", onClick: () => navigateTo("agenda") }],
+          feed: recentRevenueFeed,
+          emptyMessage: "Nenhum movimento de receita encontrado para este recorte."
+        },
+        {
+          id: "return",
+          title: "Retorno resumido",
+          actions: [{ label: "Abrir clientes", onClick: () => navigateTo("clientes") }],
+          miniCards: [
+            { id: "returning", label: "Com retorno", value: activeClientRecurrence.returningCount },
+            { id: "inactive", label: "Sem retorno", value: activeClientRecurrence.inactiveCount },
+            { id: "never", label: "Nunca concluiu", value: activeClientRecurrence.neverCompletedCount },
+            { id: "recurrence", label: "Recorrencia media", value: recurrenceAverageLabel }
+          ]
+        }
+      ]
+    };
+
+    if (reportsWorkspaceTab === "services") {
+      workspacePane = {
+        title: "Receita e servicos",
+        description: "Mix comercial do periodo para entender volume, receita, clientes unicos e ticket por servico.",
+        panels: [
+          {
+            id: "services-kpis",
+            title: "Resumo comercial",
+            miniCards: [
+              { id: "groups", label: "Grupos no recorte", value: activeReportServiceSummaries.length },
+              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(reportRevenueSummary.recognizedRevenue) },
+              { id: "online", label: "Entrada online", value: formatCurrency(reportRevenueSummary.approvedOnlineRevenue) },
+              { id: "clients", label: "Clientes unicos", value: reportRevenueSummary.uniqueClients }
+            ]
+          }
+        ],
+        tables: [
+          {
+            id: "services-table",
+            columns: [
+              { id: "service", label: "Servico" },
+              { id: "bookings", label: "Bookings" },
+              { id: "completed", label: "Concluidos" },
+              { id: "recognized", label: "Receita" },
+              { id: "online", label: "Entrada online" },
+              { id: "clients", label: "Clientes" },
+              { id: "ticket", label: "Ticket" }
+            ],
+            rows: activeReportServiceSummaries.map((entry) => ({
+              id: entry.id,
+              cells: [
+                entry.label,
+                entry.bookingsCount,
+                entry.completedCount,
+                formatCurrency(entry.recognizedRevenue),
+                formatCurrency(entry.approvedOnlineRevenue),
+                entry.uniqueClients,
+                formatCurrency(entry.averageTicket)
+              ]
+            })),
+            emptyMessage: "Nenhum servico com dados suficientes neste recorte."
+          }
+        ]
+      };
+    }
+
+    if (reportsWorkspaceTab === "team") {
+      workspacePane = {
+        title: "Equipe e produtividade",
+        description: "Leitura do resultado por profissional, separada da agenda operacional do dia.",
+        panels: [
+          {
+            id: "team-kpis",
+            title: "Resumo da equipe",
+            miniCards: [
+              { id: "people", label: "Profissionais no recorte", value: activeReportProfessionalSummaries.length },
+              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(activeReportCurrent.recognizedRevenue) },
+              { id: "completed", label: "Concluidos", value: activeReportCurrent.completedCount },
+              { id: "clients", label: "Clientes unicos", value: activeReportCurrent.uniqueClients }
+            ]
+          }
+        ],
+        tables: [
+          {
+            id: "team-table",
+            columns: [
+              { id: "professional", label: "Profissional" },
+              { id: "bookings", label: "Bookings" },
+              { id: "completed", label: "Concluidos" },
+              { id: "recognized", label: "Receita" },
+              { id: "clients", label: "Clientes" },
+              { id: "ticket", label: "Ticket" },
+              { id: "week", label: "Radar semanal" }
+            ],
+            rows: activeReportProfessionalSummaries.map((entry) => ({
+              id: entry.id,
+              cells: [
+                entry.label,
+                entry.bookingsCount,
+                entry.completedCount,
+                formatCurrency(entry.recognizedRevenue),
+                entry.uniqueClients,
+                formatCurrency(entry.averageTicket),
+                weekProfessionalLookup.get(entry.id)?.totalMinutes
+                  ? formatUtilization(
+                      weekProfessionalLookup.get(entry.id)?.bookedMinutes ?? 0,
+                      weekProfessionalLookup.get(entry.id)?.totalMinutes ?? 0
+                    )
+                  : "n/d"
+              ]
+            })),
+            emptyMessage: "Nenhum profissional com leitura suficiente neste recorte."
+          }
+        ]
+      };
+    }
+
+    if (reportsWorkspaceTab === "retention") {
+      workspacePane = {
+        title: "Retorno e retencao",
+        description: `Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
+        actions: [{ label: "Abrir clientes", onClick: () => navigateTo("clientes") }],
+        panels: [
+          {
+            id: "retention-kpis",
+            title: "Resumo da base",
+            miniCards: [
+              { id: "returning", label: "Com retorno", value: activeClientRecurrence.returningCount },
+              { id: "inactive", label: "Sem retorno", value: activeClientRecurrence.inactiveCount },
+              { id: "never", label: "Nunca concluiu", value: activeClientRecurrence.neverCompletedCount },
+              { id: "recurrence", label: "Recorrencia media", value: recurrenceAverageLabel }
+            ]
+          }
+        ],
+        bucketCards: activeClientRecurrence.returnBuckets.map((bucket) => ({
+          id: bucket.id,
+          label: bucket.label,
+          value: bucket.clientsCount
+        })),
+        tables: [
+          {
+            id: "retention-table",
+            columns: [
+              { id: "client", label: "Cliente" },
+              { id: "origin", label: "Origem" },
+              { id: "last", label: "Ultimo concluido" },
+              { id: "days", label: "Dias sem retorno" },
+              { id: "revenue", label: "Receita" },
+              { id: "recurrence", label: "Recorrencia" }
+            ],
+            rows: activeClientRecurrence.inactiveClients.map((entry) => ({
+              id: entry.clientId,
+              cells: [
+                entry.nome,
+                entry.origem || "n/d",
+                entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "Nunca",
+                entry.daysSinceLastCompleted ?? "n/d",
+                formatCurrency(entry.recognizedRevenue),
+                entry.averageRecurrenceDays === null ? "n/d" : `${Math.round(entry.averageRecurrenceDays)} dias`
+              ]
+            })),
+            emptyMessage: `Nenhum cliente sem retorno identificado em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`
+          }
+        ]
+      };
+    }
+
+    if (reportsWorkspaceTab === "week") {
+      workspacePane = {
+        title: "Radar semanal",
+        description: "Capacidade e ocupacao da semana para redistribuir carga sem abrir a agenda diaria.",
+        actions: [
+          {
+            label: "Abrir agenda",
+            onClick: () => {
+              setAgendaWorkspaceTab("calendar");
+              setAgendaViewMode("week");
+              navigateTo("agenda");
+            }
+          }
+        ],
+        panels: [
+          {
+            id: "week-kpis",
+            title: "Resumo semanal",
+            miniCards: [
+              { id: "capacity", label: "Capacidade total", value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.totalMinutes) },
+              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.bookedMinutes) },
+              { id: "free", label: "Horas livres", value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.freeMinutes) },
+              { id: "open", label: "Em aberto", value: reportsInsightWeekCapacitySummary.openBookings }
+            ]
+          }
+        ],
+        tables: [
+          {
+            id: "week-days",
+            title: "Dia a dia",
+            columns: [
+              { id: "day", label: "Dia" },
+              { id: "bookings", label: "Bookings" },
+              { id: "occupancy", label: "Ocupacao" },
+              { id: "occupied", label: "Horas ocupadas" },
+              { id: "total", label: "Capacidade" },
+              { id: "open", label: "Em aberto" }
+            ],
+            rows: reportsInsightWeekDaySummaries.map((summary) => ({
+              id: summary.date,
+              cells: [
+                formatAgendaDayLabel(summary.date),
+                summary.bookingsCount,
+                summary.totalMinutes > 0 ? formatUtilization(summary.bookedMinutes, summary.totalMinutes) : "Sem capacidade",
+                formatMinutesAsHours(summary.bookedMinutes),
+                formatMinutesAsHours(summary.totalMinutes),
+                summary.openBookings
+              ]
+            })),
+            emptyMessage: "Nenhum dado semanal encontrado."
+          },
+          {
+            id: "week-team",
+            title: "Equipe na semana",
+            columns: [
+              { id: "professional", label: "Profissional" },
+              { id: "bookings", label: "Bookings" },
+              { id: "occupancy", label: "Ocupacao" },
+              { id: "occupied", label: "Horas ocupadas" },
+              { id: "total", label: "Capacidade" },
+              { id: "open", label: "Em aberto" }
+            ],
+            rows: reportsInsightWeekProfessionalSummaries.map((summary) => ({
+              id: summary.professionalId,
+              cells: [
+                summary.professionalName,
+                summary.bookingsCount,
+                summary.totalMinutes > 0 ? formatUtilization(summary.bookedMinutes, summary.totalMinutes) : "Sem capacidade",
+                formatMinutesAsHours(summary.bookedMinutes),
+                formatMinutesAsHours(summary.totalMinutes),
+                summary.openBookings
+              ]
+            })),
+            emptyMessage: "Nenhum profissional publicado para montar o radar semanal."
+          }
+        ]
+      };
+    }
+
+    if (reportsWorkspaceTab === "month") {
+      workspacePane = {
+        title: "Visao mensal",
+        description: "Concentrado do mes para capacidade, sazonalidade e dias que concentraram mais carga.",
+        actions: [
+          {
+            label: "Abrir agenda",
+            onClick: () => {
+              setAgendaWorkspaceTab("calendar");
+              setAgendaViewMode("month");
+              navigateTo("agenda");
+            }
+          }
+        ],
+        panels: [
+          {
+            id: "month-kpis",
+            title: "Resumo do mes",
+            miniCards: [
+              { id: "bookings", label: "Bookings no mes", value: reportsInsightMonthCapacitySummary.bookingsCount },
+              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.bookedMinutes) },
+              { id: "free", label: "Horas livres", value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.freeMinutes) },
+              { id: "open", label: "Em aberto", value: reportsInsightMonthCapacitySummary.openBookings }
+            ]
+          }
+        ],
+        tables: [
+          {
+            id: "month-table",
+            columns: [
+              { id: "day", label: "Dia" },
+              { id: "bookings", label: "Bookings" },
+              { id: "occupancy", label: "Ocupacao" },
+              { id: "open", label: "Em aberto" },
+              { id: "completed", label: "Concluidos" },
+              { id: "load", label: "Carga" }
+            ],
+            rows: reportsInsightMonthHighlights.slice(0, 12).map((cell) => ({
+              id: cell.date,
+              cells: [
+                formatAgendaDayLabel(cell.date),
+                cell.bookingsCount,
+                cell.totalMinutes > 0 ? formatUtilization(cell.bookedMinutes, cell.totalMinutes) : "Sem capacidade",
+                cell.openBookings,
+                cell.completedBookings,
+                cell.totalMinutes > 0
+                  ? `${formatMinutesAsHours(cell.bookedMinutes)} de ${formatMinutesAsHours(cell.totalMinutes)}`
+                  : "Sem disponibilidade"
+              ]
+            })),
+            emptyMessage: `Nenhum movimento encontrado em ${formatAgendaMonthLabel(reportsInsightAnchorDate)}.`
+          }
+        ]
+      };
+    }
+
+    if (reportsWorkspaceTab === "operations") {
+      workspacePane = {
+        title: "Pendencias operacionais",
+        description: "Fila que ainda exige tratamento, separada da leitura gerencial pura.",
+        actions: [
+          { label: "Operacao diaria", onClick: () => navigateTo("operacional") },
+          { label: "Abrir agenda", onClick: () => navigateTo("agenda") }
+        ],
+        panels: [
+          {
+            id: "operations-kpis",
+            title: "Fila do periodo",
+            miniCards: [
+              { id: "pending", label: "Pendentes", value: pendingCount },
+              { id: "awaiting", label: "Aguardando pagamento", value: awaitingPaymentCount },
+              { id: "confirmed", label: "Confirmados", value: confirmedCount },
+              { id: "open", label: "Em aberto", value: reportOpenBookings }
+            ]
+          }
+        ],
+        tables: [
+          {
+            id: "operations-table",
+            columns: [
+              { id: "datetime", label: "Horario" },
+              { id: "client", label: "Cliente" },
+              { id: "service", label: "Servico" },
+              { id: "professional", label: "Profissional" },
+              { id: "status", label: "Status" },
+              { id: "payment", label: "Pagamento" }
+            ],
+            rows: operationalQueue.map((booking) => ({
+              id: booking.id,
+              cells: [
+                formatDateTime(booking.startAt),
+                resolveClientName(booking.clientId, clients),
+                resolveServiceName(booking.serviceId, services),
+                resolveProfessionalName(booking.professionalId, professionals),
+                formatBookingStatus(booking.status),
+                paymentIntentByBookingId.get(booking.id)
+                  ? formatPaymentIntentStatus(paymentIntentByBookingId.get(booking.id)!.status)
+                  : "Sem payment intent"
+              ]
+            })),
+            emptyMessage: "Nenhuma pendencia operacional ativa neste recorte."
+          }
+        ]
+      };
+    }
+
+    return (
+      <ReportsWorkspace
+        activeMeta={workspaceMeta}
+        activeTab={reportsWorkspaceTab}
+        contextItems={workspaceContextItems}
+        error={reportsReadModelError}
+        filters={workspaceFilters}
+        isContextVisible={isReportsContextVisible}
+        isLoading={isLoadingReportsReadModel}
+        isMenuOpen={isReportsMenuOpen}
+        menuGroups={workspaceGroups}
+        onActivateTab={setReportsWorkspaceTab}
+        onCloseTab={closeReportsWorkspaceTab}
+        onOpenTab={openReportsWorkspaceTab}
+        onToggleContext={() => setIsReportsContextVisible((current) => !current)}
+        onToggleMenu={() => setIsReportsMenuOpen((current) => !current)}
+        openTabs={reportsOpenTabs.filter((tab) => tab !== "agenda")}
+        pane={workspacePane}
+      />
+    );
 
     return (
       <DocumentViewLayout
