@@ -20,8 +20,10 @@ import {
   reportingRangeValues,
   reportingReturnWindowValues,
   servicePaymentPolicySchema,
+  serviceStatusValues,
   setAvailabilityRulesSchema,
   tenantPaymentSettingsSchema,
+  professionalStatusValues,
   type Booking,
   type CashEntry,
   type CashEntryKind,
@@ -1129,7 +1131,7 @@ function parseServicePatch(payload: Record<string, unknown>): ServicePatchInput 
     patch.paymentPolicy = servicePaymentPolicySchema.parse(payload.paymentPolicy);
   }
   if ("status" in payload) {
-    patch.status = readRequiredString(payload.status, "status");
+    patch.status = readServiceStatus(payload.status, "status");
   }
 
   return requireNonEmptyPatch(patch, "service");
@@ -1142,7 +1144,7 @@ function parseProfessionalPatch(payload: Record<string, unknown>): ProfessionalP
     patch.nome = readRequiredString(payload.nome, "nome");
   }
   if ("status" in payload) {
-    patch.status = readRequiredString(payload.status, "status");
+    patch.status = readProfessionalStatus(payload.status, "status");
   }
   if ("especialidades" in payload) {
     patch.especialidades = readStringArray(payload.especialidades, "especialidades");
@@ -1209,6 +1211,22 @@ function readRequiredString(value: unknown, fieldName: string): string {
   }
 
   return value.trim();
+}
+
+function readServiceStatus(value: unknown, fieldName: string): ServicePatchInput["status"] {
+  const candidate = readRequiredString(value, fieldName).toLowerCase();
+  if (!serviceStatusValues.includes(candidate as (typeof serviceStatusValues)[number])) {
+    throw new ApiHttpError(400, "invalid_body", `Field '${fieldName}' must be a known service status.`);
+  }
+  return candidate as ServicePatchInput["status"];
+}
+
+function readProfessionalStatus(value: unknown, fieldName: string): ProfessionalPatchInput["status"] {
+  const candidate = readRequiredString(value, fieldName).toLowerCase();
+  if (!professionalStatusValues.includes(candidate as (typeof professionalStatusValues)[number])) {
+    throw new ApiHttpError(400, "invalid_body", `Field '${fieldName}' must be a known professional status.`);
+  }
+  return candidate as ProfessionalPatchInput["status"];
 }
 
 function readPositiveInteger(value: unknown, fieldName: string): number {

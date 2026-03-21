@@ -22,8 +22,10 @@ import type {
   TenantPaymentSettings,
   CreateServiceCommand,
   CreateTenantCommand,
+  ProfessionalStatus,
   Professional,
   Service,
+  ServiceStatus,
   Tenant,
   TenantBranding
 } from "@agendaai/contracts";
@@ -75,7 +77,7 @@ export interface ServicePatchInput {
   precoBase?: number;
   exigeSinal?: boolean;
   paymentPolicy?: ServicePaymentPolicy;
-  status?: string;
+  status?: ServiceStatus;
 }
 
 export interface ClientPatchInput {
@@ -89,7 +91,7 @@ export interface ClientPatchInput {
 export interface ProfessionalPatchInput {
   codigo?: string;
   nome?: string;
-  status?: string;
+  status?: ProfessionalStatus;
   especialidades?: string[];
 }
 

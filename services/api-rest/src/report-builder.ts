@@ -69,6 +69,42 @@ interface AvailabilityAnalyticsRecord {
   readonly monthKey: string;
 }
 
+interface ServiceAnalyticsRecord {
+  readonly service: Service;
+  readonly linkedProfessionals: readonly Professional[];
+  readonly bookingsCount: number;
+  readonly completedCount: number;
+  readonly recognizedRevenue: number;
+}
+
+interface ProfessionalAnalyticsRecord {
+  readonly professional: Professional;
+  readonly linkedServices: readonly Service[];
+  readonly bookingsCount: number;
+  readonly completedCount: number;
+  readonly recognizedRevenue: number;
+  readonly weeklyCapacityMinutes: number;
+}
+
+interface PaymentAnalyticsRecord {
+  readonly paymentIntent: PaymentIntent;
+  readonly booking?: Booking;
+  readonly client?: Client;
+  readonly service?: Service;
+  readonly professional?: Professional;
+  readonly bookingDate: string;
+  readonly monthKey: string;
+}
+
+const reportBaseOptions = [
+  { id: "bookings", label: "Atendimentos", description: "Agenda, status, cliente, servico e faturamento derivado." },
+  { id: "clients", label: "Clientes", description: "Base de relacionamento, retorno e recorrencia." },
+  { id: "services", label: "Cadastro de servicos", description: "Catalogo comercial, precos, duracao e cobranca." },
+  { id: "professionals", label: "Cadastro de profissionais", description: "Equipe, status, servicos vinculados e carga entregue." },
+  { id: "availability", label: "Agenda e capacidade", description: "Disponibilidade publicada, ocupacao e horas livres." },
+  { id: "payments", label: "Pagamentos", description: "Payment intents e cobranca ligada aos atendimentos." }
+] as const;
+
 const reportFieldCatalog: readonly ReportCatalogField[] = [
   { id: "recognized_revenue", label: "Receita reconhecida", type: "number", bases: ["bookings", "clients"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "approved_online_revenue", label: "Entrada online aprovada", type: "number", bases: ["bookings"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
@@ -84,10 +120,33 @@ const reportFieldCatalog: readonly ReportCatalogField[] = [
   { id: "completed_bookings", label: "Concluidos", type: "number", bases: ["clients"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "days_since_last_completed", label: "Dias sem retorno", type: "number", bases: ["clients"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["avg", "max", "min"] },
   { id: "average_recurrence_days", label: "Recorrencia media", type: "number", bases: ["clients"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["avg", "max", "min"] },
+  { id: "service_code", label: "Codigo do servico", type: "text", bases: ["services"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "between"], aggregations: ["count"] },
+  { id: "service_name", label: "Descricao do servico", type: "text", bases: ["services"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "between"], aggregations: ["count"] },
+  { id: "service_status", label: "Situacao do cadastro", type: "enum", bases: ["services"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in"], aggregations: ["count"] },
+  { id: "service_price", label: "Preco base", type: "number", bases: ["services"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "service_duration", label: "Duracao base", type: "number", bases: ["services"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "service_collection_mode", label: "Forma de cobranca", type: "enum", bases: ["services"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in"], aggregations: ["count"] },
+  { id: "service_requires_signal", label: "Pede sinal", type: "enum", bases: ["services"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals"], aggregations: ["count"] },
+  { id: "linked_professionals_count", label: "Profissionais vinculados", type: "number", bases: ["services"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "service_bookings_count", label: "Bookings do servico", type: "number", bases: ["services"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "professional_code", label: "Codigo do profissional", type: "text", bases: ["professionals"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "between"], aggregations: ["count"] },
+  { id: "professional_name", label: "Nome do profissional", type: "text", bases: ["professionals"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "between"], aggregations: ["count"] },
+  { id: "professional_status", label: "Situacao do cadastro", type: "enum", bases: ["professionals"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in"], aggregations: ["count"] },
+  { id: "linked_services_count", label: "Servicos vinculados", type: "number", bases: ["professionals"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "professional_bookings_count", label: "Bookings do profissional", type: "number", bases: ["professionals"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "weekly_capacity_minutes", label: "Capacidade semanal", type: "number", bases: ["professionals"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "capacity_minutes", label: "Capacidade", type: "number", bases: ["availability"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "booked_minutes", label: "Horas ocupadas", type: "number", bases: ["availability"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
   { id: "free_minutes", label: "Horas livres", type: "number", bases: ["availability"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
-  { id: "open_bookings", label: "Em aberto", type: "number", bases: ["availability"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] }
+  { id: "open_bookings", label: "Em aberto", type: "number", bases: ["availability"], filterable: false, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "payment_reference", label: "Codigo do pagamento", type: "text", bases: ["payments"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "contains", "starts_with", "between"], aggregations: ["count"] },
+  { id: "payment_status", label: "Situacao do pagamento", type: "enum", bases: ["payments"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in"], aggregations: ["count"] },
+  { id: "payment_amount", label: "Valor do pagamento", type: "number", bases: ["payments"], filterable: true, groupable: false, sortable: true, operators: ["equals", "gt", "gte", "lt", "lte", "between"], aggregations: ["sum", "avg", "max", "min"] },
+  { id: "payment_date", label: "Data da cobranca", type: "date", bases: ["payments"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "gte", "lte", "between"], aggregations: ["count"] },
+  { id: "payment_month", label: "Mes da cobranca", type: "date", bases: ["payments"], filterable: false, groupable: true, sortable: true, operators: ["equals", "gte", "lte", "between"], aggregations: ["count"] },
+  { id: "payment_service_id", label: "Servico cobrado", type: "lookup", bases: ["payments"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "service" },
+  { id: "payment_professional_id", label: "Profissional ligado", type: "lookup", bases: ["payments"], filterable: true, groupable: true, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "professional" },
+  { id: "payment_client_id", label: "Cliente ligado", type: "lookup", bases: ["payments"], filterable: true, groupable: false, sortable: true, operators: ["equals", "not_equals", "in", "not_in", "contains"], aggregations: ["count", "count_distinct"], lookupKind: "client" }
 ] as const;
 
 const reportGroupByOptions = [
@@ -95,7 +154,15 @@ const reportGroupByOptions = [
   { id: "professional_id", label: "Profissional", bases: ["bookings", "availability"] },
   { id: "booking_date", label: "Dia", bases: ["bookings", "availability"] },
   { id: "month", label: "Mes", bases: ["bookings", "availability"] },
-  { id: "status", label: "Status", bases: ["bookings"] }
+  { id: "status", label: "Status", bases: ["bookings"] },
+  { id: "service_status", label: "Situacao do cadastro", bases: ["services"] },
+  { id: "service_collection_mode", label: "Forma de cobranca", bases: ["services"] },
+  { id: "professional_status", label: "Situacao do cadastro", bases: ["professionals"] },
+  { id: "payment_status", label: "Situacao do pagamento", bases: ["payments"] },
+  { id: "payment_service_id", label: "Servico cobrado", bases: ["payments"] },
+  { id: "payment_professional_id", label: "Profissional ligado", bases: ["payments"] },
+  { id: "payment_date", label: "Dia da cobranca", bases: ["payments"] },
+  { id: "payment_month", label: "Mes da cobranca", bases: ["payments"] }
 ] as const;
 
 const systemDefinitionsSeed = [
@@ -105,12 +172,16 @@ const systemDefinitionsSeed = [
   { code: "RPT-OPERATIONS", name: "Pendencias operacionais", description: "Fila que ainda pede tratamento operacional.", base: "bookings", visualization: "kpi_table", metric: { name: "bookings_abertas", operation: "count", field: "booking_id" }, groupBy: [] },
   { code: "RPT-RETENTION", name: "Retorno e retencao", description: "Clientes com retorno, sem retorno e recorrencia.", base: "clients", visualization: "kpi_table", metric: { name: "clientes", operation: "count_distinct", field: "client_id" }, groupBy: [] },
   { code: "RPT-WEEK", name: "Radar semanal", description: "Capacidade, ocupacao e carga por dia e profissional.", base: "availability", visualization: "time_series", metric: { name: "capacidade", operation: "sum", field: "capacity_minutes" }, groupBy: ["booking_date"] },
-  { code: "RPT-MONTH", name: "Visao mensal", description: "Carga agregada do mes por dia.", base: "availability", visualization: "time_series", metric: { name: "carga_mensal", operation: "sum", field: "booked_minutes" }, groupBy: ["booking_date"] }
+  { code: "RPT-MONTH", name: "Visao mensal", description: "Carga agregada do mes por dia.", base: "availability", visualization: "time_series", metric: { name: "carga_mensal", operation: "sum", field: "booked_minutes" }, groupBy: ["booking_date"] },
+  { code: "RPT-SERVICE-CATALOG", name: "Cadastro de servicos", description: "Lista comercial do catalogo com preco, duracao e forma de cobranca.", base: "services", visualization: "kpi_table", metric: { name: "servicos", operation: "count", field: "service_code" }, groupBy: [] },
+  { code: "RPT-PROFESSIONAL-REGISTRY", name: "Cadastro de profissionais", description: "Equipe cadastrada, situacao e servicos vinculados.", base: "professionals", visualization: "kpi_table", metric: { name: "profissionais", operation: "count", field: "professional_code" }, groupBy: [] },
+  { code: "RPT-PAYMENTS", name: "Pagamentos e cobranca", description: "Cobrancas online e situacao de pagamento por atendimento.", base: "payments", visualization: "kpi_table", metric: { name: "pagamentos", operation: "sum", field: "payment_amount" }, groupBy: [] }
 ] as const;
 
 export function createReportBuilderCatalog(input: CreateReportBuilderCatalogInput): ReportBuilderCatalog {
   return {
     version: contractVersion,
+    baseOptions: reportBaseOptions.map((entry) => ({ ...entry })),
     fields: [...reportFieldCatalog],
     groupByOptions: reportGroupByOptions.map((entry) => ({ ...entry, bases: [...entry.bases] })),
     systemDefinitions: buildSystemReportDefinitions(input.tenantId)
@@ -158,6 +229,15 @@ export function summarizeReportDefinitions(definitions: readonly ReportDefinitio
 }
 
 export function executeReportDefinition(input: ExecuteReportDefinitionInput): ReportExecutionResponse {
+  if (input.definition.base === "services") {
+    return executeServiceDefinition(input);
+  }
+  if (input.definition.base === "professionals") {
+    return executeProfessionalDefinition(input);
+  }
+  if (input.definition.base === "payments") {
+    return executePaymentDefinition(input);
+  }
   if (input.definition.code === "RPT-RETENTION" || input.definition.base === "clients") {
     return executeClientDefinition(input);
   }
@@ -245,6 +325,72 @@ function executeAvailabilityDefinition(
   });
 }
 
+function executeServiceDefinition(input: ExecuteReportDefinitionInput): ReportExecutionResponse {
+  const records = applyServiceFilters(buildServiceRecords(input), input.definition.filters);
+  const activeCount = records.filter((record) => record.service.status === "active").length;
+  const signalCount = records.filter((record) => record.service.exigeSinal).length;
+  const averagePrice = average(records.map((record) => record.service.precoBase)) ?? 0;
+  const grouped = input.definition.groupBy[0]
+    ? groupServiceRecords(records, input.definition.groupBy[0], input.definition.metric)
+    : [];
+
+  return buildExecutionResponse(input.definition, {
+    chips: describeAppliedFilters(input.definition.filters),
+    kpis: [
+      kpi("metric", input.definition.metric.name, formatMetricValue(aggregateServiceMetric(records, input.definition.metric.operation, input.definition.metric.field)), "Leitura principal do cadastro de servicos."),
+      kpi("total", "Servicos cadastrados", records.length, "Itens que entraram no recorte atual."),
+      kpi("active", "Servicos ativos", activeCount, "Servicos prontos para publicar e vender."),
+      kpi("signal", "Com sinal", signalCount, "Servicos que exigem cobranca antecipada."),
+      kpi("average_price", "Preco medio", formatCurrency(averagePrice), "Preco medio do catalogo filtrado.")
+    ],
+    table: grouped.length > 0 ? buildGroupedServiceTable(grouped, input.definition.groupBy[0]) : buildServiceTable(records)
+  });
+}
+
+function executeProfessionalDefinition(input: ExecuteReportDefinitionInput): ReportExecutionResponse {
+  const records = applyProfessionalFilters(buildProfessionalRecords(input), input.definition.filters);
+  const activeCount = records.filter((record) => record.professional.status === "active").length;
+  const totalLinkedServices = records.reduce((total, record) => total + record.linkedServices.length, 0);
+  const totalCapacity = records.reduce((total, record) => total + record.weeklyCapacityMinutes, 0);
+  const grouped = input.definition.groupBy[0]
+    ? groupProfessionalRecords(records, input.definition.groupBy[0], input.definition.metric)
+    : [];
+
+  return buildExecutionResponse(input.definition, {
+    chips: describeAppliedFilters(input.definition.filters),
+    kpis: [
+      kpi("metric", input.definition.metric.name, formatMetricValue(aggregateProfessionalMetric(records, input.definition.metric.operation, input.definition.metric.field)), "Leitura principal do cadastro de profissionais."),
+      kpi("total", "Profissionais cadastrados", records.length, "Equipe no recorte atual."),
+      kpi("active", "Profissionais ativos", activeCount, "Profissionais disponiveis para agenda e booking."),
+      kpi("services", "Servicos vinculados", totalLinkedServices, "Vinculos comerciais e operacionais ativos."),
+      kpi("capacity", "Capacidade semanal", formatMinutesAsHours(totalCapacity), "Soma da disponibilidade semanal publicada.")
+    ],
+    table: grouped.length > 0 ? buildGroupedProfessionalTable(grouped, input.definition.groupBy[0]) : buildProfessionalTable(records)
+  });
+}
+
+function executePaymentDefinition(input: ExecuteReportDefinitionInput): ReportExecutionResponse {
+  const records = applyPaymentFilters(buildPaymentRecords(input), input.definition.filters);
+  const approvedCount = records.filter((record) => isApprovedPaymentIntent(record.paymentIntent.status)).length;
+  const pendingCount = records.filter((record) => ["draft", "pending", "in_process", "authorized"].includes(record.paymentIntent.status)).length;
+  const rejectedCount = records.filter((record) => ["rejected", "cancelled", "expired", "charged_back", "refunded"].includes(record.paymentIntent.status)).length;
+  const grouped = input.definition.groupBy[0]
+    ? groupPaymentRecords(records, input.definition.groupBy[0], input.definition.metric)
+    : [];
+
+  return buildExecutionResponse(input.definition, {
+    chips: describeAppliedFilters(input.definition.filters),
+    kpis: [
+      kpi("metric", input.definition.metric.name, formatMetricValue(aggregatePaymentMetric(records, input.definition.metric.operation, input.definition.metric.field)), "Leitura principal da cobranca ligada aos atendimentos."),
+      kpi("total", "Pagamentos encontrados", records.length, "Payment intents presentes no recorte."),
+      kpi("approved", "Aprovados", approvedCount, "Pagamentos aprovados ou autorizados."),
+      kpi("pending", "Pendentes", pendingCount, "Cobrancas ainda sem conciliacao final."),
+      kpi("rejected", "Nao aprovados", rejectedCount, "Pagamentos rejeitados, cancelados ou expirados.")
+    ],
+    table: grouped.length > 0 ? buildGroupedPaymentTable(grouped, input.definition.groupBy[0]) : buildPaymentTable(records)
+  });
+}
+
 function buildExecutionResponse(
   definition: ReportDefinition,
   payload: {
@@ -303,6 +449,75 @@ function buildClientRecords(input: ExecuteReportDefinitionInput): ClientAnalytic
   });
 }
 
+function buildServiceRecords(input: ExecuteReportDefinitionInput): ServiceAnalyticsRecord[] {
+  return input.services.map((service) => {
+    const linkedProfessionals = input.professionals.filter((professional) =>
+      professional.especialidades.includes(service.id)
+    );
+    const relatedBookings = input.bookings.filter((booking) => booking.serviceId === service.id);
+    const completedBookings = relatedBookings.filter((booking) => booking.status === "concluido");
+    return {
+      service,
+      linkedProfessionals,
+      bookingsCount: relatedBookings.length,
+      completedCount: completedBookings.length,
+      recognizedRevenue: completedBookings.reduce(
+        (total, booking) => total + resolveRecognizedRevenueAmount(booking, input.services, input.cashEntries),
+        0
+      )
+    };
+  });
+}
+
+function buildProfessionalRecords(input: ExecuteReportDefinitionInput): ProfessionalAnalyticsRecord[] {
+  return input.professionals.map((professional) => {
+    const linkedServices = input.services.filter((service) => professional.especialidades.includes(service.id));
+    const relatedBookings = input.bookings.filter((booking) => booking.professionalId === professional.id);
+    const completedBookings = relatedBookings.filter((booking) => booking.status === "concluido");
+    const weeklyCapacityMinutes = input.availabilityRules
+      .filter((rule) => rule.professionalId === professional.id)
+      .reduce((total, rule) => total + calculateRuleDurationMinutes(rule), 0);
+
+    return {
+      professional,
+      linkedServices,
+      bookingsCount: relatedBookings.length,
+      completedCount: completedBookings.length,
+      recognizedRevenue: completedBookings.reduce(
+        (total, booking) => total + resolveRecognizedRevenueAmount(booking, input.services, input.cashEntries),
+        0
+      ),
+      weeklyCapacityMinutes
+    };
+  });
+}
+
+function buildPaymentRecords(input: ExecuteReportDefinitionInput): PaymentAnalyticsRecord[] {
+  return input.paymentIntents.map((paymentIntent) => {
+    const booking = input.bookings.find((entry) => entry.id === paymentIntent.bookingId);
+    const client = booking ? input.clients.find((entry) => entry.id === booking.clientId) : undefined;
+    const service = booking ? input.services.find((entry) => entry.id === booking.serviceId) : undefined;
+    const professional = booking ? input.professionals.find((entry) => entry.id === booking.professionalId) : undefined;
+    const paymentCashEntry = input.cashEntries.find(
+      (entry) =>
+        entry.paymentIntentId === paymentIntent.id &&
+        entry.kind === "online_payment" &&
+        entry.status === "open"
+    );
+    const referenceDate = paymentCashEntry?.occurredAt ?? booking?.startAt ?? new Date().toISOString();
+
+    return {
+      paymentIntent,
+      booking,
+      client,
+      service,
+      professional,
+      bookingDate: extractDatePart(referenceDate),
+      monthKey: extractDatePart(referenceDate).slice(0, 7)
+    };
+  });
+}
+
 function buildAvailabilityRecords(
   input: ExecuteReportDefinitionInput,
   scope: "week" | "month"
@@ -353,6 +568,27 @@ function applyClientFilters(records: readonly ClientAnalyticsRecord[], filters: 
     return [...records];
   }
   return records.filter((record) => evaluateFilterTree(filters, (fieldId) => resolveClientFieldValue(record, fieldId)));
+}
+
+function applyServiceFilters(records: readonly ServiceAnalyticsRecord[], filters: readonly ReportFilterNode[]): ServiceAnalyticsRecord[] {
+  if (filters.length === 0) {
+    return [...records];
+  }
+  return records.filter((record) => evaluateFilterTree(filters, (fieldId) => resolveServiceFieldValue(record, fieldId)));
+}
+
+function applyProfessionalFilters(records: readonly ProfessionalAnalyticsRecord[], filters: readonly ReportFilterNode[]): ProfessionalAnalyticsRecord[] {
+  if (filters.length === 0) {
+    return [...records];
+  }
+  return records.filter((record) => evaluateFilterTree(filters, (fieldId) => resolveProfessionalFieldValue(record, fieldId)));
+}
+
+function applyPaymentFilters(records: readonly PaymentAnalyticsRecord[], filters: readonly ReportFilterNode[]): PaymentAnalyticsRecord[] {
+  if (filters.length === 0) {
+    return [...records];
+  }
+  return records.filter((record) => evaluateFilterTree(filters, (fieldId) => resolvePaymentFieldValue(record, fieldId)));
 }
 
 function evaluateAvailabilityFilters(record: AvailabilityAnalyticsRecord, filters: readonly ReportFilterNode[]): boolean {
@@ -449,6 +685,94 @@ function groupBookingRecords(records: readonly BookingAnalyticsRecord[], groupFi
   })).sort((left, right) => right.metricValue - left.metricValue || left.label.localeCompare(right.label));
 }
 
+function groupServiceRecords(
+  records: readonly ServiceAnalyticsRecord[],
+  groupField: string,
+  metric: ReportDefinition["metric"]
+) {
+  const grouped = new Map<string, { label: string; recordsCount: number; linkedCount: number; bookingsCount: number; metricAccumulator: number[] }>();
+
+  for (const record of records) {
+    const key = String(resolveServiceFieldValue(record, groupField));
+    const label = resolveServiceGroupLabel(record, groupField);
+    const current = grouped.get(key) ?? { label, recordsCount: 0, linkedCount: 0, bookingsCount: 0, metricAccumulator: [] };
+    current.recordsCount += 1;
+    current.linkedCount += record.linkedProfessionals.length;
+    current.bookingsCount += record.bookingsCount;
+    current.metricAccumulator.push(resolveNumericServiceField(record, metric.field));
+    grouped.set(key, current);
+  }
+
+  return [...grouped.entries()]
+    .map(([key, value]) => ({
+      key,
+      label: value.label,
+      recordsCount: value.recordsCount,
+      linkedCount: value.linkedCount,
+      bookingsCount: value.bookingsCount,
+      metricValue: aggregateNumbers(value.metricAccumulator, metric.operation)
+    }))
+    .sort((left, right) => right.metricValue - left.metricValue || left.label.localeCompare(right.label));
+}
+
+function groupProfessionalRecords(
+  records: readonly ProfessionalAnalyticsRecord[],
+  groupField: string,
+  metric: ReportDefinition["metric"]
+) {
+  const grouped = new Map<string, { label: string; recordsCount: number; linkedCount: number; bookingsCount: number; metricAccumulator: number[] }>();
+
+  for (const record of records) {
+    const key = String(resolveProfessionalFieldValue(record, groupField));
+    const label = resolveProfessionalGroupLabel(record, groupField);
+    const current = grouped.get(key) ?? { label, recordsCount: 0, linkedCount: 0, bookingsCount: 0, metricAccumulator: [] };
+    current.recordsCount += 1;
+    current.linkedCount += record.linkedServices.length;
+    current.bookingsCount += record.bookingsCount;
+    current.metricAccumulator.push(resolveNumericProfessionalField(record, metric.field));
+    grouped.set(key, current);
+  }
+
+  return [...grouped.entries()]
+    .map(([key, value]) => ({
+      key,
+      label: value.label,
+      recordsCount: value.recordsCount,
+      linkedCount: value.linkedCount,
+      bookingsCount: value.bookingsCount,
+      metricValue: aggregateNumbers(value.metricAccumulator, metric.operation)
+    }))
+    .sort((left, right) => right.metricValue - left.metricValue || left.label.localeCompare(right.label));
+}
+
+function groupPaymentRecords(
+  records: readonly PaymentAnalyticsRecord[],
+  groupField: string,
+  metric: ReportDefinition["metric"]
+) {
+  const grouped = new Map<string, { label: string; recordsCount: number; amount: number; metricAccumulator: number[] }>();
+
+  for (const record of records) {
+    const key = String(resolvePaymentFieldValue(record, groupField));
+    const label = resolvePaymentGroupLabel(record, groupField);
+    const current = grouped.get(key) ?? { label, recordsCount: 0, amount: 0, metricAccumulator: [] };
+    current.recordsCount += 1;
+    current.amount += record.paymentIntent.amount;
+    current.metricAccumulator.push(resolveNumericPaymentField(record, metric.field));
+    grouped.set(key, current);
+  }
+
+  return [...grouped.entries()]
+    .map(([key, value]) => ({
+      key,
+      label: value.label,
+      recordsCount: value.recordsCount,
+      amount: value.amount,
+      metricValue: aggregateNumbers(value.metricAccumulator, metric.operation)
+    }))
+    .sort((left, right) => right.metricValue - left.metricValue || left.label.localeCompare(right.label));
+}
+
 function buildGroupedBookingTable(grouped: ReturnType<typeof groupBookingRecords>, groupField: string): ReportExecutionTable {
   const labelColumn = groupField === "service_id" ? "Descricao" : groupField === "professional_id" ? "Nome" : resolveGroupFieldLabel(groupField);
   const showCode = groupField === "service_id" || groupField === "professional_id";
@@ -537,6 +861,140 @@ function buildMonthlyCapacityTable(records: readonly AvailabilityAnalyticsRecord
   };
 }
 
+function buildServiceTable(records: readonly ServiceAnalyticsRecord[]): ReportExecutionTable {
+  return {
+    columns: [
+      { id: "code", label: "Codigo" },
+      { id: "description", label: "Descricao" },
+      { id: "status", label: "Situacao" },
+      { id: "price", label: "Preco base" },
+      { id: "duration", label: "Duracao" },
+      { id: "professionals", label: "Profissionais" }
+    ],
+    rows: records.map((record) => ({
+      id: record.service.id,
+      cells: [
+        record.service.codigo,
+        record.service.nome,
+        record.service.status === "active" ? "Ativo" : "Inativo",
+        formatCurrency(record.service.precoBase),
+        `${record.service.duracaoMin} min`,
+        record.linkedProfessionals.length
+      ]
+    })),
+    emptyMessage: "Nenhum servico encontrado no recorte."
+  };
+}
+
+function buildProfessionalTable(records: readonly ProfessionalAnalyticsRecord[]): ReportExecutionTable {
+  return {
+    columns: [
+      { id: "code", label: "Codigo" },
+      { id: "name", label: "Nome" },
+      { id: "status", label: "Situacao" },
+      { id: "services", label: "Servicos" },
+      { id: "capacity", label: "Capacidade semanal" },
+      { id: "bookings", label: "Bookings" }
+    ],
+    rows: records.map((record) => ({
+      id: record.professional.id,
+      cells: [
+        record.professional.codigo,
+        record.professional.nome,
+        record.professional.status === "active" ? "Ativo" : "Inativo",
+        record.linkedServices.length,
+        formatMinutesAsHours(record.weeklyCapacityMinutes),
+        record.bookingsCount
+      ]
+    })),
+    emptyMessage: "Nenhum profissional encontrado no recorte."
+  };
+}
+
+function buildPaymentTable(records: readonly PaymentAnalyticsRecord[]): ReportExecutionTable {
+  return {
+    columns: [
+      { id: "code", label: "Codigo" },
+      { id: "status", label: "Situacao" },
+      { id: "amount", label: "Valor" },
+      { id: "service", label: "Servico" },
+      { id: "professional", label: "Profissional" },
+      { id: "date", label: "Data" }
+    ],
+    rows: records.map((record) => ({
+      id: record.paymentIntent.id,
+      cells: [
+        record.paymentIntent.externalReference,
+        resolvePaymentStatusLabel(record.paymentIntent.status),
+        formatCurrency(record.paymentIntent.amount),
+        record.service?.nome ?? "Sem servico",
+        record.professional?.nome ?? "Sem profissional",
+        formatAgendaDayLabel(record.bookingDate)
+      ]
+    })),
+    emptyMessage: "Nenhum pagamento encontrado no recorte."
+  };
+}
+
+function buildGroupedServiceTable(
+  grouped: ReturnType<typeof groupServiceRecords>,
+  groupField: string
+): ReportExecutionTable {
+  return {
+    columns: [
+      { id: "group", label: resolveGroupFieldLabel(groupField) },
+      { id: "records", label: "Servicos" },
+      { id: "linked", label: "Profissionais" },
+      { id: "bookings", label: "Bookings" },
+      { id: "metric", label: "Metrica" }
+    ],
+    rows: grouped.map((row) => ({
+      id: row.key,
+      cells: [row.label, row.recordsCount, row.linkedCount, row.bookingsCount, formatMetricValue(row.metricValue)]
+    })),
+    emptyMessage: "Nenhum grupo encontrado no recorte atual."
+  };
+}
+
+function buildGroupedProfessionalTable(
+  grouped: ReturnType<typeof groupProfessionalRecords>,
+  groupField: string
+): ReportExecutionTable {
+  return {
+    columns: [
+      { id: "group", label: resolveGroupFieldLabel(groupField) },
+      { id: "records", label: "Profissionais" },
+      { id: "services", label: "Servicos" },
+      { id: "bookings", label: "Bookings" },
+      { id: "metric", label: "Metrica" }
+    ],
+    rows: grouped.map((row) => ({
+      id: row.key,
+      cells: [row.label, row.recordsCount, row.linkedCount, row.bookingsCount, formatMetricValue(row.metricValue)]
+    })),
+    emptyMessage: "Nenhum grupo encontrado no recorte atual."
+  };
+}
+
+function buildGroupedPaymentTable(
+  grouped: ReturnType<typeof groupPaymentRecords>,
+  groupField: string
+): ReportExecutionTable {
+  return {
+    columns: [
+      { id: "group", label: resolveGroupFieldLabel(groupField) },
+      { id: "payments", label: "Pagamentos" },
+      { id: "amount", label: "Valor total" },
+      { id: "metric", label: "Metrica" }
+    ],
+    rows: grouped.map((row) => ({
+      id: row.key,
+      cells: [row.label, row.recordsCount, formatCurrency(row.amount), formatMetricValue(row.metricValue)]
+    })),
+    emptyMessage: "Nenhum grupo encontrado no recorte atual."
+  };
+}
+
 function describeAppliedFilters(filters: readonly ReportFilterNode[]): ReportExecutionChip[] {
   return filters.filter((node): node is ReportFilterConditionNode => node.kind === "condition").map((node) => ({
     id: node.id,
@@ -546,16 +1004,16 @@ function describeAppliedFilters(filters: readonly ReportFilterNode[]): ReportExe
 }
 
 function buildPreviewExpression(definition: ReportDefinition): string {
-  const parts = [`${definition.metric.name} = ${definition.metric.operation}(${resolveFieldLabel(definition.metric.field)})`];
+  const parts = [`Mostrar ${definition.metric.name} usando ${resolveFieldLabel(definition.metric.field)}`];
   const conditions = definition.filters.filter((node): node is ReportFilterConditionNode => node.kind === "condition");
   if (conditions.length > 0) {
-    parts.push(`onde ${conditions.map((node) => `${node.connective ? `${node.connective} ` : ""}${resolveFieldLabel(node.field)} ${node.operator} ${Array.isArray(node.value) ? node.value.join(" e ") : node.value}`).join(" ")}`);
+    parts.push(`com filtros ${conditions.map((node) => `${node.connective ? `${resolveConnectiveLabel(node.connective)} ` : ""}${resolveFieldLabel(node.field)} ${resolveOperatorLabel(node.operator)} ${Array.isArray(node.value) ? node.value.join(" e ") : node.value}`).join(" ")}`);
   }
   if (definition.groupBy.length > 0) {
     parts.push(`agrupado por ${definition.groupBy.map(resolveGroupFieldLabel).join(", ")}`);
   }
   if (definition.orderBy.length > 0) {
-    parts.push(`order by ${definition.orderBy.sort((left, right) => left.priority - right.priority).map((item) => `${resolveFieldLabel(item.field)} ${item.direction}`).join(", ")}`);
+    parts.push(`ordenado por ${definition.orderBy.sort((left, right) => left.priority - right.priority).map((item) => `${resolveFieldLabel(item.field)} ${resolveSortDirectionLabel(item.direction)}`).join(", ")}`);
   }
   return parts.join(" ");
 }
@@ -564,8 +1022,8 @@ function aggregateBookingMetric(records: readonly BookingAnalyticsRecord[], oper
   if (operation === "count") {
     return records.length;
   }
-  if (operation === "count_distinct" && fieldId === "client_id") {
-    return new Set(records.map((record) => record.booking.clientId)).size;
+  if (operation === "count_distinct") {
+    return new Set(records.map((record) => String(resolveBookingFieldValue(record, fieldId)))).size;
   }
   return aggregateNumbers(records.map((record) => resolveNumericBookingField(record, fieldId)), operation);
 }
@@ -574,10 +1032,40 @@ function aggregateClientMetric(records: readonly ClientAnalyticsRecord[], operat
   if (operation === "count") {
     return records.length;
   }
-  if (operation === "count_distinct" && fieldId === "client_id") {
-    return new Set(records.map((record) => record.client.id)).size;
+  if (operation === "count_distinct") {
+    return new Set(records.map((record) => String(resolveClientFieldValue(record, fieldId)))).size;
   }
   return aggregateNumbers(records.map((record) => resolveNumericClientField(record, fieldId)), operation);
+}
+
+function aggregateServiceMetric(records: readonly ServiceAnalyticsRecord[], operation: ReportMetricOperation, fieldId: string): number {
+  if (operation === "count") {
+    return records.length;
+  }
+  if (operation === "count_distinct") {
+    return new Set(records.map((record) => String(resolveServiceFieldValue(record, fieldId)))).size;
+  }
+  return aggregateNumbers(records.map((record) => resolveNumericServiceField(record, fieldId)), operation);
+}
+
+function aggregateProfessionalMetric(records: readonly ProfessionalAnalyticsRecord[], operation: ReportMetricOperation, fieldId: string): number {
+  if (operation === "count") {
+    return records.length;
+  }
+  if (operation === "count_distinct") {
+    return new Set(records.map((record) => String(resolveProfessionalFieldValue(record, fieldId)))).size;
+  }
+  return aggregateNumbers(records.map((record) => resolveNumericProfessionalField(record, fieldId)), operation);
+}
+
+function aggregatePaymentMetric(records: readonly PaymentAnalyticsRecord[], operation: ReportMetricOperation, fieldId: string): number {
+  if (operation === "count") {
+    return records.length;
+  }
+  if (operation === "count_distinct") {
+    return new Set(records.map((record) => String(resolvePaymentFieldValue(record, fieldId)))).size;
+  }
+  return aggregateNumbers(records.map((record) => resolveNumericPaymentField(record, fieldId)), operation);
 }
 
 function resolveGroupingForBooking(record: BookingAnalyticsRecord, groupField: string): { key: string; code: string; label: string } {
@@ -654,12 +1142,59 @@ function resolveAvailabilityFieldValue(record: AvailabilityAnalyticsRecord, fiel
   return "";
 }
 
+function resolveServiceFieldValue(record: ServiceAnalyticsRecord, fieldId: string): string | number | boolean {
+  if (fieldId === "service_code") return record.service.codigo;
+  if (fieldId === "service_name") return record.service.nome;
+  if (fieldId === "service_status") return record.service.status;
+  if (fieldId === "service_price") return record.service.precoBase;
+  if (fieldId === "service_duration") return record.service.duracaoMin;
+  if (fieldId === "service_collection_mode") return record.service.paymentPolicy.collectionMode;
+  if (fieldId === "service_requires_signal") return record.service.exigeSinal ? "Sim" : "Nao";
+  if (fieldId === "linked_professionals_count") return record.linkedProfessionals.length;
+  if (fieldId === "service_bookings_count") return record.bookingsCount;
+  return "";
+}
+
+function resolveProfessionalFieldValue(record: ProfessionalAnalyticsRecord, fieldId: string): string | number | boolean {
+  if (fieldId === "professional_code") return record.professional.codigo;
+  if (fieldId === "professional_name") return record.professional.nome;
+  if (fieldId === "professional_status") return record.professional.status;
+  if (fieldId === "linked_services_count") return record.linkedServices.length;
+  if (fieldId === "professional_bookings_count") return record.bookingsCount;
+  if (fieldId === "weekly_capacity_minutes") return record.weeklyCapacityMinutes;
+  return "";
+}
+
+function resolvePaymentFieldValue(record: PaymentAnalyticsRecord, fieldId: string): string | number | boolean {
+  if (fieldId === "payment_reference") return record.paymentIntent.externalReference;
+  if (fieldId === "payment_status") return record.paymentIntent.status;
+  if (fieldId === "payment_amount") return record.paymentIntent.amount;
+  if (fieldId === "payment_date") return record.bookingDate;
+  if (fieldId === "payment_month") return record.monthKey;
+  if (fieldId === "payment_service_id") return record.service?.id ?? "";
+  if (fieldId === "payment_professional_id") return record.professional?.id ?? "";
+  if (fieldId === "payment_client_id") return record.client?.id ?? "";
+  return "";
+}
+
 function resolveNumericBookingField(record: BookingAnalyticsRecord, fieldId: string): number {
   return Number(resolveBookingFieldValue(record, fieldId) || 0);
 }
 
 function resolveNumericClientField(record: ClientAnalyticsRecord, fieldId: string): number {
   return Number(resolveClientFieldValue(record, fieldId) || 0);
+}
+
+function resolveNumericServiceField(record: ServiceAnalyticsRecord, fieldId: string): number {
+  return Number(resolveServiceFieldValue(record, fieldId) || 0);
+}
+
+function resolveNumericProfessionalField(record: ProfessionalAnalyticsRecord, fieldId: string): number {
+  return Number(resolveProfessionalFieldValue(record, fieldId) || 0);
+}
+
+function resolveNumericPaymentField(record: PaymentAnalyticsRecord, fieldId: string): number {
+  return Number(resolvePaymentFieldValue(record, fieldId) || 0);
 }
 
 function defaultSystemFilters(code: string): ReportFilterNode[] {
@@ -686,6 +1221,68 @@ function resolveFieldLabel(fieldId: string): string {
 
 function resolveGroupFieldLabel(fieldId: string): string {
   return reportGroupByOptions.find((entry) => entry.id === fieldId)?.label ?? fieldId;
+}
+
+function resolveConnectiveLabel(connective: "AND" | "OR"): string {
+  return connective === "AND" ? "e" : "ou";
+}
+
+function resolveOperatorLabel(operator: ReportFilterConditionNode["operator"]): string {
+  if (operator === "equals") return "igual a";
+  if (operator === "not_equals") return "diferente de";
+  if (operator === "gt") return "maior que";
+  if (operator === "gte") return "maior ou igual a";
+  if (operator === "lt") return "menor que";
+  if (operator === "lte") return "menor ou igual a";
+  if (operator === "between") return "entre";
+  if (operator === "in") return "em";
+  if (operator === "not_in") return "fora de";
+  if (operator === "contains") return "contendo";
+  if (operator === "starts_with") return "comecando por";
+  return operator;
+}
+
+function resolveSortDirectionLabel(direction: string): string {
+  if (direction === "desc" || direction === "largest_first" || direction === "newest_first" || direction === "za") {
+    return "decrescente";
+  }
+  return "crescente";
+}
+
+function resolveServiceGroupLabel(record: ServiceAnalyticsRecord, fieldId: string): string {
+  if (fieldId === "service_status") {
+    return record.service.status === "active" ? "Ativo" : "Inativo";
+  }
+  if (fieldId === "service_collection_mode") {
+    return resolveCollectionModeLabel(record.service.paymentPolicy.collectionMode);
+  }
+  return String(resolveServiceFieldValue(record, fieldId) || "Sem valor");
+}
+
+function resolveProfessionalGroupLabel(record: ProfessionalAnalyticsRecord, fieldId: string): string {
+  if (fieldId === "professional_status") {
+    return record.professional.status === "active" ? "Ativo" : "Inativo";
+  }
+  return String(resolveProfessionalFieldValue(record, fieldId) || "Sem valor");
+}
+
+function resolvePaymentGroupLabel(record: PaymentAnalyticsRecord, fieldId: string): string {
+  if (fieldId === "payment_status") {
+    return resolvePaymentStatusLabel(record.paymentIntent.status);
+  }
+  if (fieldId === "payment_service_id") {
+    return record.service?.nome ?? "Sem servico";
+  }
+  if (fieldId === "payment_professional_id") {
+    return record.professional?.nome ?? "Sem profissional";
+  }
+  if (fieldId === "payment_date") {
+    return formatAgendaDayLabel(record.bookingDate);
+  }
+  if (fieldId === "payment_month") {
+    return formatAgendaMonthLabel(`${record.monthKey}-01`);
+  }
+  return String(resolvePaymentFieldValue(record, fieldId) || "Sem valor");
 }
 
 function aggregateNumbers(values: readonly number[], operation: ReportMetricOperation): number {
@@ -814,6 +1411,26 @@ function formatCurrency(value: number): string {
 
 function formatMetricValue(value: number): string | number {
   return Number.isInteger(value) ? value : Number(value.toFixed(2));
+}
+
+function resolveCollectionModeLabel(value: Service["paymentPolicy"]["collectionMode"]): string {
+  if (value === "none") return "Reserva imediata";
+  if (value === "deposit") return "Sinal antecipado";
+  return "Pagamento integral";
+}
+
+function resolvePaymentStatusLabel(value: PaymentIntent["status"]): string {
+  if (value === "approved") return "Aprovado";
+  if (value === "authorized") return "Autorizado";
+  if (value === "pending") return "Pendente";
+  if (value === "in_process") return "Em analise";
+  if (value === "rejected") return "Rejeitado";
+  if (value === "cancelled") return "Cancelado";
+  if (value === "expired") return "Expirado";
+  if (value === "charged_back") return "Chargeback";
+  if (value === "refunded") return "Estornado";
+  if (value === "in_mediation") return "Em mediacao";
+  return "Rascunho";
 }
 
 function average(values: readonly number[]): number | null {

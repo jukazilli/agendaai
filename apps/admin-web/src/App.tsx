@@ -42,6 +42,8 @@ import {
   paymentCollectionModeValues,
   paymentMethodValues,
   paymentProviderStatusValues,
+  professionalStatusValues,
+  serviceStatusValues,
   type AdminReportsReadModel,
   type AvailabilityRule,
   type Booking,
@@ -55,6 +57,8 @@ import {
   type ReportingGroupSummary,
   type ReportingMetricSummary,
   type Service,
+  type ProfessionalStatus,
+  type ServiceStatus,
   type TenantPaymentSettings
 } from "@agendaai/contracts";
 
@@ -182,7 +186,7 @@ interface ServiceFormState {
   readonly nome: string;
   readonly duracaoMin: string;
   readonly precoBase: string;
-  readonly status: string;
+  readonly status: ServiceStatus;
   readonly collectionMode: PaymentCollectionMode;
   readonly checkoutMode: PaymentCheckoutMode;
   readonly chargeType: PaymentChargeType;
@@ -193,7 +197,7 @@ interface ServiceFormState {
 
 interface ProfessionalFormState {
   readonly nome: string;
-  readonly status: string;
+  readonly status: ProfessionalStatus;
   readonly especialidades: string[];
 }
 
@@ -292,7 +296,10 @@ const reportBuilderMenuMeta = {
   "RPT-OPERATIONS": { group: "Operacao", label: "Pendencias operacionais", description: "Fila que ainda pede tratamento operacional." },
   "RPT-RETENTION": { group: "Clientes", label: "Retorno e retencao", description: "Retorno, recorrencia e inatividade da base." },
   "RPT-WEEK": { group: "Capacidade", label: "Radar semanal", description: "Carga da semana para redistribuir operacao." },
-  "RPT-MONTH": { group: "Capacidade", label: "Visao mensal", description: "Leitura consolidada do mes por dia." }
+  "RPT-MONTH": { group: "Capacidade", label: "Visao mensal", description: "Leitura consolidada do mes por dia." },
+  "RPT-SERVICE-CATALOG": { group: "Cadastros", label: "Cadastro de servicos", description: "Catalogo comercial, preco, duracao e cobranca." },
+  "RPT-PROFESSIONAL-REGISTRY": { group: "Cadastros", label: "Cadastro de profissionais", description: "Equipe cadastrada, situacao e servicos vinculados." },
+  "RPT-PAYMENTS": { group: "Financeiro", label: "Pagamentos e cobranca", description: "Cobrancas online ligadas aos atendimentos." }
 } as const satisfies Record<string, { group: string; label: string; description: string }>;
 
 interface BookingSummary {
@@ -2150,7 +2157,7 @@ export function App() {
         isEditingProfessional ?
           await updateProfessional(apiBaseUrl, sessionToken, selectedProfessionalId, {
             nome: professionalForm.nome.trim(),
-            status: professionalForm.status.trim(),
+            status: professionalForm.status,
             especialidades: [...professionalForm.especialidades]
           })
         : await createProfessional(apiBaseUrl, sessionToken, {
@@ -3348,7 +3355,7 @@ export function App() {
                       <span>{formatCurrency(service.precoBase)}</span>
                       <span>{collectionLabel}</span>
                       <span className={`status-pill is-${service.status === "active" ? "success" : "warning"}`}>
-                        {service.status}
+                        {formatServiceStatus(service.status)}
                       </span>
                     </div>
                   </button>
@@ -3377,7 +3384,7 @@ export function App() {
             <div className="catalog-record-preview-grid">
               <div className="dashboard-mini-card">
                 <strong>Status</strong>
-                <span>{selectedService.status}</span>
+                <span>{formatServiceStatus(selectedService.status)}</span>
               </div>
               <div className="dashboard-mini-card">
                 <strong>Duracao</strong>
@@ -3465,14 +3472,18 @@ export function App() {
                 </label>
                 <label className="field">
                   <span>Status</span>
-                  <input
-                    required
-                    type="text"
+                  <select
                     value={serviceForm.status}
                     onChange={(event) =>
-                      setServiceForm({ ...serviceForm, status: event.target.value })
+                      setServiceForm({ ...serviceForm, status: event.target.value as ServiceStatus })
                     }
-                  />
+                  >
+                    {serviceStatusValues.map((status) => (
+                      <option key={status} value={status}>
+                        {formatServiceStatus(status)}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label className="field">
                   <span>Cobranca</span>
@@ -3716,14 +3727,21 @@ export function App() {
                 ) : (
                   <label className="field">
                     <span>Status</span>
-                    <input
-                      required
-                      type="text"
+                    <select
                       value={professionalForm.status}
                       onChange={(event) =>
-                        setProfessionalForm({ ...professionalForm, status: event.target.value })
+                        setProfessionalForm({
+                          ...professionalForm,
+                          status: event.target.value as ProfessionalStatus
+                        })
                       }
-                    />
+                    >
+                      {professionalStatusValues.map((status) => (
+                        <option key={status} value={status}>
+                          {formatProfessionalStatus(status)}
+                        </option>
+                      ))}
+                    </select>
                   </label>
                 )}
               </div>
@@ -7319,7 +7337,7 @@ function buildServicePayload(form: ServiceFormState): {
   precoBase: number;
   exigeSinal: boolean;
   paymentPolicy: Service["paymentPolicy"];
-  status: string;
+  status: ServiceStatus;
 } {
   const precoBase = parseRequiredNumber(form.precoBase, "precoBase");
   const percentage =
@@ -7334,7 +7352,7 @@ function buildServicePayload(form: ServiceFormState): {
     duracaoMin: parseRequiredInteger(form.duracaoMin, "duracaoMin"),
     precoBase,
     exigeSinal: form.collectionMode !== "none",
-    status: form.status.trim(),
+    status: form.status,
     paymentPolicy: {
       ...defaultServicePaymentPolicy,
       collectionMode: form.collectionMode,
@@ -8597,6 +8615,22 @@ function resolveProfessionalStatusTone(status: string): string {
   }
 
   return "neutral";
+}
+
+function formatServiceStatus(status: string): string {
+  const normalized = status.trim().toLowerCase();
+
+  if (normalized === "active" || normalized === "ativo") {
+    return "Ativo";
+  }
+  if (normalized === "inactive" || normalized === "inativo") {
+    return "Inativo";
+  }
+  if (!status.trim()) {
+    return "Sem status";
+  }
+
+  return `${status.trim().slice(0, 1).toUpperCase()}${status.trim().slice(1)}`;
 }
 
 function formatProfessionalStatus(status: string): string {

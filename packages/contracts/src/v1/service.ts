@@ -11,7 +11,8 @@ import {
 } from "./shared";
 import { servicePaymentPolicySchema } from "./payment";
 
-export const serviceStatusSchema = nonEmptyStringSchema;
+export const serviceStatusValues = ["active", "inactive"] as const;
+export const serviceStatusSchema = z.enum(serviceStatusValues);
 
 export const serviceSchema = contractEnvelopeSchema.extend({
   id: entityIdSchema,
@@ -37,3 +38,4 @@ export const createServiceSchema = contractEnvelopeSchema.extend({
 
 export type Service = z.infer<typeof serviceSchema>;
 export type CreateServiceCommand = z.infer<typeof createServiceSchema>;
+export type ServiceStatus = z.infer<typeof serviceStatusSchema>;

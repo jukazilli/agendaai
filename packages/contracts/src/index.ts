@@ -62,8 +62,8 @@ export type {
 export { clientContactInputSchema, clientSchema } from "./v1/client";
 export type { Client, ClientContactInput } from "./v1/client";
 
-export { createServiceSchema, serviceSchema, serviceStatusSchema } from "./v1/service";
-export type { CreateServiceCommand, Service } from "./v1/service";
+export { createServiceSchema, serviceSchema, serviceStatusSchema, serviceStatusValues } from "./v1/service";
+export type { CreateServiceCommand, Service, ServiceStatus } from "./v1/service";
 
 export {
   createPaymentIntentCommandSchema,
@@ -102,9 +102,10 @@ export {
   createProfessionalSchema,
   professionalSchema,
   professionalStatusSchema,
+  professionalStatusValues,
   specialtyIdsSchema
 } from "./v1/professional";
-export type { CreateProfessionalCommand, Professional } from "./v1/professional";
+export type { CreateProfessionalCommand, Professional, ProfessionalStatus } from "./v1/professional";
 
 export {
   availabilityRangeSchema,
@@ -172,6 +173,7 @@ export type {
 
 export {
   reportBuilderBaseSchema,
+  reportBuilderBaseOptionSchema,
   reportBuilderBaseValues,
   reportBuilderCatalogSchema,
   reportCatalogFieldSchema,
@@ -206,6 +208,7 @@ export {
 } from "./v1/report-builder";
 export type {
   ReportBuilderBase,
+  ReportBuilderBaseOption,
   ReportBuilderCatalog,
   ReportCatalogField,
   ReportDefinition,

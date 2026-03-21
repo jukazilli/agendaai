@@ -12,7 +12,14 @@ import {
 export const reportDefinitionSourceValues = ["system", "saved"] as const;
 export const reportDefinitionSourceSchema = z.enum(reportDefinitionSourceValues);
 
-export const reportBuilderBaseValues = ["bookings", "clients", "availability", "payments"] as const;
+export const reportBuilderBaseValues = [
+  "bookings",
+  "clients",
+  "services",
+  "professionals",
+  "availability",
+  "payments"
+] as const;
 export const reportBuilderBaseSchema = z.enum(reportBuilderBaseValues);
 
 export const reportVisualizationValues = ["kpi", "kpi_table", "time_series", "ranking"] as const;
@@ -166,7 +173,14 @@ export const reportCatalogFieldSchema = z.object({
   lookupKind: reportLookupKindSchema.optional()
 });
 
+export const reportBuilderBaseOptionSchema = z.object({
+  id: reportBuilderBaseSchema,
+  label: nonEmptyStringSchema,
+  description: optionalTrimmedStringSchema
+});
+
 export const reportBuilderCatalogSchema = contractEnvelopeSchema.extend({
+  baseOptions: z.array(reportBuilderBaseOptionSchema),
   fields: z.array(reportCatalogFieldSchema),
   groupByOptions: z.array(
     z.object({
@@ -222,6 +236,7 @@ export const reportExecutionResponseSchema = contractEnvelopeSchema.extend({
 
 export type ReportDefinitionSource = z.infer<typeof reportDefinitionSourceSchema>;
 export type ReportBuilderBase = z.infer<typeof reportBuilderBaseSchema>;
+export type ReportBuilderBaseOption = z.infer<typeof reportBuilderBaseOptionSchema>;
 export type ReportVisualization = z.infer<typeof reportVisualizationSchema>;
 export type ReportMetricOperation = z.infer<typeof reportMetricOperationSchema>;
 export type ReportFieldType = z.infer<typeof reportFieldTypeSchema>;

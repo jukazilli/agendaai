@@ -72,7 +72,7 @@ interface ReportsBuilderWorkspaceProps {
   readonly onSaveTab: (tabId: string, name: string, description: string) => void;
 }
 
-type LookupKind = "service" | "professional" | "client";
+type LookupKind = "base" | "service" | "professional" | "client";
 
 interface LookupState {
   readonly kind: LookupKind;
@@ -120,6 +120,15 @@ const sortDirectionOptions: ReadonlyArray<ReportSortDirection> = [
   "az",
   "za"
 ];
+
+const fallbackBaseOptions = [
+  { id: "bookings", label: "Atendimentos", description: "Agenda, cliente, servico e resultado financeiro." },
+  { id: "clients", label: "Clientes", description: "Relacionamento, retorno e recorrencia." },
+  { id: "services", label: "Cadastro de servicos", description: "Catalogo comercial, preco, duracao e cobranca." },
+  { id: "professionals", label: "Cadastro de profissionais", description: "Equipe, situacao e servicos vinculados." },
+  { id: "availability", label: "Agenda e capacidade", description: "Capacidade, ocupacao e horas livres." },
+  { id: "payments", label: "Pagamentos", description: "Cobranca ligada aos atendimentos." }
+] as const;
 
 export function ReportsBuilderWorkspace({
   menuGroups,
@@ -197,14 +206,32 @@ export function ReportsBuilderWorkspace({
       ) ?? null
     : null;
 
+  const baseLookupRows = useMemo(
+    () =>
+      (catalog?.baseOptions?.length ? catalog.baseOptions : fallbackBaseOptions).map((option) => ({
+        id: option.id,
+        value: option.id,
+        code: option.id,
+        primary: option.label,
+        secondary: option.description ?? "",
+        searchText: `${option.id} ${option.label} ${option.description ?? ""}`
+      })),
+    [catalog]
+  );
+
   const activeLookupRows = useMemo(() => {
     if (!lookupState) {
       return [];
     }
-    const rows = lookupRows[lookupState.kind];
+    const rows = lookupState.kind === "base" ? baseLookupRows : lookupRows[lookupState.kind];
     const query = lookupQuery.trim().toLowerCase();
     return query ? rows.filter((row) => row.searchText.toLowerCase().includes(query)) : rows;
-  }, [lookupQuery, lookupRows, lookupState]);
+  }, [baseLookupRows, lookupQuery, lookupRows, lookupState]);
+
+  const modelOptions = useMemo(
+    () => [...(catalog?.systemDefinitions ?? []), ...savedModels],
+    [catalog, savedModels]
+  );
 
   const payloadPreview = activeDefinition ? JSON.stringify(activeDefinition, null, 2) : "";
   const canAddLookup =
@@ -299,6 +326,31 @@ export function ReportsBuilderWorkspace({
   }
 
   function handleLookupSelect(value: string): void {
+    if (lookupState?.kind === "base" && activeDefinition && catalog) {
+      const nextBase = value as ReportDefinition["base"];
+      const nextMetricField =
+        catalog.fields.find((field) => field.bases.includes(nextBase))?.id ??
+        activeDefinition.metric.field;
+      onUpdateDefinition(activeTabId, {
+        ...activeDefinition,
+        base: nextBase,
+        metric: {
+          ...activeDefinition.metric,
+          field: nextMetricField
+        },
+        groupBy: [],
+        filters: [],
+        orderBy: activeDefinition.orderBy.map((entry, index) => ({
+          ...entry,
+          field: nextMetricField,
+          priority: index + 1
+        }))
+      });
+      setLookupState(null);
+      setLookupQuery("");
+      return;
+    }
+
     setFilterEditor((current) => ({
       ...current,
       valuePrimary: value
@@ -330,8 +382,8 @@ export function ReportsBuilderWorkspace({
       <header className="reports-builder-topbar">
         <div className="reports-builder-heading">
           <span className="eyebrow">Relatorios</span>
-          <h1>Builder de relatorios</h1>
-          <p>Monte, execute e salve definicoes reutilizaveis sem misturar filtros globais com a leitura do resultado.</p>
+          <h1>Relatorios personalizados</h1>
+          <p>Monte, execute e salve modelos reutilizaveis sem misturar a configuracao com a leitura do resultado.</p>
         </div>
         <div className="reports-builder-actions">
           <button
@@ -445,8 +497,8 @@ export function ReportsBuilderWorkspace({
         <section className="reports-builder-panel">
           <div className="reports-builder-panel-header">
             <div>
-              <h2>Builder</h2>
-              <p>Metrica, filtros, agrupamento e ordenacao do relatorio atual.</p>
+              <h2>Montagem do relatorio</h2>
+              <p>Escolha base, calculo, filtros e ordenacao do relatorio atual.</p>
             </div>
           </div>
 
@@ -454,7 +506,7 @@ export function ReportsBuilderWorkspace({
             <div className="reports-builder-panel-body">
               <section className="reports-builder-section-card">
                 <div className="reports-builder-section-head">
-                  <h3>Estrutura base</h3>
+                  <h3>Definicao</h3>
                 </div>
                 <div className="reports-builder-section-body">
                   <div className="reports-builder-grid reports-builder-grid-2">
@@ -508,7 +560,20 @@ export function ReportsBuilderWorkspace({
                   <div className="reports-builder-grid reports-builder-grid-4">
                     <label className="field">
                       <span>Base</span>
-                      <input type="text" readOnly value={activeDefinition.base} />
+                      <div className="reports-builder-input-with-action">
+                        <input
+                          type="text"
+                          readOnly
+                          value={resolveBaseLabel(catalog, activeDefinition.base)}
+                        />
+                        <button
+                          className="icon-button"
+                          onClick={() => setLookupState({ kind: "base" })}
+                          type="button"
+                        >
+                          <Search className="w-4 h-4" />
+                        </button>
+                      </div>
                     </label>
                     <label className="field">
                       <span>Variavel</span>
@@ -548,7 +613,7 @@ export function ReportsBuilderWorkspace({
                       </select>
                     </label>
                     <label className="field">
-                      <span>Campo base</span>
+                      <span>Campo calculado</span>
                       <select
                         value={activeDefinition.metric.field}
                         onChange={(event) =>
@@ -595,9 +660,9 @@ export function ReportsBuilderWorkspace({
                       </select>
                     </label>
                     <div className="reports-builder-code-card">
-                      <span className="eyebrow">Modelo</span>
+                      <span className="eyebrow">Identificacao</span>
                       <strong>{activeDefinition.code}</strong>
-                      <small>{activeDefinition.source === "saved" ? "Modelo salvo do tenant" : "Definicao do sistema"}</small>
+                      <small>{activeDefinition.source === "saved" ? "Modelo salvo" : "Modelo do sistema"}</small>
                     </div>
                   </div>
                 </div>
@@ -605,7 +670,7 @@ export function ReportsBuilderWorkspace({
 
               <section className="reports-builder-section-card" ref={filtersSectionRef}>
                 <div className="reports-builder-section-head">
-                  <h3>Filtros e expressoes</h3>
+                  <h3>Filtros</h3>
                 </div>
                 <div className="reports-builder-section-body">
                   <div className="reports-builder-grid reports-builder-grid-4">
@@ -742,7 +807,7 @@ export function ReportsBuilderWorkspace({
 
                   <div className="button-row">
                     <button className="secondary-button" onClick={handleAddCondition} type="button">
-                      Adicionar condicao
+                      Adicionar filtro
                     </button>
                   </div>
 
@@ -765,7 +830,7 @@ export function ReportsBuilderWorkspace({
 
               <section className="reports-builder-section-card">
                 <div className="reports-builder-section-head">
-                  <h3>Ordenacao</h3>
+                  <h3>Ordenacao e prioridade</h3>
                 </div>
                 <div className="reports-builder-section-body">
                   <div className="reports-builder-grid reports-builder-grid-3">
@@ -825,7 +890,7 @@ export function ReportsBuilderWorkspace({
 
                   <div className="button-row">
                     <button className="secondary-button" onClick={handleAddSort} type="button">
-                      Adicionar order by
+                      Adicionar ordenacao
                     </button>
                   </div>
 
@@ -930,7 +995,7 @@ export function ReportsBuilderWorkspace({
               {activeTab.result.table ? <ResultsTable table={activeTab.result.table} /> : null}
 
               <section className="reports-builder-preview-card">
-                <h3>Payload tecnico</h3>
+                <h3>Definicao do modelo</h3>
                 <pre>{payloadPreview}</pre>
               </section>
             </div>
@@ -943,17 +1008,21 @@ export function ReportsBuilderWorkspace({
       {isModelsModalOpen ? (
         <Modal
           title="Modelos salvos"
-          subtitle="Definicoes reutilizaveis do tenant."
+          subtitle="Modelos do sistema e modelos que voce salvou para reutilizar."
           onClose={() => setIsModelsModalOpen(false)}
         >
           <div className="reports-builder-modal-list">
-            {savedModels.length > 0 ? (
-              savedModels.map((definition) => (
+            {modelOptions.length > 0 ? (
+              modelOptions.map((definition) => (
                 <button
                   className="reports-builder-model-item"
-                  key={definition.id}
+                  key={`${definition.source}:${definition.id}:${definition.code}`}
                   onClick={() => {
-                    onOpenSavedDefinition(definition.id);
+                    if (definition.source === "system") {
+                      onOpenSystemDefinition(definition.code);
+                    } else {
+                      onOpenSavedDefinition(definition.id);
+                    }
                     setIsModelsModalOpen(false);
                   }}
                   type="button"
@@ -969,7 +1038,7 @@ export function ReportsBuilderWorkspace({
                 </button>
               ))
             ) : (
-              <div className="empty-state">Nenhum modelo salvo ainda.</div>
+              <div className="empty-state">Nenhum modelo disponivel ainda.</div>
             )}
           </div>
         </Modal>
@@ -1310,6 +1379,9 @@ function resolveValueLabel(value: ReportFilterConditionNode["value"]): string {
 }
 
 function resolveLookupColumns(kind: LookupKind): readonly string[] {
+  if (kind === "base") {
+    return ["Codigo", "Base", "Descricao"];
+  }
   if (kind === "service") {
     return ["Codigo", "Descricao", "Auxiliar"];
   }
@@ -1317,6 +1389,10 @@ function resolveLookupColumns(kind: LookupKind): readonly string[] {
     return ["Codigo", "Nome", "Auxiliar"];
   }
   return ["Codigo", "Nome", "Telefone"];
+}
+
+function resolveBaseLabel(catalog: ReportBuilderCatalog, base: ReportDefinition["base"]): string {
+  return (catalog.baseOptions?.length ? catalog.baseOptions : fallbackBaseOptions).find((option) => option.id === base)?.label ?? base;
 }
 
 function createLocalId(): string {

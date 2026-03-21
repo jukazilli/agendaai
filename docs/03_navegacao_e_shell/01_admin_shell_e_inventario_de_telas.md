@@ -105,12 +105,15 @@ No chrome global do shell:
 - em viewport compacto, a rota pode manter um disclosure proprio como fallback para quem nao possui hover;
 - filtros devem ser locais a cada visao e abrir em modal proprio via botao `filtrar`, nunca como faixa fixa ocupando o topo inteiro do modulo;
 - o modulo deve trabalhar com `modelos salvos`, nunca com `snapshots` persistidos dos resultados executados;
+- o botao `modelos salvos` deve listar tanto modelos do usuario quanto definicoes predefinidas do sistema, abrindo sempre em `dock tab` dedicada;
 - filtros de lookup devem privilegiar busca por `codigo`, `nome`, `descricao` e `telefone` conforme o tipo do cadastro e o contrato real do backend;
 - campos de lookup devem exibir acao explicita de consulta, como icone de lupa, e abrir popup tabular com colunas aderentes ao tipo do registro:
   - `codigo` + `descricao` para itens e servicos;
   - `codigo` + `nome` para pessoas;
   - colunas complementares como `telefone` podem aparecer quando o contrato real ja fornecer esse dado.
+- a escolha da `base` do relatorio tambem deve operar por consulta padrao com lupa, evitando codigo digitado manualmente;
 - o shell deve listar as visoes de sistema no proprio flyout lateral de `relatorios`, como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `pendencias operacionais`, `retorno e retencao`, `radar semanal` e `visao mensal`;
+- o builder v1 tambem deve expor bases cadastrais e financeiras reais quando o backend suportar, incluindo `cadastro de servicos`, `cadastro de profissionais` e `pagamentos`;
 - agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em definicoes dedicadas, sem empilhar todas as leituras na mesma pagina;
 - quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;
 - contexto tecnico do recorte, fonte e comparativo nao deve competir com KPI e listas principais no mesmo viewport;
