@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState, type CSSProperties, type FormEvent, type JSX } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent, type JSX } from "react";
 import { format as formatDateFns, getDay, parse as parseDateFns, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -89,6 +89,7 @@ import {
   updateTenantBranding,
   updateTenantSlug
 } from "./lib/admin-api";
+import { createFallbackReportBuilderCatalog } from "./lib/report-builder-fallback";
 import {
   ReportsBuilderWorkspace,
   type ReportsBuilderLookupRow,
@@ -656,6 +657,10 @@ function cloneReportDefinition(definition: ReportDefinition): ReportDefinition {
   return JSON.parse(JSON.stringify(definition)) as ReportDefinition;
 }
 
+function isMissingReportBuilderRoute(error: unknown): boolean {
+  return error instanceof AdminApiError && error.status === 404;
+}
+
 function createDefaultReportsPaneFilters(window: ClientReturnWindow): ReportsPaneFilters {
   return {
     dateFrom: "",
@@ -1136,6 +1141,7 @@ export function App() {
   const [activeReportBuilderTabId, setActiveReportBuilderTabId] = useState("");
   const [reportsBuilderError, setReportsBuilderError] = useState<string | null>(null);
   const [isLoadingReportsBuilder, setIsLoadingReportsBuilder] = useState(false);
+  const didAutoOpenDefaultReportTabRef = useRef(false);
   const [isCompactShell, setIsCompactShell] = useState(false);
 
   useEffect(() => {
@@ -1322,6 +1328,7 @@ export function App() {
       setActiveReportBuilderTabId("");
       setReportsBuilderError(null);
       setIsLoadingReportsBuilder(false);
+      didAutoOpenDefaultReportTabRef.current = false;
       return;
     }
 
@@ -1330,10 +1337,33 @@ export function App() {
 
     async function loadReportBuilderAssets() {
       try {
-        const [nextCatalog, nextDefinitions] = await Promise.all([
-          fetchReportBuilderCatalog(apiBaseUrl, sessionToken),
-          listReportDefinitions(apiBaseUrl, sessionToken)
-        ]);
+        let nextCatalog: ReportBuilderCatalog | null = null;
+        let nextDefinitions: ReportDefinition[] = [];
+
+        try {
+          nextCatalog = await fetchReportBuilderCatalog(apiBaseUrl, sessionToken);
+        } catch (error) {
+          if (isMissingReportBuilderRoute(error) && bootstrap?.session.tenant.id) {
+            nextCatalog = createFallbackReportBuilderCatalog(bootstrap.session.tenant.id);
+            setFeedback({
+              tone: "info",
+              message:
+                "O backend atual ainda nao expoe o catalogo do builder. A UI abriu em modo de compatibilidade local."
+            });
+          } else {
+            throw error;
+          }
+        }
+
+        try {
+          nextDefinitions = await listReportDefinitions(apiBaseUrl, sessionToken);
+        } catch (error) {
+          if (isMissingReportBuilderRoute(error)) {
+            nextDefinitions = [];
+          } else {
+            throw error;
+          }
+        }
 
         if (ignore) {
           return;
@@ -1349,9 +1379,13 @@ export function App() {
         if (error instanceof AdminApiError && error.status === 401) {
           setSessionToken("");
         }
-        setReportsCatalog(null);
+        setReportsCatalog(bootstrap?.session.tenant.id ? createFallbackReportBuilderCatalog(bootstrap.session.tenant.id) : null);
         setSavedReportDefinitions([]);
-        setReportsBuilderError(toErrorMessage(error));
+        setReportsBuilderError(
+          isMissingReportBuilderRoute(error)
+            ? "O backend atual ainda nao expoe as rotas do builder. Atualize o api-rest para liberar modelos salvos e execucao remota."
+            : toErrorMessage(error)
+        );
       } finally {
         if (!ignore) {
           setIsLoadingReportsBuilder(false);
@@ -1363,7 +1397,30 @@ export function App() {
     return () => {
       ignore = true;
     };
-  }, [apiBaseUrl, sessionToken]);
+  }, [apiBaseUrl, bootstrap, sessionToken]);
+
+  useEffect(() => {
+    if (currentRoute !== "relatorios") {
+      return;
+    }
+    if (didAutoOpenDefaultReportTabRef.current) {
+      return;
+    }
+    if (!reportsCatalog || reportsCatalog.systemDefinitions.length === 0) {
+      return;
+    }
+    if (reportBuilderTabs.length > 0 || activeReportBuilderTabId) {
+      return;
+    }
+
+    didAutoOpenDefaultReportTabRef.current = true;
+    openSystemReportBuilderTab(reportsCatalog.systemDefinitions[0].code);
+  }, [
+    activeReportBuilderTabId,
+    currentRoute,
+    reportBuilderTabs.length,
+    reportsCatalog
+  ]);
 
   useEffect(() => {
     if (!bootstrap) {
@@ -2401,9 +2458,17 @@ export function App() {
       return [];
     }
 
-    const nextDefinitions = await listReportDefinitions(apiBaseUrl, sessionToken);
-    setSavedReportDefinitions(nextDefinitions);
-    return nextDefinitions;
+    try {
+      const nextDefinitions = await listReportDefinitions(apiBaseUrl, sessionToken);
+      setSavedReportDefinitions(nextDefinitions);
+      return nextDefinitions;
+    } catch (error) {
+      if (isMissingReportBuilderRoute(error)) {
+        setSavedReportDefinitions([]);
+        return [];
+      }
+      throw error;
+    }
   }
 
   function activateReportBuilderTab(tabId: string): void {
@@ -2481,7 +2546,9 @@ export function App() {
         )
       );
     } catch (error) {
-      const message = toErrorMessage(error);
+      const message = isMissingReportBuilderRoute(error)
+        ? "O backend atual ainda nao expoe a execucao do builder. Atualize o api-rest para liberar este relatorio."
+        : toErrorMessage(error);
       if (error instanceof AdminApiError && error.status === 401) {
         setSessionToken("");
       }
@@ -2627,7 +2694,9 @@ export function App() {
       }
       setFeedback({
         tone: "error",
-        message: toErrorMessage(error)
+        message: isMissingReportBuilderRoute(error)
+          ? "O backend atual ainda nao expoe persistencia de modelos do builder."
+          : toErrorMessage(error)
       });
     }
   }
