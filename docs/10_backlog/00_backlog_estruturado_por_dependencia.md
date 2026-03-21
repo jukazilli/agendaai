@@ -41,3 +41,10 @@ O corte derivado de `beta teste` para o `AgendaAI` esta em:
 | 14 | B-14 | Integrar Google Calendar | B-09 | NAO IMPLEMENTADO | sincronizacao minima funcionando | eventos refletidos |
 | 15 | B-15 | Preparar read models e GraphQL BFF | B-12 | NAO IMPLEMENTADO | dashboard agregado sem pressionar dominio | consultas agregadas |
 | 16 | B-16 | Abrir trilha de analytics Python | B-12 | NAO IMPLEMENTADO | pipeline inicial de cohort e score | job e dataset inicial |
+
+## Trilha E - Builder Semantico de Relatorios
+
+| Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto | Evidencia esperada |
+| --- | --- | --- | --- | --- | --- | --- |
+| 17 | B-17 | Catalogar semantica, metricas canonicas e DSL de relatorios | B-12 | FECHADO | catalogo semantico oficial, AST/DSL e matriz de cenarios homologados sobre o backend real | documento oficial, matriz de campos e especificacao do motor |
+| 18 | B-18 | Materializar report definitions e builder em pagina em branco | B-17 | FECHADO | `admin-web` abre builder de relatorios com filtros tipados, modelos salvos reutilizaveis e dock tabs por relatorio, sem persistir snapshot dos dados no fluxo normal | builder funcional, `report_definitions` persistidas, execucao validada, `codigo` persistido nas entidades de lookup e relatorios abrindo em dock tabs |

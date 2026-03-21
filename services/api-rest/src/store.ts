@@ -17,6 +17,7 @@ import type {
   PublicCreateBookingInput,
   CreateProfessionalCommand,
   PaymentIntent,
+  ReportDefinition,
   ServicePaymentPolicy,
   TenantPaymentSettings,
   CreateServiceCommand,
@@ -68,6 +69,7 @@ export interface PublicPaymentIntentResult extends PublicBookingResult {
 export type MaybePromise<T> = T | Promise<T>;
 
 export interface ServicePatchInput {
+  codigo?: string;
   nome?: string;
   duracaoMin?: number;
   precoBase?: number;
@@ -77,6 +79,7 @@ export interface ServicePatchInput {
 }
 
 export interface ClientPatchInput {
+  codigo?: string;
   nome?: string;
   telefone?: string;
   email?: string;
@@ -84,6 +87,7 @@ export interface ClientPatchInput {
 }
 
 export interface ProfessionalPatchInput {
+  codigo?: string;
   nome?: string;
   status?: string;
   especialidades?: string[];
@@ -134,6 +138,7 @@ export interface ApiRestStoreSnapshot {
   readonly professionals: Professional[];
   readonly availabilityRules: AvailabilityRule[];
   readonly bookings: Booking[];
+  readonly reportDefinitions?: ReportDefinition[];
   readonly sessions: AdminSessionRecord[];
 }
 
@@ -230,6 +235,13 @@ export interface ApiRestStorePort {
   deleteBooking(tenantId: string, bookingId: string): MaybePromise<boolean>;
   createPublicBooking(input: PublicCreateBookingInput): MaybePromise<PublicBookingResult>;
   createPublicPaymentBooking(input: PublicCreateBookingInput): MaybePromise<PublicBookingResult>;
+  listReportDefinitions(tenantId: string): MaybePromise<ReportDefinition[]>;
+  getReportDefinition(
+    tenantId: string,
+    reportDefinitionId: string
+  ): MaybePromise<ReportDefinition | undefined>;
+  saveReportDefinition(definition: ReportDefinition): MaybePromise<ReportDefinition>;
+  deleteReportDefinition(tenantId: string, reportDefinitionId: string): MaybePromise<boolean>;
 }
 
 export class ApiRestStore implements ApiRestStorePort {
@@ -245,6 +257,7 @@ export class ApiRestStore implements ApiRestStorePort {
   private readonly professionals = new Map<string, Professional>();
   private readonly availabilityRules = new Map<string, AvailabilityRule>();
   private readonly bookings = new Map<string, Booking>();
+  private readonly reportDefinitions = new Map<string, ReportDefinition>();
   private readonly sessions = new Map<string, AdminSessionRecord>();
 
   constructor(snapshot?: ApiRestStoreSnapshot) {
@@ -406,6 +419,7 @@ export class ApiRestStore implements ApiRestStorePort {
       version: "v1",
       id: randomUUID(),
       tenantId: command.tenantId,
+      codigo: normalizeExplicitCode(command.codigo) ?? this.nextEntityCode(command.tenantId, "service"),
       nome: command.nome,
       duracaoMin: command.duracaoMin,
       precoBase: command.precoBase,
@@ -435,6 +449,7 @@ export class ApiRestStore implements ApiRestStorePort {
     const nextService: Service = {
       ...service,
       ...patch,
+      codigo: normalizeExplicitCode(patch.codigo) ?? service.codigo,
       exigeSinal:
         patch.paymentPolicy ?
           paymentPolicy.collectionMode !== "none"
@@ -578,6 +593,7 @@ export class ApiRestStore implements ApiRestStorePort {
       version: "v1",
       id: randomUUID(),
       tenantId,
+      codigo: normalizeExplicitCode(input.codigo) ?? this.nextEntityCode(tenantId, "client"),
       nome: input.nome,
       telefone: input.telefone,
       email: input.email.trim().toLowerCase(),
@@ -597,6 +613,7 @@ export class ApiRestStore implements ApiRestStorePort {
     const nextClient: Client = {
       ...client,
       ...patch,
+      codigo: normalizeExplicitCode(patch.codigo) ?? client.codigo,
       email: patch.email ? patch.email.trim().toLowerCase() : client.email
     };
 
@@ -644,6 +661,8 @@ export class ApiRestStore implements ApiRestStorePort {
       version: "v1",
       id: randomUUID(),
       tenantId: command.tenantId,
+      codigo:
+        normalizeExplicitCode(command.codigo) ?? this.nextEntityCode(command.tenantId, "professional"),
       nome: command.nome,
       status: "active",
       especialidades: [...command.especialidades]
@@ -672,6 +691,7 @@ export class ApiRestStore implements ApiRestStorePort {
     const nextProfessional: Professional = {
       ...professional,
       ...patch,
+      codigo: normalizeExplicitCode(patch.codigo) ?? professional.codigo,
       especialidades: patch.especialidades ? [...patch.especialidades] : professional.especialidades
     };
 
@@ -959,6 +979,32 @@ export class ApiRestStore implements ApiRestStorePort {
     };
   }
 
+  listReportDefinitions(tenantId: string): ReportDefinition[] {
+    return [...this.reportDefinitions.values()]
+      .filter((definition) => definition.tenantId === tenantId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+  }
+
+  getReportDefinition(tenantId: string, reportDefinitionId: string): ReportDefinition | undefined {
+    const definition = this.reportDefinitions.get(reportDefinitionId);
+    return definition && definition.tenantId === tenantId ? definition : undefined;
+  }
+
+  saveReportDefinition(definition: ReportDefinition): ReportDefinition {
+    this.reportDefinitions.set(definition.id, definition);
+    return definition;
+  }
+
+  deleteReportDefinition(tenantId: string, reportDefinitionId: string): boolean {
+    const definition = this.getReportDefinition(tenantId, reportDefinitionId);
+    if (!definition) {
+      return false;
+    }
+
+    this.reportDefinitions.delete(reportDefinitionId);
+    return true;
+  }
+
   private issueSession(adminUser: StoredAdminUser): AdminSessionRecord {
     const session: AdminSessionRecord = {
       token: randomUUID(),
@@ -1131,6 +1177,20 @@ export class ApiRestStore implements ApiRestStorePort {
     };
   }
 
+  private nextEntityCode(
+    tenantId: string,
+    entity: "service" | "professional" | "client"
+  ): string {
+    const prefix = entity === "service" ? "SRV" : entity === "professional" ? "PRO" : "CLI";
+    const values =
+      entity === "service"
+        ? this.listServices(tenantId).map((item) => item.codigo)
+        : entity === "professional"
+          ? this.listProfessionals(tenantId).map((item) => item.codigo)
+          : this.listClients(tenantId).map((item) => item.codigo);
+    return nextSequentialCode(prefix, values);
+  }
+
   private toPublicTenantProfile(tenant: Tenant): PublicTenantProfile {
     return {
       slug: tenant.slug,
@@ -1152,6 +1212,7 @@ export class ApiRestStore implements ApiRestStorePort {
       professionals: [...this.professionals.values()],
       availabilityRules: [...this.availabilityRules.values()],
       bookings: [...this.bookings.values()],
+      reportDefinitions: [...this.reportDefinitions.values()],
       sessions: [...this.sessions.values()]
     };
   }
@@ -1169,6 +1230,7 @@ export class ApiRestStore implements ApiRestStorePort {
     this.professionals.clear();
     this.availabilityRules.clear();
     this.bookings.clear();
+    this.reportDefinitions.clear();
     this.sessions.clear();
 
     for (const tenant of snapshot.tenants) {
@@ -1183,7 +1245,8 @@ export class ApiRestStore implements ApiRestStorePort {
     }
 
     for (const service of snapshot.services) {
-      this.services.set(service.id, hydrateService(service));
+      const hydratedService = hydrateService(service, this.nextEntityCode(service.tenantId, "service"));
+      this.services.set(hydratedService.id, hydratedService);
     }
 
     for (const paymentSettings of snapshot.paymentSettings ?? []) {
@@ -1199,11 +1262,16 @@ export class ApiRestStore implements ApiRestStorePort {
     }
 
     for (const client of snapshot.clients) {
-      this.clients.set(client.id, client);
+      const hydratedClient = hydrateClient(client, this.nextEntityCode(client.tenantId, "client"));
+      this.clients.set(hydratedClient.id, hydratedClient);
     }
 
     for (const professional of snapshot.professionals) {
-      this.professionals.set(professional.id, professional);
+      const hydratedProfessional = hydrateProfessional(
+        professional,
+        this.nextEntityCode(professional.tenantId, "professional")
+      );
+      this.professionals.set(hydratedProfessional.id, hydratedProfessional);
     }
 
     for (const availabilityRule of snapshot.availabilityRules) {
@@ -1212,6 +1280,10 @@ export class ApiRestStore implements ApiRestStorePort {
 
     for (const booking of snapshot.bookings) {
       this.bookings.set(booking.id, booking);
+    }
+
+    for (const definition of snapshot.reportDefinitions ?? []) {
+      this.reportDefinitions.set(definition.id, definition);
     }
 
     for (const session of snapshot.sessions) {
@@ -1242,13 +1314,28 @@ function normalizeServicePaymentPolicy(
   };
 }
 
-function hydrateService(service: Service): Service {
+function hydrateService(service: Service, fallbackCode: string): Service {
   return {
     ...service,
+    codigo: normalizeExplicitCode(service.codigo) ?? fallbackCode,
     paymentPolicy: normalizeServicePaymentPolicy(
       service.paymentPolicy,
       service.exigeSinal
     )
+  };
+}
+
+function hydrateProfessional(professional: Professional, fallbackCode: string): Professional {
+  return {
+    ...professional,
+    codigo: normalizeExplicitCode(professional.codigo) ?? fallbackCode
+  };
+}
+
+function hydrateClient(client: Client, fallbackCode: string): Client {
+  return {
+    ...client,
+    codigo: normalizeExplicitCode(client.codigo) ?? fallbackCode
   };
 }
 
@@ -1271,6 +1358,23 @@ function normalizeTenant(tenant: Tenant): Tenant {
     ...tenant,
     branding: normalizeTenantBranding(tenant.branding)
   };
+}
+
+function normalizeExplicitCode(value?: string): string | undefined {
+  const normalized = value?.trim().toUpperCase();
+  return normalized ? normalized : undefined;
+}
+
+function nextSequentialCode(prefix: string, existingCodes: readonly string[]): string {
+  const maxNumber = existingCodes.reduce((currentMax, code) => {
+    const match = code.match(/(\d+)$/);
+    if (!match) {
+      return currentMax;
+    }
+    return Math.max(currentMax, Number(match[1]));
+  }, 0);
+
+  return `${prefix}-${String(maxNumber + 1).padStart(4, "0")}`;
 }
 
 function parseTimeWindow(startAt: string, endAt: string): TimeWindow {

@@ -11,6 +11,8 @@ import {
   contractVersion,
   createBookingCommandSchema,
   createProfessionalSchema,
+  reportDefinitionSchema,
+  reportExecutionRequestSchema,
   createServiceSchema,
   createTenantSchema,
   paymentWebhookNotificationSchema,
@@ -26,6 +28,7 @@ import {
   type Client,
   type PaymentIntent,
   type Professional,
+  type ReportDefinition,
   type ReportingRange,
   type ReportingReturnWindow,
   type Service,
@@ -46,6 +49,11 @@ import {
   type MercadoPagoGateway
 } from "./mercado-pago";
 import { createConfiguredStore } from "./postgres-store";
+import {
+  buildSystemReportDefinitions,
+  createReportBuilderCatalog,
+  executeReportDefinition
+} from "./report-builder";
 import { buildAdminReportsReadModel } from "./reporting-read-model";
 
 declare module "fastify" {
@@ -841,6 +849,115 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         };
       });
 
+      adminRoutes.get("/reporting/catalog", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return createReportBuilderCatalog({
+          tenantId: claims.tenantId
+        });
+      });
+
+      adminRoutes.get("/report-definitions", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listReportDefinitions(claims.tenantId)
+        };
+      });
+
+      adminRoutes.post("/report-definitions", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const body = requireRecord(request.body);
+        const payload = reportDefinitionSchema.parse({
+          ...body,
+          version: contractVersion,
+          id: typeof body.id === "string" ? body.id : randomUUID(),
+          tenantId: claims.tenantId,
+          source: "saved",
+          code: buildNextReportDefinitionCode(await store.listReportDefinitions(claims.tenantId)),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          locked: false
+        });
+
+        const saved = await store.saveReportDefinition(payload);
+        reply.status(201);
+        return saved;
+      });
+
+      adminRoutes.patch("/report-definitions/:definitionId", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const definitionId = readRequiredString(
+          (request.params as Record<string, unknown>).definitionId,
+          "definitionId"
+        );
+        const existing = await store.getReportDefinition(claims.tenantId, definitionId);
+
+        if (!existing) {
+          throw new ApiHttpError(404, "report_definition_not_found", "Report definition was not found for this tenant.");
+        }
+
+        const body = requireRecord(request.body);
+        const payload = reportDefinitionSchema.parse({
+          ...existing,
+          ...body,
+          version: contractVersion,
+          id: existing.id,
+          tenantId: claims.tenantId,
+          source: "saved",
+          code: existing.code,
+          createdAt: existing.createdAt,
+          updatedAt: new Date().toISOString(),
+          locked: false
+        });
+
+        return await store.saveReportDefinition(payload);
+      });
+
+      adminRoutes.delete("/report-definitions/:definitionId", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const definitionId = readRequiredString(
+          (request.params as Record<string, unknown>).definitionId,
+          "definitionId"
+        );
+        const deleted = await store.deleteReportDefinition(claims.tenantId, definitionId);
+        if (!deleted) {
+          throw new ApiHttpError(404, "report_definition_not_found", "Report definition was not found for this tenant.");
+        }
+
+        reply.status(204);
+      });
+
+      adminRoutes.post("/report-definitions/:definitionId/execute", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const definitionId = readRequiredString(
+          (request.params as Record<string, unknown>).definitionId,
+          "definitionId"
+        );
+        const savedDefinition = await store.getReportDefinition(claims.tenantId, definitionId);
+        const definition =
+          savedDefinition ??
+          buildSystemReportDefinitions(claims.tenantId).find((entry) => entry.id === definitionId);
+
+        if (!definition) {
+          throw new ApiHttpError(404, "report_definition_not_found", "Report definition was not found for this tenant.");
+        }
+
+        return await executeDefinitionAgainstStore(store, claims.tenantId, definition);
+      });
+
+      adminRoutes.post("/reporting/execute", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const payload = reportExecutionRequestSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion
+        });
+        const definition = {
+          ...payload.definition,
+          tenantId: claims.tenantId
+        };
+
+        return await executeDefinitionAgainstStore(store, claims.tenantId, definition);
+      });
+
       adminRoutes.get("/read-models/reports", async (request) => {
         const claims = requireAdminSession(request).claims;
         const query = (request.query ?? {}) as Record<string, unknown>;
@@ -1620,6 +1737,42 @@ function mapMercadoPagoStatusToBookingStatus(status: string): Booking["status"] 
     default:
       return "aguardando pagamento";
   }
+}
+
+async function executeDefinitionAgainstStore(
+  store: ApiRestStorePort,
+  tenantId: string,
+  definition: ReportDefinition
+) {
+  const professionals = await store.listProfessionals(tenantId);
+  const availabilityRules = (
+    await Promise.all(
+      professionals.map((professional) => store.listAvailabilityRules(tenantId, professional.id))
+    )
+  ).flat();
+
+  return executeReportDefinition({
+    definition,
+    clients: await store.listClients(tenantId),
+    bookings: await store.listBookings(tenantId),
+    services: await store.listServices(tenantId),
+    professionals,
+    availabilityRules,
+    paymentIntents: await store.listPaymentIntents(tenantId),
+    cashEntries: await store.listCashEntries(tenantId)
+  });
+}
+
+function buildNextReportDefinitionCode(definitions: readonly ReportDefinition[]): string {
+  const maxNumber = definitions.reduce((currentMax, definition) => {
+    const match = definition.code.match(/(\d+)$/);
+    if (!match) {
+      return currentMax;
+    }
+    return Math.max(currentMax, Number(match[1]));
+  }, 0);
+
+  return `RPT-${String(maxNumber + 1).padStart(4, "0")}`;
 }
 
 function splitName(value: string): { firstName?: string; lastName?: string } {

@@ -5,6 +5,7 @@ import {
   emailSchema,
   entityIdSchema,
   nonEmptyStringSchema,
+  optionalTrimmedStringSchema,
   phoneSchema,
   tenantIdSchema
 } from "./shared";
@@ -12,6 +13,7 @@ import {
 export const clientSchema = contractEnvelopeSchema.extend({
   id: entityIdSchema,
   tenantId: tenantIdSchema,
+  codigo: nonEmptyStringSchema,
   nome: nonEmptyStringSchema,
   telefone: phoneSchema,
   email: emailSchema,
@@ -19,6 +21,7 @@ export const clientSchema = contractEnvelopeSchema.extend({
 });
 
 export const clientContactInputSchema = z.object({
+  codigo: optionalTrimmedStringSchema,
   nome: nonEmptyStringSchema,
   telefone: phoneSchema,
   email: emailSchema,

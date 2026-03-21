@@ -14,6 +14,7 @@
 | RT-10 | Revalidacao continua MAE/MFEE | Pedido do usuario | `docs/08_analises/02_validacao_continua_mae_mfee.md` | Governanca | J-00 | B-12 | DOCUMENTADO |
 | RT-11 | Produto com duas visoes complementares: publica e administrativa | Briefing | `docs/01_conceito_e_briefing/05_briefing_arquitetural_estruturado_mae.md` | Plataforma inteira | J-01, J-03, J-04 | B-07, B-08, B-09 | DOCUMENTADO |
 | RT-12 | Relatorios essenciais por periodo no shell admin | Briefing | `docs/03_navegacao_e_shell/01_admin_shell_e_inventario_de_telas.md` | Analytics operacional | J-04, J-05 | B-12 | EM FUNDACAO |
+| RT-13 | Builder semantico de relatorios com definicoes versionadas e filtros tipados | Pedido do usuario | `docs/08_analises/64_arquitetura_builder_semantico_relatorios_2026-03-20.md` | Relatorios | J-04, J-05 | B-17, B-18 | DOCUMENTADO |
 
 Legenda de status usada nesta matriz:
 

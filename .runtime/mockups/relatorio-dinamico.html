@@ -1,0 +1,2238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agenda AI • Relatórios Inteligentes</title>
+  <style>
+    :root {
+      --bg: #f4f5f7;
+      --panel: #ffffff;
+      --panel-2: #fbfbfc;
+      --line: #d9dde3;
+      --line-2: #c9d0d9;
+      --text: #233043;
+      --muted: #657284;
+      --dark: #2f2a24;
+      --dark-2: #3b352d;
+      --accent: #2068db;
+      --accent-soft: #e9f1ff;
+      --green: #1e8e5a;
+      --amber: #b7791f;
+      --red: #c0392b;
+      --purple: #6e44c2;
+      --shadow: 0 12px 36px rgba(24, 38, 57, 0.08);
+      --radius: 14px;
+      --radius-sm: 10px;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: Inter, Segoe UI, Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 62px 260px 1fr;
+      grid-template-rows: 58px 1fr;
+      height: 100vh;
+    }
+
+    .rail {
+      grid-row: 1 / span 2;
+      background: linear-gradient(180deg, #2c2823 0%, #383229 100%);
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 0;
+      gap: 8px;
+      border-right: 1px solid rgba(255,255,255,0.08);
+      position: relative;
+      z-index: 20;
+    }
+
+    .rail .logo {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,0.1);
+      font-size: 18px;
+      margin-bottom: 6px;
+    }
+
+    .rail-btn {
+      width: 42px;
+      height: 42px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: rgba(255,255,255,0.92);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 18px;
+      position: relative;
+      transition: 180ms ease;
+    }
+
+    .rail-btn:hover,
+    .rail-btn.active {
+      background: rgba(255,255,255,0.12);
+    }
+
+    .hover-menu {
+      position: absolute;
+      left: 56px;
+      top: 128px;
+      min-width: 230px;
+      background: rgba(49, 43, 36, 0.98);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 14px;
+      box-shadow: 0 18px 42px rgba(0,0,0,0.25);
+      padding: 8px;
+      display: none;
+      backdrop-filter: blur(8px);
+    }
+
+    .rail:hover .hover-menu,
+    .hover-menu:hover {
+      display: block;
+    }
+
+    .hover-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 12px;
+      border-radius: 10px;
+      cursor: pointer;
+      color: rgba(255,255,255,0.96);
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .hover-item:hover,
+    .hover-item.active {
+      background: rgba(255,255,255,0.1);
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: rgba(32,104,219,0.22);
+      color: #a9c8ff;
+      border: 1px solid rgba(102,155,255,0.2);
+      font-weight: 700;
+    }
+
+    .sidebar {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+      background: #fcfcfd;
+      border-right: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+    }
+
+    .sidebar-header {
+      padding: 16px 18px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .sidebar-title {
+      font-size: 20px;
+      font-weight: 700;
+      margin: 0 0 6px;
+    }
+
+    .sidebar-subtitle {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .nav-section {
+      padding: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .nav-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      font-weight: 700;
+      padding: 0 4px;
+      margin-top: 10px;
+    }
+
+    .nav-item {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px 13px;
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .nav-item:hover,
+    .nav-item.active {
+      border-color: #9dbcf8;
+      box-shadow: inset 0 0 0 1px #9dbcf8;
+      background: linear-gradient(180deg, #fff 0%, #f8fbff 100%);
+    }
+
+    .nav-item strong {
+      display: block;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+
+    .nav-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .topbar {
+      grid-column: 3;
+      grid-row: 1;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 16px;
+    }
+
+    .tab-strip {
+      display: flex;
+      gap: 8px;
+      min-width: 0;
+      overflow: auto;
+      padding: 8px 0;
+    }
+
+    .tab {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 12px;
+      padding: 10px 14px;
+      white-space: nowrap;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--muted);
+    }
+
+    .tab.active {
+      color: var(--accent);
+      border-color: #9dbcf8;
+      background: var(--accent-soft);
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 160ms ease;
+    }
+
+    .btn:hover { transform: translateY(-1px); }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn.secondary { background: #fff; color: var(--accent); border-color: #bdd3fb; }
+    .btn.soft { background: #f8fbff; color: var(--accent); border-color: #d5e3ff; }
+    .btn.warn { background: #fff8eb; color: #8a5a11; border-color: #efd3a7; }
+    .btn.danger { background: #fff4f2; color: var(--red); border-color: #f1c2bc; }
+    .btn.min { padding: 8px 10px; font-size: 12px; border-radius: 10px; }
+
+    .content {
+      grid-column: 3;
+      grid-row: 2;
+      overflow: auto;
+      padding: 18px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: 1.18fr .82fr;
+      gap: 18px;
+      min-height: calc(100vh - 94px);
+      transition: 220ms ease;
+    }
+
+    .workspace.collapsed { grid-template-columns: 1fr; }
+    .workspace.collapsed .builder-panel { display: none; }
+    .results-panel { min-width: 0; }
+
+    .ghost-btn {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--muted);
+      padding: 9px 12px;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: 180ms ease;
+    }
+
+    .ghost-btn:hover {
+      color: var(--text);
+      border-color: #9dbcf8;
+      background: #f8fbff;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
+    }
+
+    .panel-title { margin: 0; font-size: 18px; font-weight: 800; }
+    .panel-subtitle { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.4; }
+    .panel-body { padding: 18px; display: grid; gap: 16px; }
+
+    .section-card {
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: #fff;
+      overflow: hidden;
+    }
+
+    .section-card .section-head {
+      padding: 14px 16px;
+      border-bottom: 1px solid #edf1f5;
+      background: linear-gradient(180deg, #fff 0%, #fbfdff 100%);
+    }
+
+    .section-card .section-head h3 { margin: 0; font-size: 15px; font-weight: 800; }
+    .section-card .section-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .section-card .section-body { padding: 16px; display: grid; gap: 14px; }
+
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+    .field { display: grid; gap: 8px; min-width: 0; }
+    .label {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .control,
+    .chip-row,
+    textarea,
+    .codebox {
+      border: 1px solid var(--line-2);
+      background: var(--panel-2);
+      border-radius: 12px;
+      padding: 12px 13px;
+      font-size: 14px;
+      color: var(--text);
+      width: 100%;
+    }
+
+    select.control,
+    input.control { appearance: none; outline: 0; }
+
+    .control-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      min-height: 48px;
+      align-items: center;
+    }
+
+    .chip {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .chip.soft { background: var(--accent-soft); border-color: #caddff; color: var(--accent); }
+    .chip.ok { background: #ecfaf3; border-color: #bee8d0; color: var(--green); }
+    .chip.warn { background: #fff8eb; border-color: #efd3a7; color: var(--amber); }
+    .chip.logic { background: #f5efff; border-color: #ddcff9; color: var(--purple); }
+    .chip.danger { background: #fff4f2; border-color: #efc5be; color: var(--red); }
+
+    .stack { display: grid; gap: 12px; }
+
+    .formula-box {
+      background: #f8fafc;
+      border: 1px dashed #b7c2d1;
+      border-radius: 14px;
+      padding: 14px;
+    }
+
+    .formula-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      line-height: 1.8;
+    }
+
+    .token {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 10px;
+      border-radius: 11px;
+      font-size: 13px;
+      font-weight: 700;
+      border: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .token.metric { color: var(--accent); background: #eef4ff; border-color: #cfe0ff; }
+    .token.filter { color: #19523b; background: #ecfaf3; border-color: #c9ead7; }
+    .token.logic { color: #74430f; background: #fff7e8; border-color: #efd4ab; }
+    .token.group { color: #5b3c88; background: #f5efff; border-color: #decef8; }
+    .token.input { color: #4b5565; background: #f6f8fb; }
+    .token.order { color: #7a2222; background: #fff1f1; border-color: #f0cccc; }
+
+    .builder-tools {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .logic-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      padding: 10px 12px;
+      border: 1px dashed #c3cee0;
+      border-radius: 12px;
+      background: #fafcff;
+    }
+
+    .inline-alert {
+      display: none;
+      padding: 12px 13px;
+      border-radius: 12px;
+      border: 1px solid #cfe0ff;
+      background: #f5f9ff;
+      color: #315288;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .inline-alert.show { display: block; }
+
+    .tree-list { display: grid; gap: 10px; }
+
+    .tree-item {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 13px;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .tree-item.group {
+      background: #faf7ff;
+      border-style: dashed;
+      border-color: #d9c8f8;
+    }
+
+    .tree-item.hidden-by-group { display: none; }
+
+    .tree-item .meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .tree-item .actions-inline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .indent-0 { margin-left: 0; }
+    .indent-1 { margin-left: 20px; }
+    .indent-2 { margin-left: 40px; }
+    .indent-3 { margin-left: 60px; }
+
+    .logic-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 42px;
+      padding: 6px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      background: #f5efff;
+      color: var(--purple);
+      border: 1px solid #ddcff9;
+    }
+
+    .toggle-node {
+      width: 30px;
+      height: 30px;
+      border-radius: 10px;
+      border: 1px solid #d9c8f8;
+      background: #fff;
+      color: var(--purple);
+      font-weight: 900;
+      cursor: pointer;
+      display: inline-grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+
+    .mini-note { color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+    .kpi {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fff;
+      padding: 14px;
+    }
+
+    .kpi label {
+      display: block;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 10px;
+    }
+
+    .kpi strong { display: block; font-size: 24px; margin-bottom: 6px; }
+    .kpi span { color: var(--muted); font-size: 12px; line-height: 1.4; }
+
+    .table {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      overflow: hidden;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      border-bottom: 1px solid #edf0f3;
+      text-align: left;
+    }
+
+    th {
+      background: #f7f9fc;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .pill {
+      display: inline-block;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      background: #eef4ff;
+      color: var(--accent);
+    }
+
+    .codebox {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      white-space: pre-wrap;
+      line-height: 1.6;
+      background: #0f1724;
+      color: #e8edf8;
+      border-color: #1c2740;
+      min-height: 280px;
+    }
+
+    .hint {
+      border: 1px solid #dce9ff;
+      background: #f5f9ff;
+      color: #315288;
+      border-radius: 12px;
+      padding: 12px 13px;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .footer-note { color: var(--muted); font-size: 12px; line-height: 1.5; }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 36, 0.42);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      z-index: 80;
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(760px, 100%);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      box-shadow: 0 28px 80px rgba(16, 24, 40, 0.22);
+      overflow: hidden;
+    }
+
+    .modal.small { width: min(520px, 100%); }
+    .modal.lookup { width: min(880px, 100%); }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
+    }
+
+    .modal-title { margin: 0; font-size: 18px; font-weight: 800; }
+    .modal-subtitle { margin: 5px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+    .modal-body { padding: 20px; display: grid; gap: 16px; }
+
+    .modal-footer {
+      padding: 16px 20px 20px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      border-top: 1px solid var(--line);
+      background: #fcfdff;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .model-search,
+    .lookup-search { display: grid; gap: 10px; }
+
+    .model-list,
+    .lookup-list {
+      display: grid;
+      gap: 10px;
+      max-height: 360px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .model-item,
+    .lookup-item {
+      border: 1px solid var(--line);
+      background: #fff;
+      border-radius: 14px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .lookup-item.active {
+      border-color: #9dbcf8;
+      box-shadow: inset 0 0 0 1px #9dbcf8;
+      background: #f8fbff;
+    }
+
+    .model-item strong,
+    .lookup-item strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .model-item span,
+    .lookup-item span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .model-code,
+    .lookup-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      color: var(--muted);
+      background: #f7f9fc;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 6px 10px;
+      white-space: nowrap;
+    }
+
+    .lookup-layout {
+      display: grid;
+      grid-template-columns: 1.3fr .7fr;
+      gap: 14px;
+    }
+
+    .lookup-selected {
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: #fafcff;
+      padding: 14px;
+      display: grid;
+      gap: 10px;
+      align-content: start;
+    }
+
+    .empty-state {
+      border: 1px dashed #b7c2d1;
+      border-radius: 14px;
+      padding: 20px;
+      text-align: center;
+      color: var(--muted);
+      background: #fafcff;
+    }
+
+    .auto-code-box {
+      border: 1px dashed #b8c5d7;
+      border-radius: 14px;
+      background: #fafcff;
+      padding: 14px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .auto-code-box strong {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 14px;
+      color: var(--accent);
+    }
+
+    .helper-text { color: var(--muted); font-size: 12px; line-height: 1.45; }
+
+    @media (max-width: 1420px) {
+      .workspace { grid-template-columns: 1fr; }
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    @media (max-width: 1180px) {
+      .lookup-layout { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 62px 1fr; }
+      .sidebar { display: none; }
+      .topbar, .content { grid-column: 2; }
+      .grid-4 { grid-template-columns: repeat(2, 1fr); }
+      .grid-3 { grid-template-columns: 1fr; }
+      .grid-2 { grid-template-columns: 1fr; }
+      .control-row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="logo">◧</div>
+      <button class="rail-btn">⌂</button>
+      <button class="rail-btn active">🧠</button>
+      <button class="rail-btn">👥</button>
+      <button class="rail-btn">📅</button>
+      <button class="rail-btn">📈</button>
+      <button class="rail-btn">⚙</button>
+
+      <div class="hover-menu">
+        <div class="hover-item active">
+          <span>Relatórios inteligentes</span>
+          <span class="badge">Beta</span>
+        </div>
+        <div class="hover-item"><span>Visão executiva</span></div>
+        <div class="hover-item"><span>Receita e serviços</span></div>
+        <div class="hover-item"><span>Equipe e produtividade</span></div>
+        <div class="hover-item"><span>Retenção e retorno</span></div>
+        <div class="hover-item"><span>Radar semanal</span></div>
+        <div class="hover-item"><span>Visão mensal</span></div>
+      </div>
+    </aside>
+
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h1 class="sidebar-title">Relatórios</h1>
+        <p class="sidebar-subtitle">Builder semântico inspirado no fluxo de filtros e parâmetros do Smart View, agora com condições, grupos lógicos, nós recolhíveis, lookups pesquisáveis e edição inline.</p>
+      </div>
+
+      <div class="nav-section">
+        <!-- IMPORTANTE PARA O CODEX:
+             Mantido tudo que já existia e evoluído com:
+             1) nós recolhíveis por grupo;
+             2) lookup pesquisável para serviço/profissional/status;
+             3) edição inline de condições e critérios de ordenação.
+             A estrutura ainda é um mock visual, mas já foi desenhada para migrar com pouco atrito para AST + store + API real.
+        -->
+        <div class="nav-label">Elementos</div>
+        <div class="nav-item active">
+          <strong>Métricas</strong>
+          <span>faturamento, bookings, ticket_medio, clientes_unicos, horas_ocupadas.</span>
+        </div>
+        <div class="nav-item">
+          <strong>Filtros</strong>
+          <span>datas de/até, serviços, status, profissional, parâmetros e condições com E/OU.</span>
+        </div>
+        <div class="nav-item">
+          <strong>Ordenação</strong>
+          <span>order by por campo, prioridade e direção crescente/decrescente.</span>
+        </div>
+      </div>
+    </aside>
+
+    <header class="topbar">
+      <div class="tab-strip">
+        <div class="tab">Agenda</div>
+        <div class="tab">Clientes</div>
+        <div class="tab active">Relatórios inteligentes</div>
+        <div class="tab">Visão executiva</div>
+      </div>
+      <div class="actions">
+        <button class="ghost-btn" id="toggleBuilderTopBtn" type="button">Ocultar builder</button>
+        <button class="btn secondary" id="openModelsBtn" type="button">Abrir modelos</button>
+        <button class="btn" id="saveModelBtn" type="button">Salvar modelo</button>
+        <button class="btn primary">Executar relatório</button>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="workspace" id="reportWorkspace">
+        <section class="panel builder-panel" id="semanticBuilderPanel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">Builder semântico</h2>
+              <p class="panel-subtitle">Estruturado para ficar mais próximo do conceito do Smart View: objeto de negócio, parâmetros, filtros em árvore, grupos recolhíveis e payload explícito.</p>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="badge">Preview</span>
+              <button class="ghost-btn" id="toggleBuilderInlineBtn" type="button">Ocultar</button>
+            </div>
+          </div>
+
+          <div class="panel-body">
+            <section class="section-card">
+              <div class="section-head">
+                <h3>1. Estrutura base</h3>
+                <p>Defina a variável principal, a operação e o agrupamento do relatório.</p>
+              </div>
+              <div class="section-body">
+                <div class="grid-2">
+                  <div class="field">
+                    <label class="label">Nome da variável principal</label>
+                    <input class="control" id="metricNameInput" value="faturamento" />
+                  </div>
+                  <div class="field">
+                    <label class="label">Tipo de visualização</label>
+                    <select class="control" id="visualizationSelect">
+                      <option value="kpi_table">KPI + tabela</option>
+                      <option value="kpi">Só KPI</option>
+                      <option value="time_series">Série temporal</option>
+                      <option value="ranking">Ranking</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="grid-3">
+                  <div class="field">
+                    <label class="label">Operação</label>
+                    <select class="control" id="metricOperationSelect">
+                      <option value="sum" selected>soma</option>
+                      <option value="count">contagem</option>
+                      <option value="count_distinct">contagem distinta</option>
+                      <option value="avg">média</option>
+                      <option value="max">máximo</option>
+                      <option value="min">mínimo</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="label">Campo base</label>
+                    <select class="control" id="metricFieldSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label class="label">Agrupar por</label>
+                    <select class="control" id="groupBySelect"></select>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <div class="section-head">
+                <h3>2. Filtros e expressões</h3>
+                <p>Monte condições com campos tipados, operadores compatíveis, conectivos E/OU, lookup pesquisável e grupos lógicos recolhíveis.</p>
+              </div>
+              <div class="section-body">
+                <!-- IMPORTANTE PARA O CODEX:
+                     A ideia aqui continua espelhando o Smart View:
+                     - condição = campo + operador + valor/parâmetro
+                     - E/OU conecta nós
+                     - grupos simulam precedência
+                     - o estado já aceita collapse por grupo e edição inline
+                     Para produção, substituir o array linear por AST com ids estáveis e validação semântica por catálogo de domínio.
+                -->
+                <div class="logic-toolbar">
+                  <span class="chip logic">Montagem por condição</span>
+                  <span class="mini-note">Escolha o conectivo, o campo, o operador e o valor. Depois clique em adicionar. Também é possível editar um item já existente.</span>
+                </div>
+
+                <div class="inline-alert" id="editModeAlert"></div>
+
+                <div class="grid-4">
+                  <div class="field">
+                    <label class="label">Conectar com</label>
+                    <select class="control" id="filterConnectiveSelect">
+                      <option value="AND">E</option>
+                      <option value="OR">OU</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="label">Campo</label>
+                    <select class="control" id="filterFieldSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label class="label">Operador</label>
+                    <select class="control" id="filterOperatorSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label class="label">Modo</label>
+                    <select class="control" id="filterValueModeSelect">
+                      <option value="value">Valor fixo</option>
+                      <option value="parameter">Parâmetro</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="grid-3" id="filterValueRow">
+                  <div class="field" id="filterValuePrimaryField">
+                    <label class="label" id="filterValueLabel">Valor</label>
+                    <div class="control-row">
+                      <input class="control" id="filterValueInput" type="text" placeholder="Informe o valor" />
+                      <button class="btn soft" type="button" id="openLookupBtn" style="display:none;">Selecionar</button>
+                    </div>
+                  </div>
+                  <div class="field" id="filterValueSecondaryField" style="display:none;">
+                    <label class="label">Até</label>
+                    <input class="control" id="filterValueInputSecondary" type="text" placeholder="Informe o valor final" />
+                  </div>
+                  <div class="field">
+                    <label class="label">Nome do parâmetro</label>
+                    <input class="control" id="filterParameterNameInput" type="text" placeholder="Ex: periodo_inicio" />
+                  </div>
+                </div>
+
+                <div class="builder-tools">
+                  <button class="btn secondary min" type="button" id="addConditionBtn">Adicionar condição</button>
+                  <button class="btn min" type="button" id="cancelEditBtn" style="display:none;">Cancelar edição</button>
+                  <button class="btn soft min" type="button" id="openGroupBtn">Abrir grupo</button>
+                  <button class="btn warn min" type="button" id="closeGroupBtn">Fechar grupo</button>
+                  <span class="mini-note">Fluxo sugerido: abra um grupo, adicione condições com E/OU e feche quando terminar.</span>
+                </div>
+
+                <div class="field">
+                  <label class="label">Árvore de filtros</label>
+                  <div class="tree-list" id="filterTreeList"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <div class="section-head">
+                <h3>3. Ordenação</h3>
+                <p>Defina um ou mais critérios de order by, com prioridade, direção e edição inline.</p>
+              </div>
+              <div class="section-body">
+                <!-- IMPORTANTE PARA O CODEX:
+                     O mock já permite editar um sort existente carregando o formulário de order by.
+                     Em produção, isso deve refletir diretamente o estado do builder e da serialização para o backend.
+                -->
+                <div class="inline-alert" id="sortEditModeAlert"></div>
+
+                <div class="grid-3">
+                  <div class="field">
+                    <label class="label">Campo para ordenar</label>
+                    <select class="control" id="sortFieldSelect"></select>
+                  </div>
+                  <div class="field">
+                    <label class="label">Tipo de ordenação</label>
+                    <select class="control" id="sortDirectionSelect">
+                      <option value="asc">Crescente</option>
+                      <option value="desc" selected>Decrescente</option>
+                      <option value="az">A → Z</option>
+                      <option value="za">Z → A</option>
+                      <option value="oldest_first">Mais antigo primeiro</option>
+                      <option value="newest_first">Mais recente primeiro</option>
+                      <option value="smallest_first">Menor para maior</option>
+                      <option value="largest_first">Maior para menor</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label class="label">Prioridade</label>
+                    <input class="control" id="sortPriorityInput" type="number" min="1" step="1" value="1" />
+                  </div>
+                </div>
+
+                <div class="builder-tools">
+                  <button class="btn secondary min" type="button" id="addSortBtn">Adicionar order by</button>
+                  <button class="btn min" type="button" id="cancelSortEditBtn" style="display:none;">Cancelar edição</button>
+                  <span class="mini-note">Você pode empilhar critérios, ex: primeiro faturamento desc, depois serviço asc.</span>
+                </div>
+
+                <div class="field">
+                  <label class="label">Critérios de ordenação</label>
+                  <div class="tree-list" id="sortList"></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <div class="section-head">
+                <h3>4. Leitura literal</h3>
+                <p>Resumo da expressão montada, pensado para ser compreendido por negócio e convertido pelo backend.</p>
+              </div>
+              <div class="section-body">
+                <div class="field">
+                  <label class="label">Expressão literal</label>
+                  <div class="formula-box">
+                    <div class="formula-line" id="formulaExpressionLine"></div>
+                  </div>
+                </div>
+
+                <div class="hint">
+                  O objetivo aqui é deixar o relatório legível para o usuário e previsível para o backend. Em produção, essa expressão deve ser convertida para uma estrutura formal de consulta, com validação por catálogo de campos permitidos.
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section class="stack results-panel">
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Resultado simulado</h2>
+                <p class="panel-subtitle">Mock da janela aberta no workspace, com dados, filtros e ordenação já refletidos no contexto.</p>
+              </div>
+              <span class="pill" id="activeModelPill">Faturamento por serviço</span>
+            </div>
+            <div class="panel-body">
+              <div class="chip-row" id="summaryChips"></div>
+
+              <div class="kpi-grid">
+                <div class="kpi">
+                  <label>Faturamento</label>
+                  <strong>R$ 8.420,00</strong>
+                  <span>Soma dos serviços concluídos dentro do período selecionado.</span>
+                </div>
+                <div class="kpi">
+                  <label>Bookings</label>
+                  <strong>112</strong>
+                  <span>Total de atendimentos considerados no recorte.</span>
+                </div>
+                <div class="kpi">
+                  <label>Ticket médio</label>
+                  <strong>R$ 75,18</strong>
+                  <span>Faturamento dividido por atendimentos concluídos.</span>
+                </div>
+                <div class="kpi">
+                  <label>Clientes únicos</label>
+                  <strong>64</strong>
+                  <span>Base distinta atendida no mesmo filtro.</span>
+                </div>
+              </div>
+
+              <div class="table">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Serviço</th>
+                      <th>Bookings</th>
+                      <th>Concluídos</th>
+                      <th>Clientes únicos</th>
+                      <th>Faturamento</th>
+                      <th>Ticket</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Escova</td>
+                      <td>34</td>
+                      <td>31</td>
+                      <td>26</td>
+                      <td>R$ 2.790,00</td>
+                      <td>R$ 90,00</td>
+                    </tr>
+                    <tr>
+                      <td>Corte</td>
+                      <td>46</td>
+                      <td>42</td>
+                      <td>29</td>
+                      <td>R$ 3.360,00</td>
+                      <td>R$ 80,00</td>
+                    </tr>
+                    <tr>
+                      <td>Hidratação</td>
+                      <td>32</td>
+                      <td>24</td>
+                      <td>19</td>
+                      <td>R$ 2.270,00</td>
+                      <td>R$ 94,58</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <div>
+                <h2 class="panel-title">Payload estrutural</h2>
+                <p class="panel-subtitle">Exemplo do formato que o frontend enviaria para o backend ou engine de relatórios.</p>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="codebox" id="payloadPreview"></div>
+              <div class="footer-note">
+                Esse payload deixa claro o que é métrica, o que é filtro, como os conectivos foram montados e quais campos participam da ordenação. Isso reduz ambiguidade na tradução para SQL, API ou engine semântica.
+              </div>
+            </div>
+          </section>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="openModelsModal" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="openModelsTitle">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="openModelsTitle">Abrir modelos</h3>
+          <p class="modal-subtitle">Pesquise por nome e selecione um modelo salvo anteriormente.</p>
+        </div>
+        <button class="icon-btn" type="button" data-close-modal="openModelsModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="model-search">
+          <label class="label" for="modelSearchInput">Pesquisar modelo por nome</label>
+          <input id="modelSearchInput" class="control" type="text" placeholder="Digite o nome do modelo..." />
+        </div>
+        <div class="model-list" id="savedModelsList"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close-modal="openModelsModal">Fechar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="saveModelModal" aria-hidden="true">
+    <div class="modal small" role="dialog" aria-modal="true" aria-labelledby="saveModelTitle">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="saveModelTitle">Salvar modelo</h3>
+          <p class="modal-subtitle">Informe o nome do modelo. O código é gerado automaticamente.</p>
+        </div>
+        <button class="icon-btn" type="button" data-close-modal="saveModelModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="field">
+          <label class="label" for="modelNameInput">Nome do modelo</label>
+          <input id="modelNameInput" class="control" type="text" placeholder="Ex: Faturamento mensal por serviço" />
+        </div>
+
+        <div class="auto-code-box">
+          <span class="label" style="margin:0;">Código automático</span>
+          <strong id="generatedModelCode">MDL-000001</strong>
+          <span class="helper-text">No backend real, essa chave deve ser gerada pelo servidor para garantir unicidade e rastreabilidade.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close-modal="saveModelModal">Cancelar</button>
+        <button class="btn primary" type="button" id="confirmSaveModelBtn">Salvar</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="lookupModal" aria-hidden="true">
+    <div class="modal lookup" role="dialog" aria-modal="true" aria-labelledby="lookupModalTitle">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="lookupModalTitle">Selecionar valores</h3>
+          <p class="modal-subtitle" id="lookupModalSubtitle">Pesquise e selecione os itens do lookup.</p>
+        </div>
+        <button class="icon-btn" type="button" data-close-modal="lookupModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="lookup-layout">
+          <div class="stack">
+            <div class="lookup-search">
+              <label class="label" for="lookupSearchInput">Pesquisar</label>
+              <input id="lookupSearchInput" class="control" type="text" placeholder="Digite para pesquisar..." />
+            </div>
+            <div class="lookup-list" id="lookupList"></div>
+          </div>
+
+          <div class="lookup-selected">
+            <div>
+              <div class="label" style="margin-bottom:10px;">Selecionados</div>
+              <div class="chip-row" id="lookupSelectedChips"></div>
+            </div>
+            <div class="helper-text" id="lookupModeHint">Você pode selecionar um ou vários itens, conforme o operador atual.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn" type="button" data-close-modal="lookupModal">Cancelar</button>
+        <button class="btn primary" type="button" id="confirmLookupBtn">Aplicar seleção</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const workspace = document.getElementById('reportWorkspace');
+      const topBtn = document.getElementById('toggleBuilderTopBtn');
+      const inlineBtn = document.getElementById('toggleBuilderInlineBtn');
+      const openModelsBtn = document.getElementById('openModelsBtn');
+      const saveModelBtn = document.getElementById('saveModelBtn');
+      const openModelsModal = document.getElementById('openModelsModal');
+      const saveModelModal = document.getElementById('saveModelModal');
+      const lookupModal = document.getElementById('lookupModal');
+      const savedModelsList = document.getElementById('savedModelsList');
+      const modelSearchInput = document.getElementById('modelSearchInput');
+      const modelNameInput = document.getElementById('modelNameInput');
+      const confirmSaveModelBtn = document.getElementById('confirmSaveModelBtn');
+      const generatedModelCode = document.getElementById('generatedModelCode');
+      const activeModelPill = document.getElementById('activeModelPill');
+
+      const metricNameInput = document.getElementById('metricNameInput');
+      const visualizationSelect = document.getElementById('visualizationSelect');
+      const metricOperationSelect = document.getElementById('metricOperationSelect');
+      const metricFieldSelect = document.getElementById('metricFieldSelect');
+      const groupBySelect = document.getElementById('groupBySelect');
+
+      const filterFieldSelect = document.getElementById('filterFieldSelect');
+      const filterOperatorSelect = document.getElementById('filterOperatorSelect');
+      const filterConnectiveSelect = document.getElementById('filterConnectiveSelect');
+      const filterValueModeSelect = document.getElementById('filterValueModeSelect');
+      const filterValueInput = document.getElementById('filterValueInput');
+      const filterValueInputSecondary = document.getElementById('filterValueInputSecondary');
+      const filterValueLabel = document.getElementById('filterValueLabel');
+      const filterValuePrimaryField = document.getElementById('filterValuePrimaryField');
+      const filterValueSecondaryField = document.getElementById('filterValueSecondaryField');
+      const filterParameterNameInput = document.getElementById('filterParameterNameInput');
+      const addConditionBtn = document.getElementById('addConditionBtn');
+      const cancelEditBtn = document.getElementById('cancelEditBtn');
+      const editModeAlert = document.getElementById('editModeAlert');
+      const openLookupBtn = document.getElementById('openLookupBtn');
+      const openGroupBtn = document.getElementById('openGroupBtn');
+      const closeGroupBtn = document.getElementById('closeGroupBtn');
+      const filterTreeList = document.getElementById('filterTreeList');
+
+      const sortFieldSelect = document.getElementById('sortFieldSelect');
+      const sortDirectionSelect = document.getElementById('sortDirectionSelect');
+      const sortPriorityInput = document.getElementById('sortPriorityInput');
+      const addSortBtn = document.getElementById('addSortBtn');
+      const cancelSortEditBtn = document.getElementById('cancelSortEditBtn');
+      const sortEditModeAlert = document.getElementById('sortEditModeAlert');
+      const sortList = document.getElementById('sortList');
+
+      const lookupSearchInput = document.getElementById('lookupSearchInput');
+      const lookupList = document.getElementById('lookupList');
+      const lookupSelectedChips = document.getElementById('lookupSelectedChips');
+      const lookupModeHint = document.getElementById('lookupModeHint');
+      const confirmLookupBtn = document.getElementById('confirmLookupBtn');
+      const lookupModalTitle = document.getElementById('lookupModalTitle');
+      const lookupModalSubtitle = document.getElementById('lookupModalSubtitle');
+
+      const formulaExpressionLine = document.getElementById('formulaExpressionLine');
+      const payloadPreview = document.getElementById('payloadPreview');
+      const summaryChips = document.getElementById('summaryChips');
+
+      const fieldCatalog = {
+        valor_servico: { label: 'Valor do serviço', type: 'number', operators: ['equals', 'not_equals', 'gt', 'gte', 'lt', 'lte', 'between', 'in'] },
+        booking_id: { label: 'Booking', type: 'text', operators: ['equals', 'not_equals', 'contains', 'starts_with', 'in'] },
+        cliente_id: { label: 'Cliente', type: 'text', operators: ['equals', 'not_equals', 'contains', 'in'] },
+        servico: { label: 'Serviço', type: 'lookup', operators: ['equals', 'not_equals', 'in', 'not_in', 'contains'] },
+        status: { label: 'Status', type: 'enum', operators: ['equals', 'not_equals', 'in', 'not_in'] },
+        profissional: { label: 'Profissional', type: 'lookup', operators: ['equals', 'not_equals', 'in', 'not_in', 'contains'] },
+        data_atendimento: { label: 'Data do atendimento', type: 'date', operators: ['between', 'gte', 'lte', 'equals', 'not_equals'] },
+        data_agendamento: { label: 'Data do agendamento', type: 'date', operators: ['between', 'gte', 'lte', 'equals', 'not_equals'] },
+        ticket_medio: { label: 'Ticket médio', type: 'number', operators: ['equals', 'gt', 'gte', 'lt', 'lte', 'between'] },
+        clientes_unicos: { label: 'Clientes únicos', type: 'number', operators: ['equals', 'gt', 'gte', 'lt', 'lte', 'between'] }
+      };
+
+      const groupableFields = [
+        { value: 'servico', label: 'Serviço' },
+        { value: 'profissional', label: 'Profissional' },
+        { value: 'data_atendimento', label: 'Dia' },
+        { value: 'mes', label: 'Mês' },
+        { value: 'status', label: 'Status' },
+        { value: 'none', label: 'Sem agrupamento' }
+      ];
+
+      const operatorCatalog = {
+        equals: { label: 'Igual a', payload: '=' },
+        not_equals: { label: 'Diferente de', payload: '!=' },
+        gt: { label: 'Maior que', payload: '>' },
+        gte: { label: 'Maior ou igual', payload: '>=' },
+        lt: { label: 'Menor que', payload: '<' },
+        lte: { label: 'Menor ou igual', payload: '<=' },
+        between: { label: 'Entre', payload: 'between' },
+        in: { label: 'Em lista', payload: 'in' },
+        not_in: { label: 'Não está na lista', payload: 'not_in' },
+        contains: { label: 'Contém', payload: 'contains' },
+        starts_with: { label: 'Começa com', payload: 'starts_with' }
+      };
+
+      const directionCatalog = {
+        asc: 'Crescente',
+        desc: 'Decrescente',
+        az: 'A → Z',
+        za: 'Z → A',
+        oldest_first: 'Mais antigo primeiro',
+        newest_first: 'Mais recente primeiro',
+        smallest_first: 'Menor para maior',
+        largest_first: 'Maior para menor'
+      };
+
+      const lookupCatalog = {
+        servico: [
+          { id: 'srv-escova', label: 'Escova', meta: 'Categoria: Finalização' },
+          { id: 'srv-corte', label: 'Corte', meta: 'Categoria: Corte' },
+          { id: 'srv-hidratacao', label: 'Hidratação', meta: 'Categoria: Tratamento' },
+          { id: 'srv-coloracao', label: 'Coloração', meta: 'Categoria: Química' },
+          { id: 'srv-sobrancelha', label: 'Sobrancelha', meta: 'Categoria: Estética' }
+        ],
+        profissional: [
+          { id: 'prof-ana', label: 'Ana Beatriz', meta: 'Hair stylist • Unidade Centro' },
+          { id: 'prof-carlos', label: 'Carlos Henrique', meta: 'Barbeiro • Unidade Norte' },
+          { id: 'prof-julia', label: 'Júlia Martins', meta: 'Colorista • Unidade Centro' },
+          { id: 'prof-luiza', label: 'Luiza Araujo', meta: 'Esteticista • Unidade Sul' },
+          { id: 'prof-rodrigo', label: 'Rodrigo Lima', meta: 'Hair stylist • Unidade Norte' }
+        ],
+        status: [
+          { id: 'st-concluido', label: 'concluído', meta: 'Atendimento finalizado' },
+          { id: 'st-agendado', label: 'agendado', meta: 'Marcado mas ainda não executado' },
+          { id: 'st-cancelado', label: 'cancelado', meta: 'Cancelado pelo cliente ou operador' },
+          { id: 'st-ausente', label: 'ausente', meta: 'Cliente não compareceu' }
+        ]
+      };
+
+      const savedModels = [
+        { code: 'MDL-240301', name: 'Faturamento por serviço', description: 'Soma do valor do serviço com agrupamento por serviço.' },
+        { code: 'MDL-240302', name: 'Equipe por período', description: 'Produção, ticket e clientes únicos por profissional.' },
+        { code: 'MDL-240303', name: 'Retorno em 30 dias', description: 'Clientes com e sem retorno dentro da janela definida.' },
+        { code: 'MDL-240304', name: 'Capacidade semanal', description: 'Horas ocupadas, livres e ocupação por dia e profissional.' }
+      ];
+
+      const uiState = {
+        editingFilterId: null,
+        editingSortId: null,
+        collapsedGroups: {},
+        lookupField: null,
+        lookupSelected: []
+      };
+
+      const builderState = {
+        filters: [
+          { id: cryptoRandomId(), kind: 'condition', connective: null, level: 0, field: 'data_atendimento', operator: 'between', mode: 'parameter', value: '2026-03-01', valueSecondary: '2026-03-31', parameterName: 'periodo_marco' },
+          { id: cryptoRandomId(), kind: 'group_start', connective: 'AND', level: 0 },
+          { id: cryptoRandomId(), kind: 'condition', connective: 'AND', level: 1, field: 'servico', operator: 'in', mode: 'value', value: 'Escova, Corte, Hidratação', valueSecondary: '', parameterName: 'servicos' },
+          { id: cryptoRandomId(), kind: 'condition', connective: 'OR', level: 1, field: 'status', operator: 'equals', mode: 'value', value: 'concluído', valueSecondary: '', parameterName: 'status_execucao' },
+          { id: cryptoRandomId(), kind: 'group_end', connective: null, level: 0 },
+          { id: cryptoRandomId(), kind: 'condition', connective: 'AND', level: 0, field: 'profissional', operator: 'equals', mode: 'parameter', value: 'Todos', valueSecondary: '', parameterName: 'profissional_id' }
+        ],
+        sorts: [
+          { id: cryptoRandomId(), field: 'valor_servico', direction: 'desc', priority: 1 },
+          { id: cryptoRandomId(), field: 'servico', direction: 'az', priority: 2 }
+        ]
+      };
+
+      function cryptoRandomId() {
+        return 'id-' + Math.random().toString(36).slice(2, 10);
+      }
+
+      function syncBuilderState() {
+        const collapsed = workspace.classList.contains('collapsed');
+        const label = collapsed ? 'Mostrar builder' : 'Ocultar builder';
+        topBtn.textContent = label;
+        inlineBtn.textContent = collapsed ? 'Mostrar' : 'Ocultar';
+      }
+
+      function toggleBuilder() {
+        workspace.classList.toggle('collapsed');
+        syncBuilderState();
+      }
+
+      function openModal(modal) {
+        if (!modal) return;
+        modal.classList.add('open');
+        modal.setAttribute('aria-hidden', 'false');
+      }
+
+      function closeModal(modal) {
+        if (!modal) return;
+        modal.classList.remove('open');
+        modal.setAttribute('aria-hidden', 'true');
+      }
+
+      function generateModelCode() {
+        const now = new Date();
+        const stamp = [
+          now.getFullYear().toString().slice(-2),
+          String(now.getMonth() + 1).padStart(2, '0'),
+          String(now.getDate()).padStart(2, '0'),
+          String(now.getHours()).padStart(2, '0'),
+          String(now.getMinutes()).padStart(2, '0'),
+          String(now.getSeconds()).padStart(2, '0')
+        ].join('');
+        return `MDL-${stamp}`;
+      }
+
+      function updateGeneratedCode() {
+        generatedModelCode.textContent = generateModelCode();
+      }
+
+      function optionListFromCatalog(select, items, selectedValue) {
+        select.innerHTML = items.map((item) => {
+          const normalized = typeof item === 'string' ? { value: item, label: item } : item;
+          const selected = normalized.value === selectedValue ? 'selected' : '';
+          return `<option value="${normalized.value}" ${selected}>${normalized.label}</option>`;
+        }).join('');
+      }
+
+      function populateStaticSelects() {
+        const fieldOptions = Object.keys(fieldCatalog).map((key) => ({ value: key, label: fieldCatalog[key].label }));
+        optionListFromCatalog(metricFieldSelect, fieldOptions, 'valor_servico');
+        optionListFromCatalog(filterFieldSelect, fieldOptions, 'data_atendimento');
+        optionListFromCatalog(sortFieldSelect, fieldOptions, 'valor_servico');
+        optionListFromCatalog(groupBySelect, groupableFields, 'servico');
+        refreshFilterOperators();
+      }
+
+      function refreshFilterOperators() {
+        const field = fieldCatalog[filterFieldSelect.value];
+        const ops = field.operators.map((key) => ({ value: key, label: operatorCatalog[key].label }));
+        optionListFromCatalog(filterOperatorSelect, ops, field.type === 'date' ? 'between' : ops[0].value);
+        refreshFilterValueInputs();
+      }
+
+      function isLookupLikeField(fieldKey) {
+        const type = fieldCatalog[fieldKey]?.type;
+        return type === 'lookup' || type === 'enum';
+      }
+
+      function allowsLookupSelection(fieldKey, operator) {
+        return isLookupLikeField(fieldKey) && ['equals', 'not_equals', 'in', 'not_in'].includes(operator);
+      }
+
+      function isMultiLookup(fieldKey, operator) {
+        return ['in', 'not_in'].includes(operator);
+      }
+
+      function refreshFilterValueInputs() {
+        const field = fieldCatalog[filterFieldSelect.value];
+        const operator = filterOperatorSelect.value;
+        const mode = filterValueModeSelect.value;
+        const isBetween = operator === 'between';
+        const isDate = field.type === 'date';
+        const showLookupBtn = mode === 'value' && allowsLookupSelection(filterFieldSelect.value, operator);
+
+        filterValueSecondaryField.style.display = isBetween ? 'grid' : 'none';
+        filterValuePrimaryField.style.display = 'grid';
+        filterValueLabel.textContent = isBetween ? 'De' : 'Valor';
+        filterValueInput.type = isDate ? 'date' : 'text';
+        filterValueInputSecondary.type = isDate ? 'date' : 'text';
+        openLookupBtn.style.display = showLookupBtn ? 'inline-flex' : 'none';
+
+        if (field.type === 'lookup') {
+          filterValueInput.placeholder = isMultiLookup(filterFieldSelect.value, operator) ? 'Selecione um ou mais valores' : 'Selecione um valor';
+          filterValueInput.readOnly = showLookupBtn;
+        } else if (field.type === 'enum') {
+          filterValueInput.placeholder = isMultiLookup(filterFieldSelect.value, operator) ? 'Selecione um ou mais status' : 'Selecione um status';
+          filterValueInput.readOnly = showLookupBtn;
+        } else if (isDate) {
+          filterValueInput.placeholder = '';
+          filterValueInputSecondary.placeholder = '';
+          filterValueInput.readOnly = false;
+        } else if (field.type === 'number') {
+          filterValueInput.placeholder = 'Ex: 100';
+          filterValueInputSecondary.placeholder = 'Ex: 500';
+          filterValueInput.readOnly = false;
+        } else {
+          filterValueInput.placeholder = 'Informe o valor';
+          filterValueInput.readOnly = false;
+        }
+
+        filterParameterNameInput.disabled = mode !== 'parameter';
+        if (mode !== 'parameter') {
+          filterParameterNameInput.value = '';
+        } else if (!filterParameterNameInput.value) {
+          filterParameterNameInput.value = defaultParameterName(field, operator);
+        }
+      }
+
+      function defaultParameterName(field, operator) {
+        const base = field.label.toLowerCase()
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_|_$/g, '');
+        return operator === 'between' ? `${base}_intervalo` : base;
+      }
+
+      function renderSavedModels(filter = '') {
+        const normalizedFilter = filter.trim().toLowerCase();
+        const models = savedModels.filter((model) => model.name.toLowerCase().includes(normalizedFilter));
+
+        if (!models.length) {
+          savedModelsList.innerHTML = `<div class="empty-state">Nenhum modelo encontrado para a busca informada.</div>`;
+          return;
+        }
+
+        savedModelsList.innerHTML = models.map((model) => `
+          <div class="model-item">
+            <div>
+              <strong>${model.name}</strong>
+              <span>${model.description}</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span class="model-code">${model.code}</span>
+              <button class="btn secondary" type="button" data-open-model="${model.code}">Abrir</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function handleOpenModel(code) {
+        const model = savedModels.find((item) => item.code === code);
+        if (!model) return;
+        activeModelPill.textContent = model.name;
+        closeModal(openModelsModal);
+      }
+
+      function handleSaveModel() {
+        const name = modelNameInput.value.trim();
+        const code = generatedModelCode.textContent.trim();
+        if (!name) {
+          modelNameInput.focus();
+          return;
+        }
+
+        savedModels.unshift({
+          code,
+          name,
+          description: 'Modelo salvo a partir do builder atual.'
+        });
+
+        activeModelPill.textContent = name;
+        modelNameInput.value = '';
+        renderSavedModels(modelSearchInput.value);
+        updateGeneratedCode();
+        closeModal(saveModelModal);
+      }
+
+      function getConditionValueText(item) {
+        if (item.mode === 'parameter' && item.parameterName) return `parâmetro:${item.parameterName}`;
+        if (item.operator === 'between') return `${item.value || '...'} até ${item.valueSecondary || '...'}`;
+        return item.value || '...';
+      }
+
+      function describeFilterItem(item) {
+        const field = fieldCatalog[item.field];
+        const operator = operatorCatalog[item.operator];
+        return `${field.label} ${operator.label} ${getConditionValueText(item)}`;
+      }
+
+      function preprocessFilterStructure() {
+        const result = [];
+        const stack = [];
+
+        builderState.filters.forEach((item, index) => {
+          if (item.kind === 'group_start') {
+            const ancestorGroups = stack.slice();
+            stack.push(item.id);
+            result.push({ ...item, index, ancestorGroups, ownGroupId: item.id });
+            return;
+          }
+
+          if (item.kind === 'group_end') {
+            const currentGroupId = stack[stack.length - 1] || null;
+            result.push({ ...item, index, ancestorGroups: stack.slice(), closingGroupId: currentGroupId });
+            if (stack.length) stack.pop();
+            return;
+          }
+
+          result.push({ ...item, index, ancestorGroups: stack.slice() });
+        });
+
+        return result;
+      }
+
+      function countItemsInsideGroup(groupId) {
+        const processed = preprocessFilterStructure();
+        return processed.filter((item) => item.ancestorGroups.includes(groupId) && item.kind === 'condition').length;
+      }
+
+      function renderFilterTree() {
+        const processed = preprocessFilterStructure();
+        const summary = [];
+
+        if (!processed.length) {
+          filterTreeList.innerHTML = `<div class="empty-state">Nenhuma condição adicionada ainda.</div>`;
+          summaryChips.innerHTML = '';
+          return;
+        }
+
+        filterTreeList.innerHTML = processed.map((item) => {
+          const hiddenByGroup = item.ancestorGroups?.some((groupId) => uiState.collapsedGroups[groupId]);
+          const hiddenClass = hiddenByGroup ? 'hidden-by-group' : '';
+
+          if (item.kind === 'group_start') {
+            const collapsed = !!uiState.collapsedGroups[item.id];
+            const childCount = countItemsInsideGroup(item.id);
+            return `
+              <div class="tree-item group indent-${Math.min(item.level, 3)} ${hiddenClass}">
+                <div class="meta">
+                  ${item.connective ? `<span class="logic-badge">${item.connective}</span>` : '<span class="logic-badge">INÍCIO</span>'}
+                  <button class="toggle-node" type="button" data-toggle-group="${item.id}">${collapsed ? '+' : '−'}</button>
+                  <span class="chip logic">Grupo lógico</span>
+                  <span class="chip soft">${collapsed ? 'Recolhido' : 'Expandido'}</span>
+                  <span class="chip">${childCount} condição(ões)</span>
+                </div>
+                <div class="actions-inline">
+                  <button class="btn min danger" type="button" data-remove-filter-block="${item.id}">Remover grupo</button>
+                </div>
+              </div>
+            `;
+          }
+
+          if (item.kind === 'group_end') {
+            return `
+              <div class="tree-item group indent-${Math.min(item.level, 3)} ${hiddenClass}">
+                <div class="meta">
+                  <span class="chip logic">Fechar grupo</span>
+                </div>
+              </div>
+            `;
+          }
+
+          const field = fieldCatalog[item.field];
+          const operator = operatorCatalog[item.operator];
+          const valueText = getConditionValueText(item);
+          const connectiveText = item.connective ? `<span class="logic-badge">${item.connective}</span>` : '<span class="logic-badge">INÍCIO</span>';
+          summary.push(`${field.label}: ${valueText}`);
+
+          return `
+            <div class="tree-item indent-${Math.min(item.level, 3)} ${hiddenClass}">
+              <div class="meta">
+                ${connectiveText}
+                <span class="chip soft">${field.label}</span>
+                <span class="chip">${operator.label}</span>
+                <span class="chip ok">${valueText}</span>
+                ${item.mode === 'parameter' ? `<span class="chip logic">${item.parameterName}</span>` : ''}
+              </div>
+              <div class="actions-inline">
+                <button class="btn min" type="button" data-edit-filter="${item.id}">Editar</button>
+                <button class="btn min danger" type="button" data-remove-filter="${item.id}">Remover</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        summaryChips.innerHTML = summary.slice(0, 6).map((text) => `<span class="chip">${text}</span>`).join('');
+      }
+
+      function renderSorts() {
+        const sortedItems = [...builderState.sorts].sort((a, b) => Number(a.priority) - Number(b.priority));
+
+        if (!sortedItems.length) {
+          sortList.innerHTML = `<div class="empty-state">Nenhum order by configurado.</div>`;
+          return;
+        }
+
+        sortList.innerHTML = sortedItems.map((item) => `
+          <div class="tree-item">
+            <div class="meta">
+              <span class="chip logic">${item.priority}º</span>
+              <span class="chip soft">${fieldCatalog[item.field].label}</span>
+              <span class="chip warn">${directionCatalog[item.direction]}</span>
+            </div>
+            <div class="actions-inline">
+              <button class="btn min" type="button" data-edit-sort="${item.id}">Editar</button>
+              <button class="btn min danger" type="button" data-remove-sort="${item.id}">Remover</button>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      function buildFormulaTokens() {
+        const metricName = metricNameInput.value.trim() || 'variavel';
+        const operation = metricOperationSelect.options[metricOperationSelect.selectedIndex].text;
+        const metricField = fieldCatalog[metricFieldSelect.value].label;
+        const groupBy = groupBySelect.options[groupBySelect.selectedIndex].text;
+        const tokens = [
+          `<span class="token metric">${metricName}</span>`,
+          '<span>=</span>',
+          `<span class="token metric">${operation}</span>`,
+          `<span class="token input">${metricField}</span>`
+        ];
+
+        if (builderState.filters.length) {
+          tokens.push('<span class="token logic">onde</span>');
+          builderState.filters.forEach((item) => {
+            if (item.kind === 'group_start') {
+              if (item.connective) tokens.push(`<span class="token logic">${item.connective}</span>`);
+              tokens.push('<span class="token group">(</span>');
+              return;
+            }
+            if (item.kind === 'group_end') {
+              tokens.push('<span class="token group">)</span>');
+              return;
+            }
+            if (item.connective) tokens.push(`<span class="token logic">${item.connective}</span>`);
+            tokens.push(`<span class="token filter">${describeFilterItem(item)}</span>`);
+          });
+        }
+
+        if (groupBy !== 'Sem agrupamento') tokens.push(`<span class="token group">agrupado por ${groupBy}</span>`);
+
+        if (builderState.sorts.length) {
+          builderState.sorts
+            .sort((a, b) => Number(a.priority) - Number(b.priority))
+            .forEach((item, index) => {
+              tokens.push(index === 0 ? '<span class="token logic">order by</span>' : '<span class="token logic">depois</span>');
+              tokens.push(`<span class="token order">${fieldCatalog[item.field].label} ${directionCatalog[item.direction]}</span>`);
+            });
+        }
+
+        formulaExpressionLine.innerHTML = tokens.join(' ');
+      }
+
+      function buildPayload() {
+        const payload = {
+          reportId: 'faturamento-por-servico',
+          base: 'bookings',
+          metric: {
+            name: metricNameInput.value.trim() || 'faturamento',
+            operation: metricOperationSelect.value,
+            field: metricFieldSelect.value
+          },
+          filters: builderState.filters.map((item) => {
+            if (item.kind !== 'condition') {
+              return {
+                type: item.kind,
+                connective: item.connective,
+                level: item.level,
+                collapsed: item.kind === 'group_start' ? !!uiState.collapsedGroups[item.id] : undefined
+              };
+            }
+            return {
+              type: 'condition',
+              connective: item.connective,
+              level: item.level,
+              field: item.field,
+              operator: operatorCatalog[item.operator].payload,
+              valueMode: item.mode,
+              value: item.operator === 'between' ? [item.value, item.valueSecondary] : item.value,
+              parameterName: item.parameterName || null
+            };
+          }),
+          groupBy: groupBySelect.value === 'none' ? [] : [groupBySelect.value],
+          orderBy: [...builderState.sorts]
+            .sort((a, b) => Number(a.priority) - Number(b.priority))
+            .map((item) => ({ field: item.field, direction: item.direction, priority: Number(item.priority) })),
+          visualization: visualizationSelect.value
+        };
+
+        payloadPreview.textContent = JSON.stringify(payload, null, 2);
+      }
+
+      function renderEditAlerts() {
+        if (uiState.editingFilterId) {
+          const item = builderState.filters.find((entry) => entry.id === uiState.editingFilterId);
+          editModeAlert.classList.add('show');
+          editModeAlert.innerHTML = `Editando condição: <strong>${item ? describeFilterItem(item) : 'item'}</strong>. Ao salvar, a condição atual será atualizada.`;
+          addConditionBtn.textContent = 'Salvar edição';
+          cancelEditBtn.style.display = 'inline-flex';
+        } else {
+          editModeAlert.classList.remove('show');
+          editModeAlert.textContent = '';
+          addConditionBtn.textContent = 'Adicionar condição';
+          cancelEditBtn.style.display = 'none';
+        }
+
+        if (uiState.editingSortId) {
+          const item = builderState.sorts.find((entry) => entry.id === uiState.editingSortId);
+          sortEditModeAlert.classList.add('show');
+          sortEditModeAlert.innerHTML = `Editando ordenação: <strong>${item ? `${fieldCatalog[item.field].label} • ${directionCatalog[item.direction]} • prioridade ${item.priority}` : 'item'}</strong>.`;
+          addSortBtn.textContent = 'Salvar order by';
+          cancelSortEditBtn.style.display = 'inline-flex';
+        } else {
+          sortEditModeAlert.classList.remove('show');
+          sortEditModeAlert.textContent = '';
+          addSortBtn.textContent = 'Adicionar order by';
+          cancelSortEditBtn.style.display = 'none';
+        }
+      }
+
+      function rerender() {
+        renderFilterTree();
+        renderSorts();
+        buildFormulaTokens();
+        buildPayload();
+        renderEditAlerts();
+      }
+
+      function clearFilterForm() {
+        uiState.editingFilterId = null;
+        filterConnectiveSelect.value = 'AND';
+        filterFieldSelect.value = 'data_atendimento';
+        refreshFilterOperators();
+        filterValueModeSelect.value = 'value';
+        filterValueInput.value = '';
+        filterValueInputSecondary.value = '';
+        filterParameterNameInput.value = '';
+        refreshFilterValueInputs();
+      }
+
+      function loadConditionIntoForm(id) {
+        const item = builderState.filters.find((entry) => entry.id === id && entry.kind === 'condition');
+        if (!item) return;
+        uiState.editingFilterId = id;
+        filterConnectiveSelect.value = item.connective || 'AND';
+        filterFieldSelect.value = item.field;
+        refreshFilterOperators();
+        filterOperatorSelect.value = item.operator;
+        filterValueModeSelect.value = item.mode;
+        refreshFilterValueInputs();
+        filterValueInput.value = item.value || '';
+        filterValueInputSecondary.value = item.valueSecondary || '';
+        filterParameterNameInput.value = item.parameterName || '';
+        rerender();
+      }
+
+      function clearSortForm() {
+        uiState.editingSortId = null;
+        sortFieldSelect.value = 'valor_servico';
+        sortDirectionSelect.value = 'desc';
+        sortPriorityInput.value = String((builderState.sorts.length || 0) + 1 || 1);
+      }
+
+      function loadSortIntoForm(id) {
+        const item = builderState.sorts.find((entry) => entry.id === id);
+        if (!item) return;
+        uiState.editingSortId = id;
+        sortFieldSelect.value = item.field;
+        sortDirectionSelect.value = item.direction;
+        sortPriorityInput.value = String(item.priority);
+        rerender();
+      }
+
+      function addCondition() {
+        const fieldKey = filterFieldSelect.value;
+        const operatorKey = filterOperatorSelect.value;
+        const mode = filterValueModeSelect.value;
+        const value = filterValueInput.value.trim();
+        const valueSecondary = filterValueInputSecondary.value.trim();
+        const parameterName = filterParameterNameInput.value.trim();
+        const currentLevel = countOpenGroups();
+
+        if (operatorKey === 'between' && (!value || !valueSecondary)) return;
+        if (operatorKey !== 'between' && !value && mode !== 'parameter') return;
+        if (mode === 'parameter' && !parameterName) return;
+
+        if (uiState.editingFilterId) {
+          const item = builderState.filters.find((entry) => entry.id === uiState.editingFilterId);
+          if (!item) return;
+          item.connective = item.connective === null ? null : filterConnectiveSelect.value;
+          item.field = fieldKey;
+          item.operator = operatorKey;
+          item.mode = mode;
+          item.value = value;
+          item.valueSecondary = valueSecondary;
+          item.parameterName = parameterName;
+          uiState.editingFilterId = null;
+        } else {
+          const lastConditionLike = [...builderState.filters].reverse().find((entry) => entry.kind === 'condition' || entry.kind === 'group_start');
+          builderState.filters.push({
+            id: cryptoRandomId(),
+            kind: 'condition',
+            connective: lastConditionLike ? filterConnectiveSelect.value : null,
+            level: currentLevel,
+            field: fieldKey,
+            operator: operatorKey,
+            mode,
+            value,
+            valueSecondary,
+            parameterName
+          });
+        }
+
+        clearFilterForm();
+        rerender();
+      }
+
+      function countOpenGroups() {
+        return builderState.filters.reduce((acc, item) => {
+          if (item.kind === 'group_start') return acc + 1;
+          if (item.kind === 'group_end') return Math.max(0, acc - 1);
+          return acc;
+        }, 0);
+      }
+
+      function addGroupStart() {
+        const lastConditionLike = [...builderState.filters].reverse().find((entry) => entry.kind === 'condition' || entry.kind === 'group_end');
+        builderState.filters.push({
+          id: cryptoRandomId(),
+          kind: 'group_start',
+          connective: lastConditionLike ? filterConnectiveSelect.value : null,
+          level: countOpenGroups()
+        });
+        rerender();
+      }
+
+      function addGroupEnd() {
+        const level = countOpenGroups();
+        if (level <= 0) return;
+        builderState.filters.push({
+          id: cryptoRandomId(),
+          kind: 'group_end',
+          connective: null,
+          level: level - 1
+        });
+        rerender();
+      }
+
+      function addSort() {
+        const field = sortFieldSelect.value;
+        const direction = sortDirectionSelect.value;
+        const priority = Number(sortPriorityInput.value || 1);
+
+        if (uiState.editingSortId) {
+          const existing = builderState.sorts.find((entry) => entry.id === uiState.editingSortId);
+          if (!existing) return;
+          existing.field = field;
+          existing.direction = direction;
+          existing.priority = priority;
+          uiState.editingSortId = null;
+        } else {
+          builderState.sorts = builderState.sorts.filter((item) => item.priority !== priority);
+          builderState.sorts.push({ id: cryptoRandomId(), field, direction, priority });
+        }
+
+        clearSortForm();
+        rerender();
+      }
+
+      function removeFilter(id) {
+        builderState.filters = builderState.filters.filter((item) => item.id !== id);
+        if (uiState.editingFilterId === id) clearFilterForm();
+        rerender();
+      }
+
+      function removeFilterBlock(id) {
+        const startIndex = builderState.filters.findIndex((item) => item.id === id && item.kind === 'group_start');
+        if (startIndex === -1) return;
+
+        let depth = 0;
+        let endIndex = startIndex;
+        for (let index = startIndex; index < builderState.filters.length; index += 1) {
+          const item = builderState.filters[index];
+          if (item.kind === 'group_start') depth += 1;
+          if (item.kind === 'group_end') depth -= 1;
+          if (depth === 0) {
+            endIndex = index;
+            break;
+          }
+        }
+
+        builderState.filters.splice(startIndex, endIndex - startIndex + 1);
+        delete uiState.collapsedGroups[id];
+        rerender();
+      }
+
+      function removeSort(id) {
+        builderState.sorts = builderState.sorts.filter((item) => item.id !== id);
+        if (uiState.editingSortId === id) clearSortForm();
+        rerender();
+      }
+
+      function toggleGroup(id) {
+        uiState.collapsedGroups[id] = !uiState.collapsedGroups[id];
+        rerender();
+      }
+
+      function renderLookupModal() {
+        const fieldKey = uiState.lookupField;
+        const items = lookupCatalog[fieldKey] || [];
+        const query = lookupSearchInput.value.trim().toLowerCase();
+        const filtered = items.filter((item) => item.label.toLowerCase().includes(query) || item.meta.toLowerCase().includes(query));
+
+        if (!filtered.length) {
+          lookupList.innerHTML = `<div class="empty-state">Nenhum item encontrado para a busca informada.</div>`;
+        } else {
+          lookupList.innerHTML = filtered.map((item) => {
+            const active = uiState.lookupSelected.includes(item.label);
+            return `
+              <div class="lookup-item ${active ? 'active' : ''}">
+                <div>
+                  <strong>${item.label}</strong>
+                  <span>${item.meta}</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span class="lookup-code">${item.id}</span>
+                  <button class="btn secondary min" type="button" data-toggle-lookup-value="${item.label}">${active ? 'Remover' : 'Selecionar'}</button>
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+
+        if (uiState.lookupSelected.length) {
+          lookupSelectedChips.innerHTML = uiState.lookupSelected.map((label) => `<span class="chip soft">${label}</span>`).join('');
+        } else {
+          lookupSelectedChips.innerHTML = '<span class="mini-note">Nenhum item selecionado.</span>';
+        }
+      }
+
+      function openLookup() {
+        const fieldKey = filterFieldSelect.value;
+        const operator = filterOperatorSelect.value;
+        if (!allowsLookupSelection(fieldKey, operator)) return;
+
+        uiState.lookupField = fieldKey;
+        uiState.lookupSelected = filterValueInput.value
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean);
+
+        const fieldLabel = fieldCatalog[fieldKey].label;
+        const multiple = isMultiLookup(fieldKey, operator);
+        lookupModalTitle.textContent = `Selecionar ${fieldLabel}`;
+        lookupModalSubtitle.textContent = `Pesquise e escolha ${multiple ? 'um ou mais itens' : 'um item'} para o filtro atual.`;
+        lookupModeHint.textContent = multiple
+          ? 'O operador atual aceita múltiplos valores. A seleção será aplicada como lista.'
+          : 'O operador atual aceita apenas um valor. Ao selecionar outro item, o anterior será substituído.';
+        lookupSearchInput.value = '';
+        renderLookupModal();
+        openModal(lookupModal);
+      }
+
+      function toggleLookupValue(label) {
+        const multiple = isMultiLookup(uiState.lookupField, filterOperatorSelect.value);
+        if (multiple) {
+          uiState.lookupSelected = uiState.lookupSelected.includes(label)
+            ? uiState.lookupSelected.filter((item) => item !== label)
+            : [...uiState.lookupSelected, label];
+        } else {
+          uiState.lookupSelected = uiState.lookupSelected[0] === label ? [] : [label];
+        }
+        renderLookupModal();
+      }
+
+      function applyLookupSelection() {
+        filterValueInput.value = uiState.lookupSelected.join(', ');
+        closeModal(lookupModal);
+      }
+
+      topBtn.addEventListener('click', toggleBuilder);
+      inlineBtn.addEventListener('click', toggleBuilder);
+
+      openModelsBtn.addEventListener('click', function () {
+        renderSavedModels(modelSearchInput.value);
+        openModal(openModelsModal);
+      });
+
+      saveModelBtn.addEventListener('click', function () {
+        updateGeneratedCode();
+        openModal(saveModelModal);
+        modelNameInput.focus();
+      });
+
+      openLookupBtn.addEventListener('click', openLookup);
+      lookupSearchInput.addEventListener('input', renderLookupModal);
+      confirmLookupBtn.addEventListener('click', applyLookupSelection);
+
+      modelSearchInput.addEventListener('input', function (event) {
+        renderSavedModels(event.target.value);
+      });
+
+      confirmSaveModelBtn.addEventListener('click', handleSaveModel);
+      cancelEditBtn.addEventListener('click', function () { clearFilterForm(); rerender(); });
+      cancelSortEditBtn.addEventListener('click', function () { clearSortForm(); rerender(); });
+
+      document.querySelectorAll('[data-close-modal]').forEach((button) => {
+        button.addEventListener('click', function () {
+          const modal = document.getElementById(button.getAttribute('data-close-modal'));
+          closeModal(modal);
+        });
+      });
+
+      document.addEventListener('click', function (event) {
+        const modelTrigger = event.target.closest('[data-open-model]');
+        if (modelTrigger) {
+          handleOpenModel(modelTrigger.getAttribute('data-open-model'));
+          return;
+        }
+
+        const filterTrigger = event.target.closest('[data-remove-filter]');
+        if (filterTrigger) {
+          removeFilter(filterTrigger.getAttribute('data-remove-filter'));
+          return;
+        }
+
+        const filterBlockTrigger = event.target.closest('[data-remove-filter-block]');
+        if (filterBlockTrigger) {
+          removeFilterBlock(filterBlockTrigger.getAttribute('data-remove-filter-block'));
+          return;
+        }
+
+        const editFilterTrigger = event.target.closest('[data-edit-filter]');
+        if (editFilterTrigger) {
+          loadConditionIntoForm(editFilterTrigger.getAttribute('data-edit-filter'));
+          return;
+        }
+
+        const toggleGroupTrigger = event.target.closest('[data-toggle-group]');
+        if (toggleGroupTrigger) {
+          toggleGroup(toggleGroupTrigger.getAttribute('data-toggle-group'));
+          return;
+        }
+
+        const sortTrigger = event.target.closest('[data-remove-sort]');
+        if (sortTrigger) {
+          removeSort(sortTrigger.getAttribute('data-remove-sort'));
+          return;
+        }
+
+        const editSortTrigger = event.target.closest('[data-edit-sort]');
+        if (editSortTrigger) {
+          loadSortIntoForm(editSortTrigger.getAttribute('data-edit-sort'));
+          return;
+        }
+
+        const lookupToggleTrigger = event.target.closest('[data-toggle-lookup-value]');
+        if (lookupToggleTrigger) {
+          toggleLookupValue(lookupToggleTrigger.getAttribute('data-toggle-lookup-value'));
+          return;
+        }
+
+        if (event.target.classList && event.target.classList.contains('modal-backdrop')) {
+          closeModal(event.target);
+        }
+      });
+
+      document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape') {
+          closeModal(openModelsModal);
+          closeModal(saveModelModal);
+          closeModal(lookupModal);
+        }
+      });
+
+      filterFieldSelect.addEventListener('change', refreshFilterOperators);
+      filterOperatorSelect.addEventListener('change', refreshFilterValueInputs);
+      filterValueModeSelect.addEventListener('change', refreshFilterValueInputs);
+      addConditionBtn.addEventListener('click', addCondition);
+      openGroupBtn.addEventListener('click', addGroupStart);
+      closeGroupBtn.addEventListener('click', addGroupEnd);
+      addSortBtn.addEventListener('click', addSort);
+
+      [metricNameInput, visualizationSelect, metricOperationSelect, metricFieldSelect, groupBySelect].forEach((element) => {
+        element.addEventListener('change', rerender);
+        element.addEventListener('input', rerender);
+      });
+
+      populateStaticSelects();
+      renderSavedModels();
+      syncBuilderState();
+      updateGeneratedCode();
+      clearSortForm();
+      rerender();
+    })();
+  </script>
+</body>
+</html>

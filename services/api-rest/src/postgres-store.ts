@@ -6,6 +6,7 @@ import type {
   ConfigureTenantBrandingCommand,
   ConfigureTenantSlugCommand,
   CreateBookingCommand,
+  ReportDefinition,
   TenantPaymentSettings,
   CreateProfessionalCommand,
   CreateServiceCommand,
@@ -32,6 +33,10 @@ import {
 
 interface PostgresSnapshotRow {
   payload: ApiRestStoreSnapshot;
+}
+
+interface PostgresReportDefinitionRow {
+  definition: ReportDefinition;
 }
 
 interface PostgresApiRestStoreOptions {
@@ -359,6 +364,30 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return result;
   }
 
+  async listReportDefinitions(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listReportDefinitions(tenantId);
+  }
+
+  async getReportDefinition(tenantId: string, reportDefinitionId: string) {
+    await this.ensureReady();
+    return this.store.getReportDefinition(tenantId, reportDefinitionId);
+  }
+
+  async saveReportDefinition(definition: ReportDefinition) {
+    await this.ensureReady();
+    const saved = this.store.saveReportDefinition(definition);
+    await this.persistSnapshot();
+    return saved;
+  }
+
+  async deleteReportDefinition(tenantId: string, reportDefinitionId: string) {
+    await this.ensureReady();
+    const deleted = this.store.deleteReportDefinition(tenantId, reportDefinitionId);
+    await this.persistSnapshot();
+    return deleted;
+  }
+
   private async ensureReady(): Promise<void> {
     await this.readyPromise;
   }
@@ -371,6 +400,18 @@ export class PostgresApiRestStore implements ApiRestStorePort {
         updated_at timestamptz not null default now()
       )
     `);
+    await this.pool.query(`
+      create table if not exists report_definitions (
+        id text primary key,
+        tenant_id text not null,
+        definition jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await this.pool.query(`
+      create index if not exists report_definitions_tenant_idx
+        on report_definitions (tenant_id)
+    `);
 
     const result = await this.pool.query<PostgresSnapshotRow>(
       "select payload from agendaai_runtime_snapshots where store_key = $1",
@@ -380,6 +421,13 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     const snapshot = result.rows[0]?.payload;
     if (snapshot) {
       this.store.restoreSnapshot(snapshot);
+    }
+
+    const reportDefinitions = await this.pool.query<PostgresReportDefinitionRow>(
+      "select definition from report_definitions"
+    );
+    for (const row of reportDefinitions.rows) {
+      this.store.saveReportDefinition(row.definition);
     }
   }
 
@@ -395,6 +443,23 @@ export class PostgresApiRestStore implements ApiRestStorePort {
         `,
         [SNAPSHOT_KEY, JSON.stringify(snapshot)]
       );
+
+      const definitions = snapshot.reportDefinitions ?? [];
+      await this.pool.query("delete from report_definitions");
+      for (const definition of definitions) {
+        await this.pool.query(
+          `
+            insert into report_definitions (id, tenant_id, definition, updated_at)
+            values ($1, $2, $3::jsonb, now())
+            on conflict (id)
+            do update
+              set tenant_id = excluded.tenant_id,
+                  definition = excluded.definition,
+                  updated_at = excluded.updated_at
+          `,
+          [definition.id, definition.tenantId, JSON.stringify(definition)]
+        );
+      }
     });
 
     await this.persistQueue;
@@ -418,6 +483,7 @@ function emptySnapshot(): ApiRestStoreSnapshot {
     professionals: [],
     availabilityRules: [],
     bookings: [],
+    reportDefinitions: [],
     sessions: []
   };
 }

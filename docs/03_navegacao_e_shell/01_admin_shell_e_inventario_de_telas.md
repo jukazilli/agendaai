@@ -46,7 +46,7 @@ No chrome global do shell:
 | `/app/configuracoes` | Configuracoes do tenant | manter dados permanentes do negocio apos a implantacao | dados do tenant, slug, branding, integracoes e preferencias operacionais | beta obrigatoria |
 | `/app/calendario` | Calendario denso | operar visao semanal e diaria por profissional | grade temporal, filtros, conflito, reagendamento | pos-beta planejada |
 | `/app/financeiro` | Financeiro operacional | ler caixa e movimentos ligados ao atendimento | resumo financeiro, movimentacoes, conciliacao basica | pos-beta planejada |
-| `/app/relatorios` | Relatorios | acompanhar agenda, receita e retorno | filtros por periodo, cards, tabelas e comparativos | beta materializada em modo parcial |
+| `/app/relatorios` | Relatorios | montar, executar e salvar leituras gerenciais reutilizaveis | builder semantico, dock tabs, filtros por modal, lookup e modelos salvos | beta obrigatoria |
 | `/app/campanhas` | Campanhas e retorno | acionar win-back e comunicacoes | segmentos, disparos, historico de contato | pos-beta planejada |
 
 ## 5. User stories minimas por tela
@@ -99,19 +99,22 @@ No chrome global do shell:
 ### Relatorios
 
 - deve concentrar apenas leitura gerencial, comparativos e recortes analiticos;
-- deve operar em workspace local proprio, com `menu de visoes`, `abas abertas` e `contexto` desacoplados da navegacao global do shell;
+- deve operar como `builder workspace` em pagina em branco, sem menu redundante de visoes dentro do corpo principal;
+- cada relatorio deve abrir em `dock tab` dedicada, preservando edicao, preview e execucao no mesmo stage;
 - no desktop, a abertura das visoes deve preferir hover ou flyout no proprio item lateral `relatorios`, evitando um segundo menu redundante dentro da tela;
 - em viewport compacto, a rota pode manter um disclosure proprio como fallback para quem nao possui hover;
 - filtros devem ser locais a cada visao e abrir em modal proprio via botao `filtrar`, nunca como faixa fixa ocupando o topo inteiro do modulo;
-- filtros de lookup devem privilegiar busca por `nome`, `telefone` e identificador atual do registro, sem inventar `codigo` persistido onde o backend ainda nao modelou esse campo;
+- o modulo deve trabalhar com `modelos salvos`, nunca com `snapshots` persistidos dos resultados executados;
+- filtros de lookup devem privilegiar busca por `codigo`, `nome`, `descricao` e `telefone` conforme o tipo do cadastro e o contrato real do backend;
 - campos de lookup devem exibir acao explicita de consulta, como icone de lupa, e abrir popup tabular com colunas aderentes ao tipo do registro:
   - `codigo` + `descricao` para itens e servicos;
   - `codigo` + `nome` para pessoas;
   - colunas complementares como `telefone` podem aparecer quando o contrato real ja fornecer esse dado.
-- agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em visoes dedicadas, preferencialmente via tab bar;
-- o workspace pode abrir visoes como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `retorno e retencao`, `radar semanal`, `visao mensal` e `pendencias operacionais`;
+- o shell deve listar as visoes de sistema no proprio flyout lateral de `relatorios`, como `visao executiva`, `receita e servicos`, `equipe e produtividade`, `pendencias operacionais`, `retorno e retencao`, `radar semanal` e `visao mensal`;
+- agrupamentos por `servicos`, `equipe`, `retorno` e `agenda` devem nascer em definicoes dedicadas, sem empilhar todas as leituras na mesma pagina;
 - quando a leitura de `agenda` crescer, `radar semanal` e `leitura mensal` devem abrir em sub-visoes dedicadas, e nao empilhadas na mesma area;
 - contexto tecnico do recorte, fonte e comparativo nao deve competir com KPI e listas principais no mesmo viewport;
+- o resultado executado deve ser derivado do backend real no momento da execucao; apenas a definicao reutilizavel pode ser persistida;
 - acoes operacionais continuam em `operacao diaria`, `agenda` e `clientes`.
 
 ### Clientes
@@ -136,6 +139,16 @@ Em `19/03/2026`, o `admin-web` passou a refletir a primeira materializacao real 
 - agenda com filtros operacionais por data e profissional, `lista` do dia, calendario React em `dia/semana/mes`, selecao de booking e reagendamento por slot real na mesma rota.
 - clientes com recorte de retorno por janela, ultimo atendimento concluido, receita persistida minima, selecao de cliente e detalhe operacional com historico e movimentos financeiros.
 - relatorios dedicados com filtros por periodo, servico e profissional, comparativo contra periodo anterior, read model minimo de receita/recorrencia vindo do `api-rest` e `insights da agenda` para capacidade agregada semanal/mensal.
+
+Em `21/03/2026`, `Relatorios` deixou de ser uma tela fixa de cards e visoes internas e passou a operar como `builder workspace` materializado:
+
+- flyout lateral de `relatorios` abre por hover no desktop e lista as definicoes gerenciais do sistema;
+- clique em uma visao abre uma `dock tab` dedicada no workspace;
+- a rota trabalha com `builder`, `preview de expressao`, `payload tecnico`, `resultado real` e `modelos salvos`;
+- filtros passaram a abrir em modal por relatorio, com lookup por lupa e popup tabular;
+- `services`, `professionals` e `clients` agora expõem `codigo` persistido para lookup e indexacao operacional;
+- `report_definitions` foram persistidas no store local e em Postgres quando `DATABASE_URL` existe;
+- o modulo salva apenas a definicao reutilizavel do relatorio, nunca snapshot do resultado encontrado.
 
 Este documento continua sendo a referencia oficial para:
 

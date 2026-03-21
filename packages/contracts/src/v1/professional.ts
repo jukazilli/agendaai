@@ -4,6 +4,7 @@ import {
   contractEnvelopeSchema,
   entityIdSchema,
   nonEmptyStringSchema,
+  optionalTrimmedStringSchema,
   tenantIdSchema
 } from "./shared";
 
@@ -13,6 +14,7 @@ export const specialtyIdsSchema = z.array(entityIdSchema);
 export const professionalSchema = contractEnvelopeSchema.extend({
   id: entityIdSchema,
   tenantId: tenantIdSchema,
+  codigo: nonEmptyStringSchema,
   nome: nonEmptyStringSchema,
   status: professionalStatusSchema,
   especialidades: specialtyIdsSchema
@@ -20,6 +22,7 @@ export const professionalSchema = contractEnvelopeSchema.extend({
 
 export const createProfessionalSchema = contractEnvelopeSchema.extend({
   tenantId: tenantIdSchema,
+  codigo: optionalTrimmedStringSchema,
   nome: nonEmptyStringSchema,
   especialidades: specialtyIdsSchema
 });

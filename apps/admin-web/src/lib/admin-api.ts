@@ -1,5 +1,8 @@
 import type {
   AdminReportsReadModel,
+  ReportBuilderCatalog,
+  ReportDefinition,
+  ReportExecutionResponse,
   AdminSessionClaimsContract,
   AvailabilityRule,
   Booking,
@@ -74,6 +77,10 @@ export interface ReportsReadModelQuery {
   readonly returnWindow: "30d" | "60d" | "90d";
   readonly serviceId?: string;
   readonly professionalId?: string;
+}
+
+export interface ExecuteReportDefinitionPayload {
+  readonly definition: ReportDefinition;
 }
 
 interface ApiErrorPayload {
@@ -196,6 +203,77 @@ export async function fetchAdminReportsReadModel(
 
   return await requestJson<AdminReportsReadModel>(apiBaseUrl, url.pathname + url.search, {
     token
+  });
+}
+
+export async function fetchReportBuilderCatalog(
+  apiBaseUrl: string,
+  token: string
+): Promise<ReportBuilderCatalog> {
+  return await requestJson<ReportBuilderCatalog>(apiBaseUrl, "/v1/admin/reporting/catalog", {
+    token
+  });
+}
+
+export async function listReportDefinitions(
+  apiBaseUrl: string,
+  token: string
+): Promise<ReportDefinition[]> {
+  const response = await requestJson<{ items: ReportDefinition[] }>(
+    apiBaseUrl,
+    "/v1/admin/report-definitions",
+    {
+      token
+    }
+  );
+  return response.items;
+}
+
+export async function createReportDefinition(
+  apiBaseUrl: string,
+  token: string,
+  definition: ReportDefinition
+): Promise<ReportDefinition> {
+  return await requestJson<ReportDefinition>(apiBaseUrl, "/v1/admin/report-definitions", {
+    method: "POST",
+    token,
+    body: definition
+  });
+}
+
+export async function updateReportDefinition(
+  apiBaseUrl: string,
+  token: string,
+  definitionId: string,
+  definition: ReportDefinition
+): Promise<ReportDefinition> {
+  return await requestJson<ReportDefinition>(apiBaseUrl, `/v1/admin/report-definitions/${definitionId}`, {
+    method: "PATCH",
+    token,
+    body: definition
+  });
+}
+
+export async function deleteReportDefinition(
+  apiBaseUrl: string,
+  token: string,
+  definitionId: string
+): Promise<void> {
+  await requestJson<undefined>(apiBaseUrl, `/v1/admin/report-definitions/${definitionId}`, {
+    method: "DELETE",
+    token
+  });
+}
+
+export async function executeReportDefinition(
+  apiBaseUrl: string,
+  token: string,
+  payload: ExecuteReportDefinitionPayload
+): Promise<ReportExecutionResponse> {
+  return await requestJson<ReportExecutionResponse>(apiBaseUrl, "/v1/admin/reporting/execute", {
+    method: "POST",
+    token,
+    body: payload
   });
 }
 

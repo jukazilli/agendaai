@@ -1398,6 +1398,7 @@ function buildFallbackCheckoutContext(
       version: "v1",
       id: booking.clientId,
       tenantId: booking.tenantId,
+      codigo: `CLI-${booking.clientId.slice(0, 6).toUpperCase()}`,
       nome: "Cliente",
       telefone: "",
       email: "",

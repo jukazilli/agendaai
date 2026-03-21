@@ -6,6 +6,7 @@ import {
   entityIdSchema,
   moneyAmountSchema,
   nonEmptyStringSchema,
+  optionalTrimmedStringSchema,
   tenantIdSchema
 } from "./shared";
 import { servicePaymentPolicySchema } from "./payment";
@@ -15,6 +16,7 @@ export const serviceStatusSchema = nonEmptyStringSchema;
 export const serviceSchema = contractEnvelopeSchema.extend({
   id: entityIdSchema,
   tenantId: tenantIdSchema,
+  codigo: nonEmptyStringSchema,
   nome: nonEmptyStringSchema,
   duracaoMin: durationMinutesSchema,
   precoBase: moneyAmountSchema,
@@ -25,6 +27,7 @@ export const serviceSchema = contractEnvelopeSchema.extend({
 
 export const createServiceSchema = contractEnvelopeSchema.extend({
   tenantId: tenantIdSchema,
+  codigo: optionalTrimmedStringSchema,
   nome: nonEmptyStringSchema,
   duracaoMin: durationMinutesSchema,
   precoBase: moneyAmountSchema,

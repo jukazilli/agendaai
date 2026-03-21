@@ -50,6 +50,8 @@ import {
   type CreateTenantCommand,
   type PaymentIntent,
   type Professional,
+  type ReportBuilderCatalog,
+  type ReportDefinition,
   type ReportingGroupSummary,
   type ReportingMetricSummary,
   type Service,
@@ -61,27 +63,38 @@ import {
   AdminApiError,
   DEFAULT_ADMIN_API_BASE_URL,
   type AdminBootstrapPayload,
+  createReportDefinition,
   createBooking,
   createClient,
   createProfessional,
   createService,
   createTenantOnboarding,
+  executeReportDefinition as executeAdminReportDefinition,
   deleteService,
+  fetchReportBuilderCatalog,
   fetchAdminReportsReadModel,
   fetchAvailabilitySlots,
   fetchAdminBootstrap,
   fetchProfessionalAvailability,
+  listReportDefinitions,
   loginAdmin,
   resolveAdminApiBaseUrl,
   savePaymentSettings,
   saveProfessionalAvailability,
   syncPaymentIntent,
+  updateReportDefinition as updateAdminReportDefinition,
   updateBooking,
   updateProfessional,
   updateService,
   updateTenantBranding,
   updateTenantSlug
 } from "./lib/admin-api";
+import {
+  ReportsBuilderWorkspace,
+  type ReportsBuilderLookupRow,
+  type ReportsBuilderMenuItem,
+  type ReportsBuilderTabState
+} from "./reports-builder-workspace";
 import {
   ReportsWorkspace,
   type ReportsWorkspaceFilterField,
@@ -271,6 +284,16 @@ const reportsWorkspaceItems: readonly ReportsWorkspaceItem[] = [
     badge: "Acao"
   }
 ] as const;
+
+const reportBuilderMenuMeta = {
+  "RPT-EXECUTIVE": { group: "Gestao", label: "Visao executiva", description: "Resumo do negocio no recorte ativo." },
+  "RPT-REVENUE": { group: "Comercial", label: "Receita e servicos", description: "Faturamento, ticket e mix de servicos." },
+  "RPT-TEAM": { group: "Equipe", label: "Equipe e produtividade", description: "Leitura por profissional e capacidade entregue." },
+  "RPT-OPERATIONS": { group: "Operacao", label: "Pendencias operacionais", description: "Fila que ainda pede tratamento operacional." },
+  "RPT-RETENTION": { group: "Clientes", label: "Retorno e retencao", description: "Retorno, recorrencia e inatividade da base." },
+  "RPT-WEEK": { group: "Capacidade", label: "Radar semanal", description: "Carga da semana para redistribuir operacao." },
+  "RPT-MONTH": { group: "Capacidade", label: "Visao mensal", description: "Leitura consolidada do mes por dia." }
+} as const satisfies Record<string, { group: string; label: string; description: string }>;
 
 interface BookingSummary {
   readonly today: number;
@@ -589,6 +612,48 @@ function groupReportsWorkspaceItems(
   });
 
   return Array.from(grouped.entries());
+}
+
+function buildReportsBuilderMenuItems(
+  catalog: ReportBuilderCatalog | null
+): ReportsBuilderMenuItem[] {
+  if (!catalog) {
+    return [];
+  }
+
+  return catalog.systemDefinitions.map((definition) => {
+    const meta = reportBuilderMenuMeta[definition.code as keyof typeof reportBuilderMenuMeta];
+    return {
+      code: definition.code,
+      label: meta?.label ?? definition.name,
+      group: meta?.group ?? "Relatorios",
+      description: meta?.description ?? definition.description ?? "Abrir relatorio em dock tab dedicada."
+    };
+  });
+}
+
+function groupReportsBuilderMenuItems(
+  items: readonly ReportsBuilderMenuItem[]
+): Array<[string, ReportsBuilderMenuItem[]]> {
+  const grouped = new Map<string, ReportsBuilderMenuItem[]>();
+
+  items.forEach((item) => {
+    const current = grouped.get(item.group) ?? [];
+    current.push(item);
+    grouped.set(item.group, current);
+  });
+
+  return Array.from(grouped.entries());
+}
+
+function createReportBuilderTabId(definition: ReportDefinition): string {
+  return definition.source === "system"
+    ? `system:${definition.code}`
+    : `saved:${definition.id}`;
+}
+
+function cloneReportDefinition(definition: ReportDefinition): ReportDefinition {
+  return JSON.parse(JSON.stringify(definition)) as ReportDefinition;
 }
 
 function createDefaultReportsPaneFilters(window: ClientReturnWindow): ReportsPaneFilters {
@@ -1065,6 +1130,12 @@ export function App() {
   const [isReportsFilterModalOpen, setIsReportsFilterModalOpen] = useState(false);
   const [reportsLookupFieldId, setReportsLookupFieldId] = useState<string | null>(null);
   const [reportsLookupQuery, setReportsLookupQuery] = useState("");
+  const [reportsCatalog, setReportsCatalog] = useState<ReportBuilderCatalog | null>(null);
+  const [savedReportDefinitions, setSavedReportDefinitions] = useState<ReportDefinition[]>([]);
+  const [reportBuilderTabs, setReportBuilderTabs] = useState<ReportsBuilderTabState[]>([]);
+  const [activeReportBuilderTabId, setActiveReportBuilderTabId] = useState("");
+  const [reportsBuilderError, setReportsBuilderError] = useState<string | null>(null);
+  const [isLoadingReportsBuilder, setIsLoadingReportsBuilder] = useState(false);
   const [isCompactShell, setIsCompactShell] = useState(false);
 
   useEffect(() => {
@@ -1242,6 +1313,57 @@ export function App() {
     reportsServiceFilter,
     sessionToken
   ]);
+
+  useEffect(() => {
+    if (!sessionToken) {
+      setReportsCatalog(null);
+      setSavedReportDefinitions([]);
+      setReportBuilderTabs([]);
+      setActiveReportBuilderTabId("");
+      setReportsBuilderError(null);
+      setIsLoadingReportsBuilder(false);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingReportsBuilder(true);
+
+    async function loadReportBuilderAssets() {
+      try {
+        const [nextCatalog, nextDefinitions] = await Promise.all([
+          fetchReportBuilderCatalog(apiBaseUrl, sessionToken),
+          listReportDefinitions(apiBaseUrl, sessionToken)
+        ]);
+
+        if (ignore) {
+          return;
+        }
+
+        setReportsCatalog(nextCatalog);
+        setSavedReportDefinitions(nextDefinitions);
+        setReportsBuilderError(null);
+      } catch (error) {
+        if (ignore) {
+          return;
+        }
+        if (error instanceof AdminApiError && error.status === 401) {
+          setSessionToken("");
+        }
+        setReportsCatalog(null);
+        setSavedReportDefinitions([]);
+        setReportsBuilderError(toErrorMessage(error));
+      } finally {
+        if (!ignore) {
+          setIsLoadingReportsBuilder(false);
+        }
+      }
+    }
+
+    void loadReportBuilderAssets();
+    return () => {
+      ignore = true;
+    };
+  }, [apiBaseUrl, sessionToken]);
 
   useEffect(() => {
     if (!bootstrap) {
@@ -2271,6 +2393,243 @@ export function App() {
 
       return nextTabs;
     });
+  }
+
+  async function reloadSavedReportBuilderDefinitions(): Promise<ReportDefinition[]> {
+    if (!sessionToken) {
+      setSavedReportDefinitions([]);
+      return [];
+    }
+
+    const nextDefinitions = await listReportDefinitions(apiBaseUrl, sessionToken);
+    setSavedReportDefinitions(nextDefinitions);
+    return nextDefinitions;
+  }
+
+  function activateReportBuilderTab(tabId: string): void {
+    setActiveReportBuilderTabId(tabId);
+    navigateTo("relatorios");
+  }
+
+  function closeReportBuilderTab(tabId: string): void {
+    setReportBuilderTabs((current) => {
+      if (current.length <= 1) {
+        return current;
+      }
+
+      const nextTabs = current.filter((tab) => tab.id !== tabId);
+      if (tabId === activeReportBuilderTabId) {
+        const fallback = nextTabs[nextTabs.length - 1];
+        window.setTimeout(() => setActiveReportBuilderTabId(fallback?.id ?? ""), 0);
+      }
+      return nextTabs;
+    });
+  }
+
+  function updateReportBuilderDefinition(tabId: string, definition: ReportDefinition): void {
+    setReportBuilderTabs((current) =>
+      current.map((tab) =>
+        tab.id === tabId
+          ? {
+              ...tab,
+              label: definition.name,
+              definition,
+              dirty: true
+            }
+          : tab
+      )
+    );
+  }
+
+  async function executeReportBuilderTab(tabId: string, definitionOverride?: ReportDefinition): Promise<void> {
+    if (!sessionToken) {
+      return;
+    }
+
+    const baseTab = reportBuilderTabs.find((tab) => tab.id === tabId);
+    const definition = definitionOverride ?? baseTab?.definition;
+    if (!definition) {
+      return;
+    }
+
+    setReportBuilderTabs((current) =>
+      current.map((tab) =>
+        tab.id === tabId
+          ? {
+              ...tab,
+              isLoading: true,
+              error: null
+            }
+          : tab
+      )
+    );
+
+    try {
+      const result = await executeAdminReportDefinition(apiBaseUrl, sessionToken, {
+        definition
+      });
+      setReportBuilderTabs((current) =>
+        current.map((tab) =>
+          tab.id === tabId
+            ? {
+                ...tab,
+                result,
+                isLoading: false,
+                error: null
+              }
+            : tab
+        )
+      );
+    } catch (error) {
+      const message = toErrorMessage(error);
+      if (error instanceof AdminApiError && error.status === 401) {
+        setSessionToken("");
+      }
+      setReportBuilderTabs((current) =>
+        current.map((tab) =>
+          tab.id === tabId
+            ? {
+                ...tab,
+                isLoading: false,
+                error: message
+              }
+            : tab
+        )
+      );
+      setFeedback({
+        tone: "error",
+        message
+      });
+    }
+  }
+
+  function openSystemReportBuilderTab(reportCode: string): void {
+    const definition = reportsCatalog?.systemDefinitions.find((entry) => entry.code === reportCode);
+    if (!definition) {
+      return;
+    }
+
+    const cloned = cloneReportDefinition(definition);
+    const tabId = createReportBuilderTabId(cloned);
+    let shouldExecute = false;
+
+    setReportBuilderTabs((current) => {
+      const existing = current.find((tab) => tab.id === tabId);
+      shouldExecute = !existing || existing.result === null;
+      if (existing) {
+        return current;
+      }
+      return [
+        ...current,
+        {
+          id: tabId,
+          label: cloned.name,
+          definition: cloned,
+          result: null,
+          isLoading: false,
+          error: null,
+          dirty: false
+        }
+      ];
+    });
+
+    setActiveReportBuilderTabId(tabId);
+    setIsReportsMenuOpen(false);
+    navigateTo("relatorios");
+    if (shouldExecute) {
+      void executeReportBuilderTab(tabId, cloned);
+    }
+  }
+
+  function openSavedReportBuilderTab(definitionId: string): void {
+    const definition = savedReportDefinitions.find((entry) => entry.id === definitionId);
+    if (!definition) {
+      return;
+    }
+
+    const cloned = cloneReportDefinition(definition);
+    const tabId = createReportBuilderTabId(cloned);
+    let shouldExecute = false;
+
+    setReportBuilderTabs((current) => {
+      const existing = current.find((tab) => tab.id === tabId);
+      shouldExecute = !existing || existing.result === null;
+      if (existing) {
+        return current;
+      }
+      return [
+        ...current,
+        {
+          id: tabId,
+          label: cloned.name,
+          definition: cloned,
+          result: null,
+          isLoading: false,
+          error: null,
+          dirty: false
+        }
+      ];
+    });
+
+    setActiveReportBuilderTabId(tabId);
+    navigateTo("relatorios");
+    if (shouldExecute) {
+      void executeReportBuilderTab(tabId, cloned);
+    }
+  }
+
+  async function saveReportBuilderTab(tabId: string, name: string, description: string): Promise<void> {
+    if (!sessionToken) {
+      return;
+    }
+
+    const tab = reportBuilderTabs.find((entry) => entry.id === tabId);
+    if (!tab) {
+      return;
+    }
+
+    const draftDefinition: ReportDefinition = {
+      ...tab.definition,
+      name,
+      description
+    };
+
+    try {
+      const persisted =
+        draftDefinition.source === "saved"
+          ? await updateAdminReportDefinition(apiBaseUrl, sessionToken, draftDefinition.id, draftDefinition)
+          : await createReportDefinition(apiBaseUrl, sessionToken, draftDefinition);
+      await reloadSavedReportBuilderDefinitions();
+      const nextTabId = createReportBuilderTabId(persisted);
+
+      setReportBuilderTabs((current) =>
+        current.map((entry) =>
+          entry.id === tabId
+            ? {
+                ...entry,
+                id: nextTabId,
+                label: persisted.name,
+                definition: persisted,
+                dirty: false,
+                error: null
+              }
+            : entry
+        )
+      );
+      setActiveReportBuilderTabId(nextTabId);
+      setFeedback({
+        tone: "success",
+        message: "Modelo de relatorio salvo."
+      });
+    } catch (error) {
+      if (error instanceof AdminApiError && error.status === 401) {
+        setSessionToken("");
+      }
+      setFeedback({
+        tone: "error",
+        message: toErrorMessage(error)
+      });
+    }
   }
 
   function resolveReportsPaneFilters(tab: ReportsWorkspaceTab = reportsWorkspaceTab): ReportsPaneFilters {
@@ -3705,6 +4064,10 @@ export function App() {
         : null}
       </section>
     );
+  }
+
+  function renderProfessionalsView(): JSX.Element {
+    return renderProfessionalsPanel();
   }
 
   function renderOperationalView(): JSX.Element {
@@ -5786,1629 +6149,73 @@ export function App() {
   }
 
   function renderReportsViewV2(): JSX.Element {
-    const selectedReportService =
-      reportsServiceFilter === "all"
-        ? null
-        : services.find((service) => service.id === reportsServiceFilter) ?? null;
-    const selectedReportProfessional =
-      reportsProfessionalFilter === "all"
-        ? null
-        : professionals.find((professional) => professional.id === reportsProfessionalFilter) ?? null;
-    const reportsComparisonEnabled = reportsReadModel?.comparisonEnabled ?? reportsRange !== "all";
-    const currentNoShowRate =
-      activeReportCurrent.bookingsCount > 0
-        ? activeReportCurrent.noShowCount / activeReportCurrent.bookingsCount
-        : 0;
-    const previousNoShowRate =
-      activeReportPrevious && activeReportPrevious.bookingsCount > 0
-        ? activeReportPrevious.noShowCount / activeReportPrevious.bookingsCount
-        : 0;
-    const recurrenceAverageLabel =
-      activeClientRecurrence.averageRecurrenceDays === null
-        ? "n/d"
-        : `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`;
-    const reportOpenBookings = reportBookings.filter((booking) => isOpenBookingStatus(booking.status)).length;
-    const reportsSourceLabel = reportsReadModel ? "Read model do backend" : "Fallback local";
-    const reportsWorkspaceTabs: ReadonlyArray<{
-      readonly id: ReportsWorkspaceTab;
-      readonly label: string;
-      readonly helper: string;
-    }> = [
-      {
-        id: "overview",
-        label: "Visao executiva",
-        helper: "KPI principal"
-      },
-      {
-        id: "services",
-        label: "Servicos",
-        helper: `${activeReportServiceSummaries.length} grupo(s)`
-      },
-      {
-        id: "team",
-        label: "Equipe",
-        helper: `${activeReportProfessionalSummaries.length} profissional(is)`
-      },
-      {
-        id: "retention",
-        label: "Retorno",
-        helper: `${activeClientRecurrence.inactiveCount} sem retorno`
-      },
-      {
-        id: "agenda",
-        label: "Agenda",
-        helper: `${reportsInsightWeekCapacitySummary.openBookings} em aberto`
-      }
-    ];
-    const reportsAgendaTabs: ReadonlyArray<{
-      readonly id: ReportsAgendaWorkspaceTab;
-      readonly label: string;
-      readonly helper: string;
-    }> = [
-      {
-        id: "week",
-        label: "Radar da semana",
-        helper: `${reportsInsightWeekCapacitySummary.bookingsCount} booking(s)`
-      },
-      {
-        id: "month",
-        label: "Leitura do mes",
-        helper: `${reportsInsightMonthCapacitySummary.bookingsCount} booking(s)`
-      }
-    ];
-    const reportsInsightMonthHighlights = reportsInsightCurrentMonthCells.filter((cell) => cell.bookingsCount > 0);
+    const reportBuilderMenuGroups = groupReportsBuilderMenuItems(
+      buildReportsBuilderMenuItems(reportsCatalog)
+    );
 
-    const workspaceMeta = reportsWorkspaceItems.find((item) => item.key === reportsWorkspaceTab) ?? reportsWorkspaceItems[0];
-    const workspaceGroups = groupReportsWorkspaceItems(reportsWorkspaceItems);
-    const paymentIntentByBookingId = new Map(
-      paymentIntents
-        .filter((paymentIntent) => paymentIntent.bookingId)
-        .map((paymentIntent) => [paymentIntent.bookingId, paymentIntent] as const)
-    );
-    const activePaneFilters = resolveReportsPaneFilters();
-    const serviceLookupItems = [...services]
-      .sort((left, right) => left.nome.localeCompare(right.nome))
-      .map((service) => ({
-        value: service.id,
-        label: buildLookupDisplay(service.nome, service.id),
-        searchTerms: [service.nome, service.id, buildLookupDisplay(service.nome, service.id)]
-      }));
-    const professionalLookupItems = [...professionals]
-      .sort((left, right) => left.nome.localeCompare(right.nome))
-      .map((professional) => ({
-        value: professional.id,
-        label: buildLookupDisplay(professional.nome, professional.id),
-        searchTerms: [professional.nome, professional.id, buildLookupDisplay(professional.nome, professional.id)]
-      }));
-    const clientLookupItems = [...clients]
-      .sort((left, right) => left.nome.localeCompare(right.nome))
-      .map((client) => ({
-        value: client.id,
-        label: `${client.nome} | ${client.telefone}`,
-        searchTerms: [client.nome, client.telefone, client.id]
-      }));
-    const activePaneFilterCount = [
-      activePaneFilters.dateFrom,
-      activePaneFilters.dateTo,
-      activePaneFilters.serviceFrom,
-      activePaneFilters.serviceTo,
-      activePaneFilters.professionalFrom,
-      activePaneFilters.professionalTo,
-      activePaneFilters.clientQuery,
-      activePaneFilters.returnWindow !== clientReturnWindow ? activePaneFilters.returnWindow : ""
-    ].filter(Boolean).length;
-    const customReportBookings = filterBookingsByDetailedReportsFilters(
-      bookings,
-      activePaneFilters,
-      serviceLookupItems,
-      professionalLookupItems,
-      clients,
-      reportsRange
-    );
-    const customRevenueEntries = buildRevenueEntries(
-      customReportBookings,
-      services,
-      professionals,
-      clients,
-      paymentIntents,
-      cashEntries
-    );
-    const customCurrentMetric = buildReportMetricSummary(
-      customReportBookings,
-      services,
-      paymentIntents,
-      cashEntries
-    );
-    const customRevenueFeed = [...customRevenueEntries]
-      .filter((entry) => entry.recognizedAmount > 0 || entry.approvedOnlineAmount > 0)
-      .slice(0, 6)
-      .map((entry) => ({
-        id: entry.booking.id,
-        title: entry.service?.nome ?? resolveServiceName(entry.booking.serviceId, services),
-        subtitle: `${resolveClientName(entry.booking.clientId, clients)} com ${entry.professional?.nome ?? resolveProfessionalName(entry.booking.professionalId, professionals)}`,
-        value: formatCurrency(entry.recognizedAmount || entry.approvedOnlineAmount),
-        meta: formatDateTime(entry.booking.startAt)
-      }));
-    const customOpenBookingCount = customReportBookings.filter((booking) =>
-      isOpenBookingStatus(booking.status)
-    ).length;
-    const operationalQueue = [...customReportBookings]
-      .filter((booking) => isOpenBookingStatus(booking.status))
-      .sort((left, right) => new Date(left.startAt).getTime() - new Date(right.startAt).getTime())
-      .slice(0, 10);
-    const pendingCount = customReportBookings.filter((booking) => booking.status === "pendente").length;
-    const awaitingPaymentCount = customReportBookings.filter(
-      (booking) => booking.status === "aguardando pagamento"
-    ).length;
-    const confirmedCount = customReportBookings.filter((booking) => booking.status === "confirmado").length;
-    const customServiceSummaries = buildServiceReportSummaries(
-      customReportBookings,
-      services,
-      paymentIntents,
-      cashEntries
-    );
-    const customProfessionalSummaries = buildProfessionalReportSummaries(
-      customReportBookings,
-      professionals,
-      services,
-      paymentIntents,
-      cashEntries
-    );
-    const customClientInsights = buildClientInsights(clients, customReportBookings, services, cashEntries);
-    const customClientPortfolio = summarizeClientPortfolio(customClientInsights, activePaneFilters.returnWindow);
-    const customInactiveClientInsights = filterClientInsights(
-      customClientInsights,
-      "inactive",
-      activePaneFilters.returnWindow
-    );
-    const customRecurrenceLabel =
-      activePaneFilterCount === 0 && activeClientRecurrence.averageRecurrenceDays !== null
-        ? `${Math.round(activeClientRecurrence.averageRecurrenceDays)} dias`
-        : "n/d";
-    const customCurrentNoShowRate =
-      customCurrentMetric.bookingsCount > 0 ? customCurrentMetric.noShowCount / customCurrentMetric.bookingsCount : 0;
-    const comparisonMetric = activePaneFilterCount === 0 ? activeReportPrevious : undefined;
-    const comparisonNoShowRate =
-      comparisonMetric && comparisonMetric.bookingsCount > 0
-        ? comparisonMetric.noShowCount / comparisonMetric.bookingsCount
-        : 0;
-    const reportMetricCurrent = customCurrentMetric;
-    const reportMetricPrevious = comparisonMetric;
-    const reportServiceSummaryRows = customServiceSummaries;
-    const reportProfessionalSummaryRows = customProfessionalSummaries;
-    const reportRecurrenceInactiveRows = customInactiveClientInsights;
-    const reportRecurrenceSummary = customClientPortfolio;
-    const reportRecurrenceLabel = customRecurrenceLabel;
-    const reportRevenueFeed = customRevenueFeed;
-    const insightFilters = {
-      ...activePaneFilters,
-      dateFrom: "",
-      dateTo: ""
+    const lookupRows: {
+      readonly service: ReportsBuilderLookupRow[];
+      readonly professional: ReportsBuilderLookupRow[];
+      readonly client: ReportsBuilderLookupRow[];
+    } = {
+      service: [...services]
+        .sort((left, right) => left.nome.localeCompare(right.nome))
+        .map((service) => ({
+          id: service.id,
+          value: service.id,
+          code: service.codigo,
+          primary: service.nome,
+          secondary: service.status,
+          searchText: `${service.codigo} ${service.nome} ${service.status} ${service.id}`
+        })),
+      professional: [...professionals]
+        .sort((left, right) => left.nome.localeCompare(right.nome))
+        .map((professional) => ({
+          id: professional.id,
+          value: professional.id,
+          code: professional.codigo,
+          primary: professional.nome,
+          secondary: professional.status,
+          searchText: `${professional.codigo} ${professional.nome} ${professional.status} ${professional.id}`
+        })),
+      client: [...clients]
+        .sort((left, right) => left.nome.localeCompare(right.nome))
+        .map((client) => ({
+          id: client.id,
+          value: client.id,
+          code: client.codigo,
+          primary: client.nome,
+          secondary: client.telefone,
+          searchText: `${client.codigo} ${client.nome} ${client.telefone} ${client.id}`
+        }))
     };
-    const customInsightBookings = filterBookingsByDetailedReportsFilters(
-      bookings,
-      insightFilters,
-      serviceLookupItems,
-      professionalLookupItems,
-      clients,
-      "all"
-    );
-    const customInsightProfessionals = professionals.filter((professional) =>
-      isWithinLookupRange(
-        professional.id,
-        professionalLookupItems,
-        activePaneFilters.professionalFrom,
-        activePaneFilters.professionalTo
-      )
-    );
-    const customWeekBookings = filterBookingsByDates(customInsightBookings, reportsInsightWeekDates);
-    const customWeekCapacitySummary = summarizeWeekCapacity(
-      customWeekBookings,
-      reportsInsightWeekDates,
-      customInsightProfessionals,
-      weeklyAvailabilityByProfessional
-    );
-    const customWeekDaySummaries = buildWeekDaySummaries(
-      customWeekBookings,
-      reportsInsightWeekDates,
-      customInsightProfessionals,
-      weeklyAvailabilityByProfessional
-    );
-    const customWeekProfessionalSummaries = buildWeekProfessionalSummaries(
-      customWeekBookings,
-      reportsInsightWeekDates,
-      customInsightProfessionals,
-      weeklyAvailabilityByProfessional
-    );
-    const customMonthCells = buildAgendaMonthCells(
-      reportsInsightAnchorDate,
-      customInsightBookings,
-      customInsightProfessionals,
-      weeklyAvailabilityByProfessional,
-      "all"
-    );
-    const customCurrentMonthCells = customMonthCells.filter((cell) => cell.inCurrentMonth);
-    const customMonthCapacitySummary = summarizeMonthCapacity(customCurrentMonthCells);
-    const customMonthHighlights = customCurrentMonthCells.filter((cell) => cell.bookingsCount > 0);
-    const weekProfessionalLookup = new Map(
-      customWeekProfessionalSummaries.map((summary) => [summary.professionalId, summary] as const)
-    );
-    const workspaceContextItems = [
-      {
-        id: "period",
-        label: "Periodo",
-        value: describeDateWindow(
-          activePaneFilters.dateFrom,
-          activePaneFilters.dateTo,
-          resolveDashboardRangeLabel(reportsRange)
-        )
-      },
-      {
-        id: "service",
-        label: "Servico",
-        value: describeLookupRange(
-          activePaneFilters.serviceFrom,
-          activePaneFilters.serviceTo,
-          "Todos os servicos"
-        )
-      },
-      {
-        id: "professional",
-        label: "Profissional",
-        value: describeLookupRange(
-          activePaneFilters.professionalFrom,
-          activePaneFilters.professionalTo,
-          "Todos os profissionais"
-        )
-      },
-      {
-        id: "return-window",
-        label: "Janela de retorno",
-        value: resolveClientReturnWindowLabel(activePaneFilters.returnWindow)
-      },
-      ...(activePaneFilters.clientQuery
-        ? [
-            {
-              id: "client",
-              label: "Cliente",
-              value: activePaneFilters.clientQuery
-            }
-          ]
-        : []),
-      {
-        id: "source",
-        label: "Fonte",
-        value: activePaneFilterCount > 0 ? "Runtime filtrado localmente" : reportsSourceLabel
-      }
-    ];
-    const serviceLookupOptions = mapLookupOptions(serviceLookupItems);
-    const professionalLookupOptions = mapLookupOptions(professionalLookupItems);
-    const clientLookupOptions = mapLookupOptions(clientLookupItems);
-    const serviceLookupRows = services
-      .map((service) => ({
-        id: service.id,
-        value: buildLookupDisplay(service.nome, service.id),
-        cells: [formatLookupCode(service.id), service.nome],
-        searchText: `${formatLookupCode(service.id)} ${service.nome} ${service.id}`
-      }))
-      .sort((left, right) => left.cells[1].localeCompare(right.cells[1]));
-    const professionalLookupRows = professionals
-      .map((professional) => ({
-        id: professional.id,
-        value: buildLookupDisplay(professional.nome, professional.id),
-        cells: [formatLookupCode(professional.id), professional.nome],
-        searchText: `${formatLookupCode(professional.id)} ${professional.nome} ${professional.id}`
-      }))
-      .sort((left, right) => left.cells[1].localeCompare(right.cells[1]));
-    const clientLookupRows = clients
-      .map((client) => ({
-        id: client.id,
-        value: `${client.nome} | ${client.telefone}`,
-        cells: [formatLookupCode(client.id), client.nome, client.telefone],
-        searchText: `${formatLookupCode(client.id)} ${client.nome} ${client.telefone} ${client.id}`
-      }))
-      .sort((left, right) => left.cells[1].localeCompare(right.cells[1]));
-
-    const lookupQuery = normalizeLookupValue(reportsLookupQuery);
-    const activeLookupConfig =
-      reportsLookupFieldId === "serviceFrom" || reportsLookupFieldId === "serviceTo"
-        ? {
-            title: "Consulta de servicos",
-            description: "Selecione um servico para usar no filtro do relatorio.",
-            columns: [
-              { id: "code", label: "Codigo" },
-              { id: "description", label: "Descricao" }
-            ],
-            rows: serviceLookupRows
-          }
-        : reportsLookupFieldId === "professionalFrom" || reportsLookupFieldId === "professionalTo"
-          ? {
-              title: "Consulta de profissionais",
-              description: "Selecione um profissional para usar no filtro do relatorio.",
-              columns: [
-                { id: "code", label: "Codigo" },
-                { id: "name", label: "Nome" }
-              ],
-              rows: professionalLookupRows
-            }
-          : reportsLookupFieldId === "clientQuery"
-            ? {
-                title: "Consulta de clientes",
-                description: "Selecione um cliente pelo nome, telefone ou identificador atual.",
-                columns: [
-                  { id: "code", label: "Codigo" },
-                  { id: "name", label: "Nome" },
-                  { id: "phone", label: "Telefone" }
-                ],
-                rows: clientLookupRows
-              }
-            : null;
-    const visibleLookupRows = activeLookupConfig
-      ? activeLookupConfig.rows.filter((row) =>
-          lookupQuery ? normalizeLookupValue(row.searchText).includes(lookupQuery) : true
-        )
-      : [];
-    let workspacePane: ReportsWorkspacePane = {
-      title: "Visao executiva",
-      description: "Primeira leitura do periodo para receita, demanda, ticket e fila que ainda pede acao.",
-      kpis: [
-        {
-          id: "recognized",
-          label: "Receita reconhecida",
-          value: formatCurrency(reportMetricCurrent.recognizedRevenue),
-          helper: resolveReportComparisonLabel(
-            reportMetricCurrent.recognizedRevenue,
-            reportMetricPrevious?.recognizedRevenue ?? 0,
-            "currency",
-            activePaneFilterCount === 0 && reportsComparisonEnabled
-          )
-        },
-        {
-          id: "bookings",
-          label: "Bookings no periodo",
-          value: reportMetricCurrent.bookingsCount,
-          helper: resolveReportComparisonLabel(
-            reportMetricCurrent.bookingsCount,
-            reportMetricPrevious?.bookingsCount ?? 0,
-            "count",
-            activePaneFilterCount === 0 && reportsComparisonEnabled
-          )
-        },
-        {
-          id: "ticket",
-          label: "Ticket medio",
-          value: formatCurrency(reportMetricCurrent.averageTicket),
-          helper: `${reportMetricCurrent.completedCount} concluido(s) no recorte.`
-        },
-        {
-          id: "clients",
-          label: "Clientes unicos",
-          value: reportMetricCurrent.uniqueClients,
-          helper: "Base distinta atendida no periodo."
-        },
-        {
-          id: "completed",
-          label: "Concluidos",
-          value: reportMetricCurrent.completedCount,
-          helper: "Atendimentos finalizados."
-        },
-        {
-          id: "open",
-          label: "Em aberto",
-          value: customOpenBookingCount,
-          helper: "Pendentes, confirmados e aguardando pagamento."
-        },
-        {
-          id: "noshow",
-          label: "Taxa de no-show",
-          value: formatPercentage(customCurrentNoShowRate),
-          helper: resolveReportComparisonLabel(
-            customCurrentNoShowRate,
-            comparisonNoShowRate,
-            "percentage",
-            activePaneFilterCount === 0 && reportsComparisonEnabled
-          )
-        },
-        {
-          id: "inactive",
-          label: "Sem retorno",
-          value: reportRecurrenceSummary.inactiveCount,
-          helper: `Janela ${resolveClientReturnWindowLabel(activePaneFilters.returnWindow)}.`
-        }
-      ],
-      panels: [
-        {
-          id: "comparison",
-          title: "Comparativo rapido",
-          caption:
-            activePaneFilterCount === 0 && reportsComparisonEnabled
-              ? "Periodo anterior"
-              : "Comparativo pausado por filtro detalhado",
-          metricRows: [
-            {
-              id: "recognized",
-              label: "Receita reconhecida",
-              current: formatCurrency(reportMetricCurrent.recognizedRevenue),
-              previous: activePaneFilterCount === 0 ? formatCurrency(reportMetricPrevious?.recognizedRevenue ?? 0) : "--"
-            },
-            {
-              id: "bookings",
-              label: "Bookings",
-              current: String(reportMetricCurrent.bookingsCount),
-              previous: activePaneFilterCount === 0 ? String(reportMetricPrevious?.bookingsCount ?? 0) : "--"
-            },
-            {
-              id: "ticket",
-              label: "Ticket medio",
-              current: formatCurrency(reportMetricCurrent.averageTicket),
-              previous: activePaneFilterCount === 0 ? formatCurrency(reportMetricPrevious?.averageTicket ?? 0) : "--"
-            },
-            {
-              id: "online",
-              label: "Entrada online aprovada",
-              current: formatCurrency(reportMetricCurrent.approvedOnlineRevenue),
-              previous:
-                activePaneFilterCount === 0
-                  ? formatCurrency(reportMetricPrevious?.approvedOnlineRevenue ?? 0)
-                  : "--"
-            }
-          ]
-        },
-        {
-          id: "queue",
-          title: "Fila operacional",
-          caption: `${customOpenBookingCount} em aberto`,
-          miniCards: [
-            { id: "pending", label: "Pendentes", value: pendingCount },
-            { id: "awaiting", label: "Aguardando pagamento", value: awaitingPaymentCount },
-            { id: "confirmed", label: "Confirmados", value: confirmedCount },
-            { id: "week-open", label: "Abertos na semana", value: customWeekCapacitySummary.openBookings }
-          ]
-        },
-        {
-          id: "feed",
-          title: "Movimentos recentes",
-          actions: [{ label: "Abrir agenda", onClick: () => navigateTo("agenda") }],
-          feed: reportRevenueFeed,
-          emptyMessage: "Nenhum movimento de receita encontrado para este recorte."
-        },
-        {
-          id: "return",
-          title: "Retorno resumido",
-          actions: [{ label: "Abrir clientes", onClick: () => navigateTo("clientes") }],
-          miniCards: [
-            { id: "returning", label: "Com retorno", value: reportRecurrenceSummary.returningCount },
-            { id: "inactive", label: "Sem retorno", value: reportRecurrenceSummary.inactiveCount },
-            { id: "never", label: "Nunca concluiu", value: reportRecurrenceSummary.neverCompletedCount },
-            { id: "recurrence", label: "Recorrencia media", value: reportRecurrenceLabel }
-          ]
-        }
-      ]
-    };
-
-    if (reportsWorkspaceTab === "services") {
-      workspacePane = {
-        title: "Receita e servicos",
-        description: "Mix comercial do periodo para entender volume, receita, clientes unicos e ticket por servico.",
-        panels: [
-          {
-            id: "services-kpis",
-            title: "Resumo comercial",
-            miniCards: [
-              { id: "groups", label: "Grupos no recorte", value: reportServiceSummaryRows.length },
-              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(reportMetricCurrent.recognizedRevenue) },
-              { id: "online", label: "Entrada online", value: formatCurrency(reportMetricCurrent.approvedOnlineRevenue) },
-              { id: "clients", label: "Clientes unicos", value: reportMetricCurrent.uniqueClients }
-            ]
-          }
-        ],
-        tables: [
-          {
-            id: "services-table",
-            columns: [
-              { id: "service", label: "Servico" },
-              { id: "bookings", label: "Bookings" },
-              { id: "completed", label: "Concluidos" },
-              { id: "recognized", label: "Receita" },
-              { id: "online", label: "Entrada online" },
-              { id: "clients", label: "Clientes" },
-              { id: "ticket", label: "Ticket" }
-            ],
-            rows: reportServiceSummaryRows.map((entry) => ({
-              id: entry.id,
-              cells: [
-                entry.label,
-                entry.bookingsCount,
-                entry.completedCount,
-                formatCurrency(entry.recognizedRevenue),
-                formatCurrency(entry.approvedOnlineRevenue),
-                entry.uniqueClients,
-                formatCurrency(entry.averageTicket)
-              ]
-            })),
-            emptyMessage: "Nenhum servico com dados suficientes neste recorte."
-          }
-        ]
-      };
-    }
-
-    if (reportsWorkspaceTab === "team") {
-      workspacePane = {
-        title: "Equipe e produtividade",
-        description: "Leitura do resultado por profissional, separada da agenda operacional do dia.",
-        panels: [
-          {
-            id: "team-kpis",
-            title: "Resumo da equipe",
-            miniCards: [
-              { id: "people", label: "Profissionais no recorte", value: reportProfessionalSummaryRows.length },
-              { id: "recognized", label: "Receita reconhecida", value: formatCurrency(reportMetricCurrent.recognizedRevenue) },
-              { id: "completed", label: "Concluidos", value: reportMetricCurrent.completedCount },
-              { id: "clients", label: "Clientes unicos", value: reportMetricCurrent.uniqueClients }
-            ]
-          }
-        ],
-        tables: [
-          {
-            id: "team-table",
-            columns: [
-              { id: "professional", label: "Profissional" },
-              { id: "bookings", label: "Bookings" },
-              { id: "completed", label: "Concluidos" },
-              { id: "recognized", label: "Receita" },
-              { id: "clients", label: "Clientes" },
-              { id: "ticket", label: "Ticket" },
-              { id: "week", label: "Radar semanal" }
-            ],
-            rows: reportProfessionalSummaryRows.map((entry) => ({
-              id: entry.id,
-              cells: [
-                entry.label,
-                entry.bookingsCount,
-                entry.completedCount,
-                formatCurrency(entry.recognizedRevenue),
-                entry.uniqueClients,
-                formatCurrency(entry.averageTicket),
-                weekProfessionalLookup.get(entry.id)?.totalMinutes
-                  ? formatUtilization(
-                      weekProfessionalLookup.get(entry.id)?.bookedMinutes ?? 0,
-                      weekProfessionalLookup.get(entry.id)?.totalMinutes ?? 0
-                    )
-                  : "n/d"
-              ]
-            })),
-            emptyMessage: "Nenhum profissional com leitura suficiente neste recorte."
-          }
-        ]
-      };
-    }
-
-    if (reportsWorkspaceTab === "retention") {
-      workspacePane = {
-        title: "Retorno e retencao",
-        description: `Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activePaneFilters.returnWindow)}.`,
-        actions: [{ label: "Abrir clientes", onClick: () => navigateTo("clientes") }],
-        panels: [
-          {
-            id: "retention-kpis",
-            title: "Resumo da base",
-            miniCards: [
-              { id: "returning", label: "Com retorno", value: reportRecurrenceSummary.returningCount },
-              { id: "inactive", label: "Sem retorno", value: reportRecurrenceSummary.inactiveCount },
-              { id: "never", label: "Nunca concluiu", value: reportRecurrenceSummary.neverCompletedCount },
-              { id: "recurrence", label: "Recorrencia media", value: reportRecurrenceLabel }
-            ]
-          }
-        ],
-        bucketCards:
-          activePaneFilterCount === 0
-            ? activeClientRecurrence.returnBuckets.map((bucket) => ({
-                id: bucket.id,
-                label: bucket.label,
-                value: bucket.clientsCount
-              }))
-            : undefined,
-        tables: [
-          {
-            id: "retention-table",
-            columns: [
-              { id: "client", label: "Cliente" },
-              { id: "origin", label: "Origem" },
-              { id: "last", label: "Ultimo concluido" },
-              { id: "days", label: "Dias sem retorno" },
-              { id: "revenue", label: "Receita" },
-              { id: "recurrence", label: "Recorrencia" }
-            ],
-            rows: reportRecurrenceInactiveRows.map((entry) => ({
-              id: entry.client.id,
-              cells: [
-                entry.client.nome,
-                entry.client.origem || "n/d",
-                entry.lastCompletedBooking ? formatDateTime(entry.lastCompletedBooking.endAt) : "Nunca",
-                entry.lastCompletedBooking ? calculateDaysSinceIso(entry.lastCompletedBooking.endAt) : "n/d",
-                formatCurrency(entry.recognizedRevenue),
-                "n/d"
-              ]
-            })),
-            emptyMessage: `Nenhum cliente sem retorno identificado em ${resolveClientReturnWindowLabel(activePaneFilters.returnWindow)}.`
-          }
-        ]
-      };
-    }
-
-    if (reportsWorkspaceTab === "week") {
-      workspacePane = {
-        title: "Radar semanal",
-        description: "Capacidade e ocupacao da semana para redistribuir carga sem abrir a agenda diaria.",
-        actions: [
-          {
-            label: "Abrir agenda",
-            onClick: () => {
-              setAgendaWorkspaceTab("calendar");
-              setAgendaViewMode("week");
-              navigateTo("agenda");
-            }
-          }
-        ],
-        panels: [
-          {
-            id: "week-kpis",
-            title: "Resumo semanal",
-            miniCards: [
-              { id: "capacity", label: "Capacidade total", value: formatMinutesAsHours(customWeekCapacitySummary.totalMinutes) },
-              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(customWeekCapacitySummary.bookedMinutes) },
-              { id: "free", label: "Horas livres", value: formatMinutesAsHours(customWeekCapacitySummary.freeMinutes) },
-              { id: "open", label: "Em aberto", value: customWeekCapacitySummary.openBookings }
-            ]
-          }
-        ],
-        tables: [
-          {
-            id: "week-days",
-            title: "Dia a dia",
-            columns: [
-              { id: "day", label: "Dia" },
-              { id: "bookings", label: "Bookings" },
-              { id: "occupancy", label: "Ocupacao" },
-              { id: "occupied", label: "Horas ocupadas" },
-              { id: "total", label: "Capacidade" },
-              { id: "open", label: "Em aberto" }
-            ],
-            rows: customWeekDaySummaries.map((summary) => ({
-              id: summary.date,
-              cells: [
-                formatAgendaDayLabel(summary.date),
-                summary.bookingsCount,
-                summary.totalMinutes > 0 ? formatUtilization(summary.bookedMinutes, summary.totalMinutes) : "Sem capacidade",
-                formatMinutesAsHours(summary.bookedMinutes),
-                formatMinutesAsHours(summary.totalMinutes),
-                summary.openBookings
-              ]
-            })),
-            emptyMessage: "Nenhum dado semanal encontrado."
-          },
-          {
-            id: "week-team",
-            title: "Equipe na semana",
-            columns: [
-              { id: "professional", label: "Profissional" },
-              { id: "bookings", label: "Bookings" },
-              { id: "occupancy", label: "Ocupacao" },
-              { id: "occupied", label: "Horas ocupadas" },
-              { id: "total", label: "Capacidade" },
-              { id: "open", label: "Em aberto" }
-            ],
-            rows: customWeekProfessionalSummaries.map((summary) => ({
-              id: summary.professionalId,
-              cells: [
-                summary.professionalName,
-                summary.bookingsCount,
-                summary.totalMinutes > 0 ? formatUtilization(summary.bookedMinutes, summary.totalMinutes) : "Sem capacidade",
-                formatMinutesAsHours(summary.bookedMinutes),
-                formatMinutesAsHours(summary.totalMinutes),
-                summary.openBookings
-              ]
-            })),
-            emptyMessage: "Nenhum profissional publicado para montar o radar semanal."
-          }
-        ]
-      };
-    }
-
-    if (reportsWorkspaceTab === "month") {
-      workspacePane = {
-        title: "Visao mensal",
-        description: "Concentrado do mes para capacidade, sazonalidade e dias que concentraram mais carga.",
-        actions: [
-          {
-            label: "Abrir agenda",
-            onClick: () => {
-              setAgendaWorkspaceTab("calendar");
-              setAgendaViewMode("month");
-              navigateTo("agenda");
-            }
-          }
-        ],
-        panels: [
-          {
-            id: "month-kpis",
-            title: "Resumo do mes",
-            miniCards: [
-              { id: "bookings", label: "Bookings no mes", value: customMonthCapacitySummary.bookingsCount },
-              { id: "booked", label: "Horas ocupadas", value: formatMinutesAsHours(customMonthCapacitySummary.bookedMinutes) },
-              { id: "free", label: "Horas livres", value: formatMinutesAsHours(customMonthCapacitySummary.freeMinutes) },
-              { id: "open", label: "Em aberto", value: customMonthCapacitySummary.openBookings }
-            ]
-          }
-        ],
-        tables: [
-          {
-            id: "month-table",
-            columns: [
-              { id: "day", label: "Dia" },
-              { id: "bookings", label: "Bookings" },
-              { id: "occupancy", label: "Ocupacao" },
-              { id: "open", label: "Em aberto" },
-              { id: "completed", label: "Concluidos" },
-              { id: "load", label: "Carga" }
-            ],
-            rows: customMonthHighlights.slice(0, 12).map((cell) => ({
-              id: cell.date,
-              cells: [
-                formatAgendaDayLabel(cell.date),
-                cell.bookingsCount,
-                cell.totalMinutes > 0 ? formatUtilization(cell.bookedMinutes, cell.totalMinutes) : "Sem capacidade",
-                cell.openBookings,
-                cell.completedBookings,
-                cell.totalMinutes > 0
-                  ? `${formatMinutesAsHours(cell.bookedMinutes)} de ${formatMinutesAsHours(cell.totalMinutes)}`
-                  : "Sem disponibilidade"
-              ]
-            })),
-            emptyMessage: `Nenhum movimento encontrado em ${formatAgendaMonthLabel(reportsInsightAnchorDate)}.`
-          }
-        ]
-      };
-    }
-
-    if (reportsWorkspaceTab === "operations") {
-      workspacePane = {
-        title: "Pendencias operacionais",
-        description: "Fila que ainda exige tratamento, separada da leitura gerencial pura.",
-        actions: [
-          { label: "Operacao diaria", onClick: () => navigateTo("operacional") },
-          { label: "Abrir agenda", onClick: () => navigateTo("agenda") }
-        ],
-        panels: [
-          {
-            id: "operations-kpis",
-            title: "Fila do periodo",
-            miniCards: [
-              { id: "pending", label: "Pendentes", value: pendingCount },
-              { id: "awaiting", label: "Aguardando pagamento", value: awaitingPaymentCount },
-              { id: "confirmed", label: "Confirmados", value: confirmedCount },
-              { id: "open", label: "Em aberto", value: customOpenBookingCount }
-            ]
-          }
-        ],
-        tables: [
-          {
-            id: "operations-table",
-            columns: [
-              { id: "datetime", label: "Horario" },
-              { id: "client", label: "Cliente" },
-              { id: "service", label: "Servico" },
-              { id: "professional", label: "Profissional" },
-              { id: "status", label: "Status" },
-              { id: "payment", label: "Pagamento" }
-            ],
-            rows: operationalQueue.map((booking) => ({
-              id: booking.id,
-              cells: [
-                formatDateTime(booking.startAt),
-                resolveClientName(booking.clientId, clients),
-                resolveServiceName(booking.serviceId, services),
-                resolveProfessionalName(booking.professionalId, professionals),
-                formatBookingStatus(booking.status),
-                paymentIntentByBookingId.get(booking.id)
-                  ? formatPaymentIntentStatus(paymentIntentByBookingId.get(booking.id)!.status)
-                  : "Sem payment intent"
-              ]
-            })),
-            emptyMessage: "Nenhuma pendencia operacional ativa neste recorte."
-          }
-        ]
-      };
-    }
-
-    const activeFilterDraft = reportsFilterDraft ?? activePaneFilters;
-    const filterModalFields: ReportsWorkspaceFilterField[] = [];
-    const supportsDateRange =
-      reportsWorkspaceTab === "overview" ||
-      reportsWorkspaceTab === "services" ||
-      reportsWorkspaceTab === "team" ||
-      reportsWorkspaceTab === "retention" ||
-      reportsWorkspaceTab === "operations";
-
-    if (supportsDateRange) {
-      filterModalFields.push(
-        {
-          id: "dateFrom",
-          type: "date",
-          label: "Data de",
-          value: activeFilterDraft.dateFrom
-        },
-        {
-          id: "dateTo",
-          type: "date",
-          label: "Ate data",
-          value: activeFilterDraft.dateTo
-        }
-      );
-    }
-
-    filterModalFields.push(
-      {
-        id: "serviceFrom",
-        type: "lookup",
-        label: "Do servico",
-        value: activeFilterDraft.serviceFrom,
-        placeholder: "Nome ou codigo",
-        options: serviceLookupOptions
-      },
-      {
-        id: "serviceTo",
-        type: "lookup",
-        label: "Ate o servico",
-        value: activeFilterDraft.serviceTo,
-        placeholder: "Nome ou codigo",
-        options: serviceLookupOptions
-      },
-      {
-        id: "professionalFrom",
-        type: "lookup",
-        label: "Do profissional",
-        value: activeFilterDraft.professionalFrom,
-        placeholder: "Nome ou codigo",
-        options: professionalLookupOptions
-      },
-      {
-        id: "professionalTo",
-        type: "lookup",
-        label: "Ate o profissional",
-        value: activeFilterDraft.professionalTo,
-        placeholder: "Nome ou codigo",
-        options: professionalLookupOptions
-      }
-    );
-
-    if (reportsWorkspaceTab === "overview" || reportsWorkspaceTab === "retention") {
-      filterModalFields.push({
-        id: "returnWindow",
-        type: "select",
-        label: "Janela de retorno",
-        value: activeFilterDraft.returnWindow,
-        options: [
-          { value: "30d", label: "30 dias" },
-          { value: "60d", label: "60 dias" },
-          { value: "90d", label: "90 dias" }
-        ]
-      });
-    }
-
-    if (reportsWorkspaceTab === "retention" || reportsWorkspaceTab === "operations") {
-      filterModalFields.push({
-        id: "clientQuery",
-        type: "lookup",
-        label: "Cliente",
-        value: activeFilterDraft.clientQuery,
-        placeholder: "Nome ou telefone",
-        options: clientLookupOptions
-      });
-    }
-
-    const filterModal = {
-      appliedCount: activePaneFilterCount,
-      fields: filterModalFields,
-      isOpen: isReportsFilterModalOpen,
-      lookupDialog: {
-        columns: activeLookupConfig?.columns ?? [],
-        description: activeLookupConfig?.description ?? "Consulta padrao do filtro atual.",
-        emptyMessage: "Nenhum registro encontrado para a busca informada.",
-        isOpen: Boolean(reportsLookupFieldId && activeLookupConfig),
-        onClose: closeReportsLookup,
-        onOpen: openReportsLookup,
-        onQueryChange: setReportsLookupQuery,
-        onSelect: selectReportsLookupValue,
-        query: reportsLookupQuery,
-        rows: visibleLookupRows,
-        title: activeLookupConfig?.title ?? "Consulta"
-      },
-      onApply: applyReportsFilterDraft,
-      onChangeField: updateReportsFilterDraft,
-      onClear: clearReportsFilters,
-      onClose: closeReportsFilterModal,
-      onOpen: openReportsFilterModal,
-      title: `Filtros | ${workspaceMeta.label}`
-    } as const;
 
     return (
-      <ReportsWorkspace
-        activeMeta={workspaceMeta}
-        activeTab={reportsWorkspaceTab}
-        contextItems={workspaceContextItems}
-        error={reportsReadModelError}
-        filterModal={filterModal}
-        isContextVisible={isReportsContextVisible}
-        isLoading={isLoadingReportsReadModel}
+      <ReportsBuilderWorkspace
+        activeTabId={activeReportBuilderTabId}
+        catalog={reportsCatalog}
+        error={reportsBuilderError}
+        isLoading={isLoadingReportsBuilder}
         isMenuOpen={isReportsMenuOpen}
-        menuGroups={workspaceGroups}
-        onActivateTab={setReportsWorkspaceTab}
-        onCloseTab={closeReportsWorkspaceTab}
+        lookupRows={lookupRows}
+        menuGroups={reportBuilderMenuGroups}
+        onActivateTab={activateReportBuilderTab}
         onCloseMenu={() => setIsReportsMenuOpen(false)}
+        onCloseTab={closeReportBuilderTab}
+        onExecuteTab={(tabId) => void executeReportBuilderTab(tabId)}
         onOpenMenu={() => setIsReportsMenuOpen(true)}
-        onOpenTab={openReportsWorkspaceTab}
-        onToggleContext={() => setIsReportsContextVisible((current) => !current)}
+        onOpenSavedDefinition={openSavedReportBuilderTab}
+        onOpenSystemDefinition={openSystemReportBuilderTab}
+        onSaveTab={(tabId, name, description) =>
+          void saveReportBuilderTab(tabId, name, description)
+        }
         onToggleMenu={() => setIsReportsMenuOpen((current) => !current)}
-        openTabs={reportsOpenTabs.filter((tab) => tab !== "agenda")}
-        pane={workspacePane}
+        onUpdateDefinition={updateReportBuilderDefinition}
+        openTabs={reportBuilderTabs}
+        savedModels={savedReportDefinitions}
         showMenuButton={isCompactShell}
       />
     );
-
-    return (
-      <DocumentViewLayout
-        className="reports-document-view"
-        eyebrow="Relatorios"
-        title="Leitura gerencial"
-        subtitle="Receita, equipe, retorno e capacidade por recorte."
-        statusBadge={
-          <ViewBadge tone={reportsComparisonEnabled ? "success" : "neutral"}>
-            {reportsComparisonEnabled ? "Comparativo ativo" : "Historico total"}
-          </ViewBadge>
-        }
-        pageActions={
-          <div className="dashboard-document-actions">
-            <div className="mode-switch">
-              <button
-                className={reportsRange === "7d" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setReportsRange("7d")}
-                type="button"
-              >
-                7 dias
-              </button>
-              <button
-                className={reportsRange === "30d" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setReportsRange("30d")}
-                type="button"
-              >
-                30 dias
-              </button>
-              <button
-                className={reportsRange === "all" ? "secondary-button is-active" : "secondary-button"}
-                onClick={() => setReportsRange("all")}
-                type="button"
-              >
-                Tudo
-              </button>
-            </div>
-            <label className="dashboard-select">
-              <span>Servico</span>
-              <select onChange={(event) => setReportsServiceFilter(event.target.value)} value={reportsServiceFilter}>
-                <option value="all">Todos os servicos</option>
-                {services.map((service) => (
-                  <option key={service.id} value={service.id}>
-                    {service.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="dashboard-select">
-              <span>Profissional</span>
-              <select
-                onChange={(event) => setReportsProfessionalFilter(event.target.value)}
-                value={reportsProfessionalFilter}
-              >
-                <option value="all">Todos os profissionais</option>
-                {professionals.map((professional) => (
-                  <option key={professional.id} value={professional.id}>
-                    {professional.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="dashboard-select">
-              <span>Janela de retorno</span>
-              <select
-                onChange={(event) => setClientReturnWindow(event.target.value as ClientReturnWindow)}
-                value={clientReturnWindow}
-              >
-                <option value="30d">30 dias</option>
-                <option value="60d">60 dias</option>
-                <option value="90d">90 dias</option>
-              </select>
-            </label>
-            <button
-              className="secondary-button"
-              onClick={() => setIsReportsContextVisible((current) => !current)}
-              type="button"
-            >
-              {isReportsContextVisible ? "Ocultar contexto" : "Contexto"}
-            </button>
-          </div>
-        }
-        header={null}
-        summary={
-          <DocumentSummaryCards
-            metrics={[
-              {
-                id: "recognized",
-                label: "Receita reconhecida",
-                value: formatCurrency(activeReportCurrent.recognizedRevenue),
-                helper: resolveReportComparisonLabel(
-                  activeReportCurrent.recognizedRevenue,
-                  activeReportPrevious?.recognizedRevenue ?? 0,
-                  "currency",
-                  reportsComparisonEnabled
-                ),
-                tone: "success"
-              },
-              {
-                id: "bookings",
-                label: "Bookings no periodo",
-                value: activeReportCurrent.bookingsCount,
-                helper: resolveReportComparisonLabel(
-                  activeReportCurrent.bookingsCount,
-                  activeReportPrevious?.bookingsCount ?? 0,
-                  "count",
-                  reportsComparisonEnabled
-                ),
-                tone: "info"
-              },
-              {
-                id: "ticket",
-                label: "Ticket medio",
-                value: formatCurrency(activeReportCurrent.averageTicket),
-                helper: `${activeReportCurrent.completedCount} atendimento(s) concluidos.`,
-                tone: "success"
-              },
-              {
-                id: "clients",
-                label: "Clientes unicos",
-                value: activeReportCurrent.uniqueClients,
-                helper: "Base distinta atendida no recorte.",
-                tone: "info"
-              }
-            ]}
-          />
-        }
-        tabs={
-          <div aria-label="Visoes dos relatorios" className="dashboard-tabbar" role="tablist">
-            {reportsWorkspaceTabs.map((tab) => (
-              <button
-                aria-selected={reportsWorkspaceTab === tab.id}
-                className={reportsWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
-                key={tab.id}
-                onClick={() => setReportsWorkspaceTab(tab.id)}
-                role="tab"
-                type="button"
-              >
-                <span>{tab.label}</span>
-                <small>{tab.helper}</small>
-              </button>
-            ))}
-          </div>
-        }
-        items={
-          <>
-            {isLoadingReportsReadModel ? (
-              <div className="feedback-banner is-info">Atualizando read model de relatorios...</div>
-            ) : null}
-            {reportsReadModelError ? (
-              <div className="feedback-banner is-error">{reportsReadModelError}</div>
-            ) : null}
-            {isReportsContextVisible ? (
-              <DocumentHeader
-                className="reports-context-header"
-                fields={[
-                  { id: "range", label: "Periodo", value: resolveDashboardRangeLabel(reportsRange) },
-                  { id: "service", label: "Servico", value: selectedReportService?.nome ?? "Todos os servicos" },
-                  {
-                    id: "professional",
-                    label: "Profissional",
-                    value: selectedReportProfessional?.nome ?? "Todos os profissionais"
-                  },
-                  {
-                    id: "window",
-                    label: "Janela de retorno",
-                    value: resolveClientReturnWindowLabel(activeClientRecurrence.window)
-                  },
-                  {
-                    id: "comparison",
-                    label: "Comparativo",
-                    value: reportsComparisonEnabled ? "Periodo anterior" : "Indisponivel"
-                  },
-                  { id: "source", label: "Fonte", value: reportsSourceLabel }
-                ]}
-              />
-            ) : null}
-
-            {reportsWorkspaceTab === "overview" ? (
-              <div className="reports-workspace-stack">
-                <EntitySection
-                  title="Saude do periodo"
-                  description="Leitura executiva para receita, demanda e risco do recorte."
-                >
-                  <DocumentSummaryCards
-                    metrics={[
-                      {
-                        id: "completed",
-                        label: "Concluidos",
-                        value: activeReportCurrent.completedCount,
-                        helper: "Atendimentos finalizados no recorte.",
-                        tone: "success"
-                      },
-                      {
-                        id: "open",
-                        label: "Em aberto",
-                        value: reportOpenBookings,
-                        helper: "Pendentes, confirmados e aguardando pagamento.",
-                        tone: "warning"
-                      },
-                      {
-                        id: "online",
-                        label: "Entrada online",
-                        value: formatCurrency(activeReportCurrent.approvedOnlineRevenue),
-                        helper: resolveReportComparisonLabel(
-                          activeReportCurrent.approvedOnlineRevenue,
-                          activeReportPrevious?.approvedOnlineRevenue ?? 0,
-                          "currency",
-                          reportsComparisonEnabled
-                        ),
-                        tone: "info"
-                      },
-                      {
-                        id: "no-show",
-                        label: "Taxa de no-show",
-                        value: formatPercentage(currentNoShowRate),
-                        helper: resolveReportComparisonLabel(
-                          currentNoShowRate,
-                          previousNoShowRate,
-                          "percentage",
-                          reportsComparisonEnabled
-                        ),
-                        tone: "danger"
-                      }
-                    ]}
-                  />
-                </EntitySection>
-
-                <EntitySection
-                  title="Retencao no recorte"
-                  description="Resumo da base sem abrir a rota de clientes."
-                  actions={
-                    <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
-                      Abrir clientes
-                    </button>
-                  }
-                >
-                  <DocumentSummaryCards
-                    metrics={[
-                      {
-                        id: "returning",
-                        label: "Com retorno",
-                        value: activeClientRecurrence.returningCount,
-                        helper: "Clientes com ultimo concluido dentro da janela.",
-                        tone: "success"
-                      },
-                      {
-                        id: "inactive",
-                        label: "Sem retorno",
-                        value: activeClientRecurrence.inactiveCount,
-                        helper: `Nao voltaram em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
-                        tone: "warning"
-                      },
-                      {
-                        id: "never",
-                        label: "Nunca concluiu",
-                        value: activeClientRecurrence.neverCompletedCount,
-                        helper: "Entraram na base sem atendimento concluido."
-                      },
-                      {
-                        id: "recurrence",
-                        label: "Recorrencia media",
-                        value: recurrenceAverageLabel,
-                        helper: "Media simples entre atendimentos concluidos.",
-                        tone: "info"
-                      }
-                    ]}
-                  />
-                </EntitySection>
-              </div>
-            ) : reportsWorkspaceTab === "services" ? (
-              <EntitySection
-                title="Servicos no recorte"
-                description="Receita, volume, clientes unicos e ticket por servico."
-              >
-                <div className="records-column">
-                  {activeReportServiceSummaries.length ? (
-                    activeReportServiceSummaries.map((entry) => (
-                      <article className="record-card" key={entry.id}>
-                        <div className="record-card-header">
-                          <div className="record-stack">
-                            <strong>{entry.label}</strong>
-                            <span>{entry.bookingsCount} booking(s) no periodo</span>
-                          </div>
-                          <span className="status-pill is-success">{formatCurrency(entry.recognizedRevenue)}</span>
-                        </div>
-                        <div className="record-meta">
-                          <span>Concluidos {entry.completedCount}</span>
-                          <span>Clientes unicos {entry.uniqueClients}</span>
-                          <span className="status-pill is-neutral">Ticket {formatCurrency(entry.averageTicket)}</span>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="empty-state">Nenhum servico com dado suficiente neste recorte.</p>
-                  )}
-                </div>
-              </EntitySection>
-            ) : reportsWorkspaceTab === "team" ? (
-              <EntitySection
-                title="Equipe no recorte"
-                description="Performance da equipe com o mesmo filtro aplicado ao modulo."
-              >
-                <div className="records-column">
-                  {activeReportProfessionalSummaries.length ? (
-                    activeReportProfessionalSummaries.map((entry) => (
-                      <article className="record-card" key={entry.id}>
-                        <div className="record-card-header">
-                          <div className="record-stack">
-                            <strong>{entry.label}</strong>
-                            <span>{entry.bookingsCount} booking(s) no periodo</span>
-                          </div>
-                          <span className="status-pill is-success">{formatCurrency(entry.recognizedRevenue)}</span>
-                        </div>
-                        <div className="record-meta">
-                          <span>Concluidos {entry.completedCount}</span>
-                          <span>Clientes unicos {entry.uniqueClients}</span>
-                          <span className="status-pill is-neutral">Ticket {formatCurrency(entry.averageTicket)}</span>
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="empty-state">Nenhum profissional com dado suficiente neste recorte.</p>
-                  )}
-                </div>
-              </EntitySection>
-            ) : reportsWorkspaceTab === "retention" ? (
-              <EntitySection
-                title="Retorno da base real"
-                description={`Buckets e clientes sem retorno na janela de ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`}
-                actions={
-                  <button className="secondary-button" onClick={() => navigateTo("clientes")} type="button">
-                    Abrir clientes
-                  </button>
-                }
-              >
-                <div className="dashboard-retention-preview">
-                  <DocumentSummaryCards
-                    metrics={[
-                      {
-                        id: "returning",
-                        label: "Com retorno",
-                        value: activeClientRecurrence.returningCount,
-                        helper: "Clientes com ultimo concluido dentro da janela.",
-                        tone: "success"
-                      },
-                      {
-                        id: "inactive",
-                        label: "Sem retorno",
-                        value: activeClientRecurrence.inactiveCount,
-                        helper: `Nao voltaram em ${resolveClientReturnWindowLabel(activeClientRecurrence.window)}.`,
-                        tone: "warning"
-                      },
-                      {
-                        id: "never",
-                        label: "Nunca concluiu",
-                        value: activeClientRecurrence.neverCompletedCount,
-                        helper: "Entraram na base sem atendimento concluido."
-                      },
-                      {
-                        id: "recurrence",
-                        label: "Recorrencia media",
-                        value: recurrenceAverageLabel,
-                        helper: "Media simples entre atendimentos concluidos.",
-                        tone: "info"
-                      }
-                    ]}
-                  />
-
-                  {activeClientRecurrence.returnBuckets.length ? (
-                    <div className="dashboard-mini-grid">
-                      {activeClientRecurrence.returnBuckets.map((bucket) => (
-                        <div className="dashboard-mini-card" key={bucket.id}>
-                          <strong>{bucket.label}</strong>
-                          <span>{bucket.clientsCount} cliente(s) neste bucket.</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="empty-state">Buckets de retorno ainda nao disponiveis neste recorte.</p>
-                  )}
-
-                  <div className="records-column">
-                    {activeClientRecurrence.inactiveClients.length ? (
-                      activeClientRecurrence.inactiveClients.map((entry) => (
-                        <article className="record-card" key={entry.clientId}>
-                          <div className="record-card-header">
-                            <div className="record-stack">
-                              <strong>{entry.nome}</strong>
-                              <span>{entry.email || "Sem e-mail cadastrado"}</span>
-                            </div>
-                            <span className="status-pill is-warning">
-                              {formatClientSegment("inactive", activeClientRecurrence.window)}
-                            </span>
-                          </div>
-                          <div className="record-meta">
-                            <span>
-                              Ultimo atendimento {entry.lastCompletedAt ? formatDateTime(entry.lastCompletedAt) : "nunca"}
-                            </span>
-                            <span>Receita derivada {formatCurrency(entry.recognizedRevenue)}</span>
-                            <span>
-                              Recorrencia media{" "}
-                              {entry.averageRecurrenceDays === null
-                                ? "n/d"
-                                : `${Math.round(entry.averageRecurrenceDays)} dias`}
-                            </span>
-                          </div>
-                        </article>
-                      ))
-                    ) : (
-                      <p className="empty-state">
-                        Nenhum cliente sem retorno identificado na janela de{" "}
-                        {resolveClientReturnWindowLabel(activeClientRecurrence.window)}.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </EntitySection>
-            ) : reportsWorkspaceTab === "agenda" ? (
-              <div className="reports-insights-stack">
-                <div aria-label="Visoes da agenda em relatorios" className="dashboard-tabbar agenda-subtabbar" role="tablist">
-                  {reportsAgendaTabs.map((tab) => (
-                    <button
-                      aria-selected={reportsAgendaWorkspaceTab === tab.id}
-                      className={reportsAgendaWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
-                      key={tab.id}
-                      onClick={() => setReportsAgendaWorkspaceTab(tab.id)}
-                      role="tab"
-                      type="button"
-                    >
-                      <span>{tab.label}</span>
-                      <small>{tab.helper}</small>
-                    </button>
-                  ))}
-                </div>
-
-                {reportsAgendaWorkspaceTab === "week" ? (
-                  <EntitySection
-                    title="Radar semanal da agenda"
-                    description="Leitura gerencial de capacidade e ocupacao, separada da acao operacional do dia."
-                    actions={
-                      <button
-                        className="secondary-button"
-                        onClick={() => {
-                          setAgendaWorkspaceTab("calendar");
-                          setAgendaViewMode("week");
-                          navigateTo("agenda");
-                        }}
-                        type="button"
-                      >
-                        Abrir agenda
-                      </button>
-                    }
-                  >
-                    <div className="reports-insights-stack">
-                      {isLoadingWeeklyAvailability ? (
-                        <p className="helper">Carregando disponibilidade semanal da equipe...</p>
-                      ) : null}
-
-                      <DocumentSummaryCards
-                        metrics={[
-                          {
-                            id: "week-total",
-                            label: "Capacidade total",
-                            value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.totalMinutes),
-                            helper: `${reportsInsightWeekDates.length} dia(s) no radar.`,
-                            tone: "info"
-                          },
-                          {
-                            id: "week-booked",
-                            label: "Horas ocupadas",
-                            value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.bookedMinutes),
-                            helper: `${reportsInsightWeekCapacitySummary.bookingsCount} booking(s) na semana.`,
-                            tone: "success"
-                          },
-                          {
-                            id: "week-free",
-                            label: "Horas livres",
-                            value: formatMinutesAsHours(reportsInsightWeekCapacitySummary.freeMinutes),
-                            helper:
-                              reportsInsightWeekCapacitySummary.totalMinutes > 0
-                                ? `${formatUtilization(reportsInsightWeekCapacitySummary.bookedMinutes, reportsInsightWeekCapacitySummary.totalMinutes)} de ocupacao.`
-                                : "Sem disponibilidade publicada.",
-                            tone: "warning"
-                          },
-                          {
-                            id: "week-open",
-                            label: "Em aberto",
-                            value: reportsInsightWeekCapacitySummary.openBookings,
-                            helper: "Confirmados, pendentes e aguardando pagamento."
-                          }
-                        ]}
-                      />
-
-                      <div className="workspace-grid">
-                        <EntitySection
-                          title="Dia a dia"
-                          description="Carga por data para orientar distribuicao e remanejamento."
-                        >
-                          <div className="records-column">
-                            {reportsInsightWeekDaySummaries.map((summary) => (
-                              <article className="record-card" key={summary.date}>
-                                <div className="record-card-header">
-                                  <div className="record-stack">
-                                    <strong>{formatAgendaDayLabel(summary.date)}</strong>
-                                    <span>{summary.bookingsCount} booking(s) na data</span>
-                                  </div>
-                                  <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
-                                    {summary.totalMinutes > 0
-                                      ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
-                                      : "Sem capacidade"}
-                                  </span>
-                                </div>
-                                <div className="record-meta">
-                                  <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
-                                  <span>{formatMinutesAsHours(summary.totalMinutes)} totais</span>
-                                  <span>{summary.openBookings} em aberto</span>
-                                </div>
-                              </article>
-                            ))}
-                          </div>
-                        </EntitySection>
-
-                        <EntitySection
-                          title="Equipe na semana"
-                          description="Distribuicao por profissional no mesmo radar."
-                        >
-                          <div className="records-column">
-                            {reportsInsightWeekProfessionalSummaries.length ? (
-                              reportsInsightWeekProfessionalSummaries.map((summary) => (
-                                <article className="record-card" key={summary.professionalId}>
-                                  <div className="record-card-header">
-                                    <div className="record-stack">
-                                      <strong>{summary.professionalName}</strong>
-                                      <span>{summary.bookingsCount} booking(s) na semana</span>
-                                    </div>
-                                    <span className={`status-pill is-${resolveUtilizationTone(summary.bookedMinutes, summary.totalMinutes)}`}>
-                                      {summary.totalMinutes > 0
-                                        ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
-                                        : "Sem capacidade"}
-                                    </span>
-                                  </div>
-                                  <div className="record-meta">
-                                    <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
-                                    <span>{formatMinutesAsHours(summary.totalMinutes)} totais</span>
-                                    <span>{summary.openBookings} em aberto</span>
-                                  </div>
-                                </article>
-                              ))
-                            ) : (
-                              <p className="empty-state">Nenhum profissional publicado para montar o radar semanal.</p>
-                            )}
-                          </div>
-                        </EntitySection>
-                      </div>
-                    </div>
-                  </EntitySection>
-                ) : (
-                  <EntitySection
-                    title="Visao mensal"
-                    description="Concentrado mensal para leitura gerencial, sem competir com a agenda operacional."
-                    actions={
-                      <button
-                        className="secondary-button"
-                        onClick={() => {
-                          setAgendaWorkspaceTab("calendar");
-                          setAgendaViewMode("month");
-                          navigateTo("agenda");
-                        }}
-                        type="button"
-                      >
-                        Abrir agenda
-                      </button>
-                    }
-                  >
-                    <div className="reports-insights-stack">
-                      <DocumentSummaryCards
-                        metrics={[
-                          {
-                            id: "month-bookings",
-                            label: "Bookings no mes",
-                            value: reportsInsightMonthCapacitySummary.bookingsCount,
-                            helper: formatAgendaMonthLabel(reportsInsightAnchorDate),
-                            tone: "info"
-                          },
-                          {
-                            id: "month-booked",
-                            label: "Horas ocupadas",
-                            value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.bookedMinutes),
-                            helper: `${reportsInsightMonthHighlights.length} dia(s) com movimento.`,
-                            tone: "success"
-                          },
-                          {
-                            id: "month-free",
-                            label: "Horas livres",
-                            value: formatMinutesAsHours(reportsInsightMonthCapacitySummary.freeMinutes),
-                            helper:
-                              reportsInsightMonthCapacitySummary.totalMinutes > 0
-                                ? `${formatUtilization(reportsInsightMonthCapacitySummary.bookedMinutes, reportsInsightMonthCapacitySummary.totalMinutes)} de ocupacao.`
-                                : "Sem disponibilidade publicada.",
-                            tone: "warning"
-                          },
-                          {
-                            id: "month-open",
-                            label: "Em aberto",
-                            value: reportsInsightMonthCapacitySummary.openBookings,
-                            helper: "Pendencias concentradas no mes atual."
-                          }
-                        ]}
-                      />
-
-                      {reportsInsightMonthHighlights.length ? (
-                        <div className="records-column">
-                          {reportsInsightMonthHighlights.slice(0, 8).map((cell) => (
-                            <article className="record-card" key={cell.date}>
-                              <div className="record-card-header">
-                                <div className="record-stack">
-                                  <strong>{formatAgendaDayLabel(cell.date)}</strong>
-                                  <span>{cell.bookingsCount} booking(s) no dia</span>
-                                </div>
-                                <span className={`status-pill is-${resolveUtilizationTone(cell.bookedMinutes, cell.totalMinutes)}`}>
-                                  {cell.totalMinutes > 0
-                                    ? `${formatUtilization(cell.bookedMinutes, cell.totalMinutes)} ocupacao`
-                                    : "Sem capacidade"}
-                                </span>
-                              </div>
-                              <div className="record-meta">
-                                <span>{cell.openBookings} em aberto</span>
-                                <span>{cell.completedBookings} concluidos</span>
-                                <span>
-                                  {cell.totalMinutes > 0
-                                    ? `${formatMinutesAsHours(cell.bookedMinutes)} de ${formatMinutesAsHours(cell.totalMinutes)}`
-                                    : "Sem disponibilidade"}
-                                </span>
-                              </div>
-                            </article>
-                          ))}
-                        </div>
-                      ) : (
-                        <p className="empty-state">Nenhum movimento encontrado no mes corrente para este filtro.</p>
-                      )}
-                    </div>
-                  </EntitySection>
-                )}
-              </div>
-            ) : null}
-          </>
-        }
-      />
-    );
-  }
-
-  function renderProfessionalsView(): JSX.Element {
-    return renderProfessionalsPanel();
   }
 
   function renderClientsView(): JSX.Element {
@@ -7917,7 +6724,9 @@ export function App() {
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
   const showTopbarEyebrow = currentRoute !== "profissionais" && currentRoute !== "dashboard";
-  const sidebarReportsMenuGroups = groupReportsWorkspaceItems(reportsWorkspaceItems);
+  const sidebarReportsMenuGroups = groupReportsBuilderMenuItems(
+    buildReportsBuilderMenuItems(reportsCatalog)
+  );
 
   if (!sessionToken) {
     return (
@@ -8171,13 +6980,12 @@ export function App() {
                               {items.map((item) => (
                                 <button
                                   className="admin-sidebar-flyout-item"
-                                  key={item.key}
-                                  onClick={() => openReportsWorkspaceTab(item.key)}
+                                  key={item.code}
+                                  onClick={() => openSystemReportBuilderTab(item.code)}
                                   type="button"
                                 >
                                   <div className="admin-sidebar-flyout-item-row">
                                     <strong>{item.label}</strong>
-                                    {item.badge ? <span className="reports-menu-badge">{item.badge}</span> : null}
                                   </div>
                                   <span>{item.description}</span>
                                 </button>

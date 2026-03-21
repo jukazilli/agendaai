@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AgendaAI - Mock Relatorios Dockview</title>
+    <link rel="stylesheet" href="./relatorios-dockview-shell-mock.css" />
+  </head>
+  <body>
+    <div class="mock-shell">
+      <aside class="shell-rail">
+        <div class="rail-brand">
+          <div class="brand-mark">A</div>
+        </div>
+
+        <nav class="rail-nav" aria-label="Modulos">
+          <button class="rail-item" type="button" title="Dashboard">
+            <span class="rail-icon">▦</span>
+          </button>
+
+          <div class="rail-flyout-anchor">
+            <button class="rail-item is-active" type="button" title="Relatorios">
+              <span class="rail-icon">↗</span>
+            </button>
+
+            <section class="rail-flyout" aria-label="Relatorios disponiveis">
+              <header class="flyout-header">
+                <strong>Relatorios</strong>
+                <span>Passe o mouse, escolha a visao e abra uma dock tab dedicada.</span>
+              </header>
+
+              <div class="flyout-group">
+                <span class="flyout-group-title">Gestao</span>
+                <button class="flyout-item" type="button" data-report="overview">
+                  <strong>Visao executiva</strong>
+                  <span>Resumo do negocio no recorte ativo.</span>
+                </button>
+                <button class="flyout-item" type="button" data-report="revenue">
+                  <strong>Receita e servicos</strong>
+                  <span>Faturamento, ticket e mix de servicos.</span>
+                </button>
+                <button class="flyout-item" type="button" data-report="team">
+                  <strong>Equipe e produtividade</strong>
+                  <span>Leitura por profissional e capacidade entregue.</span>
+                </button>
+              </div>
+
+              <div class="flyout-group">
+                <span class="flyout-group-title">Operacao</span>
+                <button class="flyout-item" type="button" data-report="pending">
+                  <strong>Pendencias operacionais</strong>
+                  <span>Fila viva de bookings e pontos de atencao.</span>
+                </button>
+                <button class="flyout-item" type="button" data-report="retention">
+                  <strong>Retorno e retencao</strong>
+                  <span>Clientes com retorno, sem retorno e recorrencia.</span>
+                </button>
+              </div>
+
+              <div class="flyout-group">
+                <span class="flyout-group-title">Agenda</span>
+                <button class="flyout-item" type="button" data-report="weekly">
+                  <strong>Radar semanal</strong>
+                  <span>Leitura de ocupacao e distribuicao da semana.</span>
+                </button>
+                <button class="flyout-item" type="button" data-report="monthly">
+                  <strong>Visao mensal</strong>
+                  <span>Concentrado do mes, volume e sazonalidade.</span>
+                </button>
+              </div>
+            </section>
+          </div>
+
+          <button class="rail-item" type="button" title="Agenda">
+            <span class="rail-icon">◫</span>
+          </button>
+          <button class="rail-item" type="button" title="Clientes">
+            <span class="rail-icon">◎</span>
+          </button>
+          <button class="rail-item" type="button" title="Configuracoes">
+            <span class="rail-icon">⚙</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="workspace-topbar">
+          <div class="dock-tabs" id="dock-tabs" role="tablist" aria-label="Dock tabs de relatorios"></div>
+          <div class="topbar-actions">
+            <button class="icon-button" type="button" aria-label="Buscar">⌕</button>
+            <button class="icon-button" type="button" aria-label="Alertas">◌</button>
+            <button class="icon-button" type="button" aria-label="Nova aba">＋</button>
+          </div>
+        </header>
+
+        <section class="workspace-stage">
+          <div class="stage-header">
+            <div>
+              <p class="eyebrow">RELATORIOS</p>
+              <h1 id="report-title">Visao executiva</h1>
+              <p id="report-subtitle">Cada relatorio abre como dock tab propria, sem menu duplicado dentro da tela.</p>
+            </div>
+
+            <div class="stage-actions">
+              <button class="ghost-button" id="open-filter-button" type="button">Filtrar</button>
+              <button class="ghost-button" type="button">Contexto</button>
+            </div>
+          </div>
+
+          <div class="filter-summary">
+            <span class="filter-chip" id="filter-chip-recorte">Periodo: 30 dias</span>
+            <span class="filter-chip" id="filter-chip-entidade">Filtro local por relatorio</span>
+          </div>
+
+          <section class="report-surface">
+            <div class="surface-heading">
+              <div>
+                <h2 id="surface-title">Visao executiva</h2>
+                <p id="surface-description">Resumo do periodo sem misturar outras visoes no mesmo viewport.</p>
+              </div>
+            </div>
+
+            <div class="metric-grid" id="metric-grid"></div>
+
+            <div class="detail-grid" id="detail-grid"></div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <div class="filter-modal-backdrop" id="filter-modal" hidden>
+      <section class="filter-modal" aria-labelledby="filter-modal-title" aria-modal="true" role="dialog">
+        <header class="filter-modal-header">
+          <div>
+            <strong id="filter-modal-title">Filtros</strong>
+            <p id="filter-modal-description">Cada relatorio possui filtros proprios em modal dedicado.</p>
+          </div>
+          <button class="icon-button" id="close-filter-modal" type="button" aria-label="Fechar filtros">✕</button>
+        </header>
+
+        <div class="filter-modal-grid" id="filter-modal-grid"></div>
+
+        <footer class="filter-modal-footer">
+          <button class="ghost-button" id="clear-filter-button" type="button">Limpar filtros</button>
+          <button class="primary-button" id="apply-filter-button" type="button">Aplicar filtros</button>
+        </footer>
+      </section>
+    </div>
+
+    <script>
+      const reports = {
+        overview: {
+          title: "Visao executiva",
+          subtitle: "Cada relatorio abre como dock tab propria, sem menu duplicado dentro da tela.",
+          description: "Resumo do periodo sem misturar outras visoes no mesmo viewport.",
+          filters: ["Data de", "Ate data", "Do profissional", "Ate o profissional"],
+          filterSummary: "Filtro local: recorte e equipe",
+          metrics: [
+            ["Receita reconhecida", "R$ 18.450,00", "Comparativo com periodo anterior"],
+            ["Bookings no periodo", "264", "Total confirmado no recorte"],
+            ["Ticket medio", "R$ 69,88", "Media dos concluidos"],
+            ["Clientes unicos", "118", "Base distinta atendida"]
+          ],
+          details: [
+            ["Leitura principal", "Mostra o essencial para o dono decidir sem abrir outros relatorios."],
+            ["Acoes", "Abrir agenda, clientes ou operacao apenas quando precisar aprofundar."]
+          ]
+        },
+        revenue: {
+          title: "Receita e servicos",
+          subtitle: "Relatorio dedicado para faturamento, mix de servicos e ticket.",
+          description: "Concentra dados comerciais e elimina redundancia com visoes de equipe ou agenda.",
+          filters: ["Data de", "Ate data", "Do servico", "Ate o servico", "Forma de pagamento"],
+          filterSummary: "Filtro local: periodo, servicos e cobranca",
+          metrics: [
+            ["Receita bruta", "R$ 24.380,00", "Soma do periodo"],
+            ["Receita reconhecida", "R$ 18.450,00", "Concluidos no recorte"],
+            ["Entrada online", "R$ 1.980,00", "Pagamentos aprovados"],
+            ["Servico lider", "Escova", "Maior contribuicao de receita"]
+          ],
+          details: [
+            ["Mix comercial", "Tabela, ranking e curva por servico ficam aqui, nao na visao executiva."],
+            ["Filtros esperados", "Servico inicial/final, periodo, meio de pagamento e faixa comercial."]
+          ]
+        },
+        team: {
+          title: "Equipe e produtividade",
+          subtitle: "Dockview propria para leitura de produtividade por profissional.",
+          description: "Foco em capacidade entregue, ocupacao e resultado individual.",
+          filters: ["Data de", "Ate data", "Do profissional", "Ate o profissional", "Status"],
+          filterSummary: "Filtro local: profissionais e status",
+          metrics: [
+            ["Profissionais ativos", "6", "Base operacional do recorte"],
+            ["Horas ocupadas", "118h", "Carga atendida pela equipe"],
+            ["Media por profissional", "19h40", "Volume medio entregue"],
+            ["Melhor ocupacao", "Ana Lima", "84% da agenda preenchida"]
+          ],
+          details: [
+            ["Uso correto", "Nao mistura faturamento por servico com leitura de capacidade humana."],
+            ["Aprofundamento", "Ao clicar no profissional, abre a docview do relatorio dele."]
+          ]
+        },
+        pending: {
+          title: "Pendencias operacionais",
+          subtitle: "Fila viva separada da camada gerencial.",
+          description: "Lista apenas o que ainda exige acao operacional ou acompanhamento.",
+          filters: ["Data de", "Ate data", "Do profissional", "Ate o profissional", "Status", "Cliente"],
+          filterSummary: "Filtro local: fila, equipe e cliente",
+          metrics: [
+            ["Pendentes", "12", "Aguardando confirmacao"],
+            ["Aguardando pagamento", "8", "Com checkout em aberto"],
+            ["Confirmados", "21", "Prontos para execucao"],
+            ["No-shows", "3", "Demandam tratativa"]
+          ],
+          details: [
+            ["Uso correto", "Aqui a leitura e operacional; nao precisa dividir espaco com KPIs de negocio."],
+            ["Filtros esperados", "Cliente por nome/telefone, status, profissional e faixa de datas."]
+          ]
+        },
+        retention: {
+          title: "Retorno e retencao",
+          subtitle: "Leitura exclusiva da base de clientes e recorrencia.",
+          description: "Base com retorno, sem retorno, nunca concluiu e clientes em risco.",
+          filters: ["Data de", "Ate data", "Janela de retorno", "Cliente", "Do profissional", "Ate o profissional"],
+          filterSummary: "Filtro local: clientes, janela e equipe",
+          metrics: [
+            ["Com retorno", "54", "Voltaram dentro da janela"],
+            ["Sem retorno", "18", "Demandam acao comercial"],
+            ["Nunca concluiu", "11", "Base sem atendimento finalizado"],
+            ["Recorrencia media", "26 dias", "Intervalo medio entre retornos"]
+          ],
+          details: [
+            ["Uso correto", "Nao repetir KPIs gerais aqui; mostrar so saude da base e comportamento de retorno."],
+            ["Filtros esperados", "Cliente por nome ou telefone e recorte de profissionais."]
+          ]
+        },
+        weekly: {
+          title: "Radar semanal",
+          subtitle: "Workspace dedicado para distribuicao da agenda da semana.",
+          description: "Leitura semanal de ocupacao, horas livres e carga futura.",
+          filters: ["Semana de", "Ate semana", "Do profissional", "Ate o profissional", "Servico inicial", "Servico final"],
+          filterSummary: "Filtro local: semana, equipe e servicos",
+          metrics: [
+            ["Capacidade total", "164h", "Disponibilidade publicada"],
+            ["Horas ocupadas", "98h", "Carga da semana"],
+            ["Horas livres", "66h", "Espaco para remanejamento"],
+            ["Ocupacao", "59%", "Taxa semanal"]
+          ],
+          details: [
+            ["Uso correto", "Semana deve existir como relatorio proprio, nao como bloco perdido em outras telas."],
+            ["Aprofundamento", "Clique futuro pode abrir agenda semanal operacional."]
+          ]
+        },
+        monthly: {
+          title: "Visao mensal",
+          subtitle: "Relatorio proprio para concentrado mensal e sazonalidade.",
+          description: "Mes atual, comparativos e acumulados sem competir com leituras semanais.",
+          filters: ["Mes de", "Ate mes", "Do servico", "Ate o servico", "Do profissional", "Ate o profissional"],
+          filterSummary: "Filtro local: mes, servicos e equipe",
+          metrics: [
+            ["Bookings no mes", "812", "Volume total do mes"],
+            ["Receita do mes", "R$ 54.990,00", "Concentrado mensal"],
+            ["Ticket do mes", "R$ 67,72", "Media mensal"],
+            ["Pico semanal", "Semana 3", "Maior ocupacao do periodo"]
+          ],
+          details: [
+            ["Uso correto", "Mensal deve ser tela propria, nao subtitulo escondido dentro de outro relatorio."],
+            ["Filtros esperados", "Periodo mensal, servicos, profissionais e faixas comerciais."]
+          ]
+        }
+      };
+
+      const dockTabs = document.getElementById("dock-tabs");
+      const reportTitle = document.getElementById("report-title");
+      const reportSubtitle = document.getElementById("report-subtitle");
+      const surfaceTitle = document.getElementById("surface-title");
+      const surfaceDescription = document.getElementById("surface-description");
+      const metricGrid = document.getElementById("metric-grid");
+      const detailGrid = document.getElementById("detail-grid");
+      const filterChipEntidade = document.getElementById("filter-chip-entidade");
+      const filterModal = document.getElementById("filter-modal");
+      const filterModalGrid = document.getElementById("filter-modal-grid");
+      const filterModalTitle = document.getElementById("filter-modal-title");
+      const filterModalDescription = document.getElementById("filter-modal-description");
+
+      let activeReport = "overview";
+      let openTabs = ["overview"];
+
+      function renderDockTabs() {
+        dockTabs.innerHTML = "";
+
+        openTabs.forEach((reportId) => {
+          const report = reports[reportId];
+          const button = document.createElement("button");
+          button.className = reportId === activeReport ? "dock-tab is-active" : "dock-tab";
+          button.type = "button";
+          button.innerHTML = `<span>${report.title}</span><small>${reportId === activeReport ? "ativa" : "dock"}</small>`;
+          button.addEventListener("click", () => activateReport(reportId));
+          dockTabs.appendChild(button);
+        });
+      }
+
+      function renderReport() {
+        const report = reports[activeReport];
+        reportTitle.textContent = report.title;
+        reportSubtitle.textContent = report.subtitle;
+        surfaceTitle.textContent = report.title;
+        surfaceDescription.textContent = report.description;
+        filterChipEntidade.textContent = report.filterSummary;
+
+        metricGrid.innerHTML = report.metrics
+          .map(
+            ([label, value, hint]) => `
+              <article class="metric-card">
+                <span>${label}</span>
+                <strong>${value}</strong>
+                <p>${hint}</p>
+              </article>
+            `
+          )
+          .join("");
+
+        detailGrid.innerHTML = report.details
+          .map(
+            ([title, text]) => `
+              <article class="detail-card">
+                <strong>${title}</strong>
+                <p>${text}</p>
+              </article>
+            `
+          )
+          .join("");
+      }
+
+      function activateReport(reportId) {
+        if (!openTabs.includes(reportId)) {
+          openTabs.push(reportId);
+        }
+
+        activeReport = reportId;
+        renderDockTabs();
+        renderReport();
+      }
+
+      function openFilters() {
+        const report = reports[activeReport];
+        filterModalTitle.textContent = `Filtros | ${report.title}`;
+        filterModalDescription.textContent = "Cada relatorio tem botao de filtros proprio e modal dedicado.";
+        filterModalGrid.innerHTML = report.filters
+          .map(
+            (label) => `
+              <label class="field">
+                <span>${label}</span>
+                <div class="field-with-action">
+                  <input type="text" value="" placeholder="Preencher ${label.toLowerCase()}" />
+                  <button class="lookup-button" type="button" aria-label="Consultar ${label}">
+                    ⌕
+                  </button>
+                </div>
+              </label>
+            `
+          )
+          .join("");
+        filterModal.hidden = false;
+      }
+
+      function closeFilters() {
+        filterModal.hidden = true;
+      }
+
+      document.querySelectorAll("[data-report]").forEach((button) => {
+        button.addEventListener("click", () => activateReport(button.dataset.report));
+      });
+
+      document.getElementById("open-filter-button").addEventListener("click", openFilters);
+      document.getElementById("close-filter-modal").addEventListener("click", closeFilters);
+      document.getElementById("clear-filter-button").addEventListener("click", closeFilters);
+      document.getElementById("apply-filter-button").addEventListener("click", closeFilters);
+      filterModal.addEventListener("click", (event) => {
+        if (event.target === filterModal) {
+          closeFilters();
+        }
+      });
+
+      renderDockTabs();
+      renderReport();
+    </script>
+  </body>
+</html>
