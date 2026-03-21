@@ -871,7 +871,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         const payload = reportDefinitionSchema.parse({
           ...body,
           version: contractVersion,
-          id: typeof body.id === "string" ? body.id : randomUUID(),
+          id: randomUUID(),
           tenantId: claims.tenantId,
           source: "saved",
           code: buildNextReportDefinitionCode(await store.listReportDefinitions(claims.tenantId)),
