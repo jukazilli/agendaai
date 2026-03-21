@@ -1102,6 +1102,7 @@ export function App() {
   const [paymentForm, setPaymentForm] = useState<PaymentFormState>(defaultPaymentForm);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [serviceWorkspaceMode, setServiceWorkspaceMode] = useState<ServiceWorkspaceMode>("browse");
+  const [isServiceDeleteDialogOpen, setIsServiceDeleteDialogOpen] = useState(false);
   const [serviceForm, setServiceForm] = useState<ServiceFormState>(defaultServiceForm);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState("");
   const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
@@ -2140,6 +2141,7 @@ export function App() {
       await deleteService(apiBaseUrl, sessionToken, selectedServiceId);
       setSelectedServiceId("");
       setServiceWorkspaceMode("browse");
+      setIsServiceDeleteDialogOpen(false);
       setServiceForm(defaultServiceForm);
       await refreshAdminState();
       setFeedback({
@@ -2819,6 +2821,7 @@ export function App() {
   }
 
   function openServiceWorkspace(mode: Exclude<ServiceWorkspaceMode, "browse">, serviceId?: string): void {
+    setIsServiceDeleteDialogOpen(false);
     if (mode === "new") {
       setSelectedServiceId("");
       setServiceForm(defaultServiceForm);
@@ -2837,6 +2840,7 @@ export function App() {
 
   function closeServiceWorkspace(): void {
     setServiceWorkspaceMode("browse");
+    setIsServiceDeleteDialogOpen(false);
   }
 
   function openProfessionalAvailabilityWorkspace(professionalId: string): void {
@@ -3293,12 +3297,57 @@ export function App() {
     );
   }
 
+  function WorkspaceRecordModal({
+    title,
+    subtitle,
+    children,
+    footer,
+    onClose
+  }: {
+    readonly title: string;
+    readonly subtitle?: string;
+    readonly children: JSX.Element;
+    readonly footer?: JSX.Element;
+    readonly onClose: () => void;
+  }): JSX.Element {
+    return (
+      <div className="workspace-record-overlay" role="presentation" onClick={onClose}>
+        <section
+          aria-label={title}
+          className="workspace-record-modal"
+          onClick={(event) => event.stopPropagation()}
+          role="dialog"
+        >
+          <div className="workspace-record-modal-header">
+            <div>
+              <h2>{title}</h2>
+              {subtitle ? <p>{subtitle}</p> : null}
+            </div>
+            <button className="icon-button" onClick={onClose} type="button">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="workspace-record-modal-body">{children}</div>
+          {footer ? <div className="workspace-record-modal-footer">{footer}</div> : null}
+        </section>
+      </div>
+    );
+  }
+
   function renderCatalogPanel(): JSX.Element {
     const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
     const isViewingService = serviceWorkspaceMode === "view" && Boolean(selectedService);
     const isEditingService = serviceWorkspaceMode === "edit" && Boolean(selectedService);
     const isCreatingService = serviceWorkspaceMode === "new";
     const canOpenSelectedService = Boolean(selectedService);
+    const activeModalTitle =
+      isCreatingService ? "Novo servico" : isEditingService ? `Editar ${selectedService?.nome ?? "servico"}` : `Visualizar ${selectedService?.nome ?? "servico"}`;
+    const activeModalSubtitle =
+      isCreatingService
+        ? "Preencha os dados do cadastro e salve o novo servico."
+        : isEditingService
+          ? "Ajuste os dados do servico sem sair da tela principal do catalogo."
+          : "Leitura rapida do cadastro comercial selecionado.";
 
     return (
       <>
@@ -3329,6 +3378,14 @@ export function App() {
               >
                 Editar
               </button>
+              <button
+                className="secondary-button is-danger"
+                disabled={!canOpenSelectedService}
+                onClick={() => setIsServiceDeleteDialogOpen(true)}
+                type="button"
+              >
+                Excluir
+              </button>
             </div>
           }
         >
@@ -3346,7 +3403,7 @@ export function App() {
                     onClick={() => selectServiceRecord(service.id)}
                     type="button"
                   >
-                    <span className="entity-record-row-index">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="entity-record-row-index">{service.codigo || String(index + 1).padStart(2, "0")}</span>
                     <div className="entity-record-row-main">
                       <strong>{service.nome}</strong>
                       <span>{service.duracaoMin} min</span>
@@ -3367,247 +3424,260 @@ export function App() {
           )}
         </EntitySection>
 
-        {isViewingService && selectedService ? (
-          <EntitySection
-            title={`Visualizar ${selectedService.nome}`}
-            actions={
-              <div className="button-row">
-                <button className="secondary-button" onClick={() => closeServiceWorkspace()} type="button">
-                  Fechar
-                </button>
-                <button className="primary-button" onClick={() => openServiceWorkspace("edit")} type="button">
-                  Editar
-                </button>
-              </div>
-            }
+        {(isViewingService || isEditingService || isCreatingService) ? (
+          <WorkspaceRecordModal
+            subtitle={activeModalSubtitle}
+            title={activeModalTitle}
+            onClose={() => closeServiceWorkspace()}
           >
-            <div className="catalog-record-preview-grid">
-              <div className="dashboard-mini-card">
-                <strong>Status</strong>
-                <span>{formatServiceStatus(selectedService.status)}</span>
+            {isViewingService && selectedService ? (
+              <div className="catalog-record-preview-grid">
+                <div className="dashboard-mini-card">
+                  <strong>Codigo</strong>
+                  <span>{selectedService.codigo}</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>Status</strong>
+                  <span>{formatServiceStatus(selectedService.status)}</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>Duracao</strong>
+                  <span>{formatMinutesAsHours(selectedService.duracaoMin)}</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>Preco base</strong>
+                  <span>{formatCurrency(selectedService.precoBase)}</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>Cobranca</strong>
+                  <span>
+                    {selectedService.paymentPolicy.collectionMode === "none"
+                      ? "Reserva imediata"
+                      : selectedService.paymentPolicy.collectionMode}
+                  </span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>Checkout</strong>
+                  <span>{selectedService.paymentPolicy.checkoutMode}</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>Meios aceitos</strong>
+                  <span>{selectedService.paymentPolicy.acceptedMethods.join(" | ") || "Nao definidos"}</span>
+                </div>
               </div>
-              <div className="dashboard-mini-card">
-                <strong>Duracao</strong>
-                <span>{formatMinutesAsHours(selectedService.duracaoMin)}</span>
-              </div>
-              <div className="dashboard-mini-card">
-                <strong>Preco base</strong>
-                <span>{formatCurrency(selectedService.precoBase)}</span>
-              </div>
-              <div className="dashboard-mini-card">
-                <strong>Cobranca</strong>
-                <span>
-                  {selectedService.paymentPolicy.collectionMode === "none"
-                    ? "Reserva imediata"
-                    : selectedService.paymentPolicy.collectionMode}
-                </span>
-              </div>
-              <div className="dashboard-mini-card">
-                <strong>Checkout</strong>
-                <span>{selectedService.paymentPolicy.checkoutMode}</span>
-              </div>
-              <div className="dashboard-mini-card">
-                <strong>Meios aceitos</strong>
-                <span>{selectedService.paymentPolicy.acceptedMethods.join(" | ") || "Nao definidos"}</span>
-              </div>
-            </div>
-          </EntitySection>
-        ) : null}
-
-        {(isEditingService || isCreatingService) ? (
-          <EntitySection
-            title={isCreatingService ? "Novo servico" : `Editar ${selectedService?.nome ?? "servico"}`}
-            actions={
-              <div className="button-row">
-                {!isCreatingService && selectedService ? (
-                  <button
-                    className="secondary-button"
-                    onClick={() => openServiceWorkspace("view")}
-                    type="button"
-                  >
-                    Visualizar
-                  </button>
-                ) : null}
-                <button className="secondary-button" onClick={() => closeServiceWorkspace()} type="button">
-                  Voltar para a lista
-                </button>
-              </div>
-            }
-          >
-            <form className="stack-form" onSubmit={handleSaveService}>
-              <div className="form-grid">
-                <label className="field">
-                  <span>Nome</span>
-                  <input
-                    required
-                    type="text"
-                    value={serviceForm.nome}
-                    onChange={(event) => setServiceForm({ ...serviceForm, nome: event.target.value })}
-                  />
-                </label>
-                <label className="field">
-                  <span>Duracao</span>
-                  <input
-                    required
-                    min="1"
-                    type="number"
-                    value={serviceForm.duracaoMin}
-                    onChange={(event) =>
-                      setServiceForm({ ...serviceForm, duracaoMin: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Preco</span>
-                  <input
-                    required
-                    min="0"
-                    step="0.01"
-                    type="number"
-                    value={serviceForm.precoBase}
-                    onChange={(event) =>
-                      setServiceForm({ ...serviceForm, precoBase: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="field">
-                  <span>Status</span>
-                  <select
-                    value={serviceForm.status}
-                    onChange={(event) =>
-                      setServiceForm({ ...serviceForm, status: event.target.value as ServiceStatus })
-                    }
-                  >
-                    {serviceStatusValues.map((status) => (
-                      <option key={status} value={status}>
-                        {formatServiceStatus(status)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Cobranca</span>
-                  <select
-                    value={serviceForm.collectionMode}
-                    onChange={(event) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        collectionMode: event.target.value as PaymentCollectionMode
-                      })
-                    }
-                  >
-                    {paymentCollectionModeValues.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Checkout</span>
-                  <select
-                    disabled={serviceForm.collectionMode === "none"}
-                    value={serviceForm.checkoutMode}
-                    onChange={(event) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        checkoutMode: event.target.value as PaymentCheckoutMode
-                      })
-                    }
-                  >
-                    {paymentCheckoutModeValues.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="field">
-                  <span>Tipo</span>
-                  <select
-                    disabled={serviceForm.collectionMode === "none"}
-                    value={serviceForm.chargeType}
-                    onChange={(event) =>
-                      setServiceForm({
-                        ...serviceForm,
-                        chargeType: event.target.value as PaymentChargeType
-                      })
-                    }
-                  >
-                    {paymentChargeTypeValues.map((mode) => (
-                      <option key={mode} value={mode}>
-                        {mode}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {serviceForm.chargeType === "fixed" ? (
+            ) : (
+              <form className="stack-form" onSubmit={handleSaveService}>
+                <div className="form-grid">
                   <label className="field">
-                    <span>Valor</span>
+                    <span>Nome</span>
                     <input
+                      required
+                      type="text"
+                      value={serviceForm.nome}
+                      onChange={(event) => setServiceForm({ ...serviceForm, nome: event.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Duracao</span>
+                    <input
+                      required
+                      min="1"
+                      type="number"
+                      value={serviceForm.duracaoMin}
+                      onChange={(event) =>
+                        setServiceForm({ ...serviceForm, duracaoMin: event.target.value })
+                      }
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Preco</span>
+                    <input
+                      required
                       min="0"
                       step="0.01"
                       type="number"
-                      value={serviceForm.fixedAmount}
+                      value={serviceForm.precoBase}
                       onChange={(event) =>
-                        setServiceForm({ ...serviceForm, fixedAmount: event.target.value })
+                        setServiceForm({ ...serviceForm, precoBase: event.target.value })
                       }
                     />
                   </label>
-                ) : (
                   <label className="field">
-                    <span>Percentual</span>
-                    <input
-                      max="100"
-                      min="1"
-                      type="number"
-                      value={serviceForm.percentage}
+                    <span>Status</span>
+                    <select
+                      value={serviceForm.status}
                       onChange={(event) =>
-                        setServiceForm({ ...serviceForm, percentage: event.target.value })
+                        setServiceForm({ ...serviceForm, status: event.target.value as ServiceStatus })
                       }
-                    />
+                    >
+                      {serviceStatusValues.map((status) => (
+                        <option key={status} value={status}>
+                          {formatServiceStatus(status)}
+                        </option>
+                      ))}
+                    </select>
                   </label>
-                )}
-              </div>
-
-              <fieldset className="checkbox-group">
-                <legend>Meios aceitos</legend>
-                {paymentMethodValues.map((method) => (
-                  <label className="check-item" key={method}>
-                    <input
-                      checked={serviceForm.acceptedMethods.includes(method)}
-                      type="checkbox"
-                      onChange={() =>
+                  <label className="field">
+                    <span>Cobranca</span>
+                    <select
+                      value={serviceForm.collectionMode}
+                      onChange={(event) =>
                         setServiceForm({
                           ...serviceForm,
-                          acceptedMethods: toggleArrayValue(serviceForm.acceptedMethods, method)
+                          collectionMode: event.target.value as PaymentCollectionMode
                         })
                       }
-                    />
-                    <span>{method}</span>
-                  </label>
-                ))}
-              </fieldset>
-
-              <div className="catalog-form-footer">
-                <div className="button-row">
-                  <button className="primary-button" disabled={isBusy} type="submit">
-                    {selectedServiceId ? "Salvar servico" : "Criar servico"}
-                  </button>
-                  {selectedServiceId ? (
-                    <button
-                      className="secondary-button is-danger"
-                      disabled={isBusy}
-                      onClick={() => void handleDeleteSelectedService()}
-                      type="button"
                     >
-                      Excluir servico
-                    </button>
-                  ) : null}
+                      {paymentCollectionModeValues.map((mode) => (
+                        <option key={mode} value={mode}>
+                          {mode}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Checkout</span>
+                    <select
+                      disabled={serviceForm.collectionMode === "none"}
+                      value={serviceForm.checkoutMode}
+                      onChange={(event) =>
+                        setServiceForm({
+                          ...serviceForm,
+                          checkoutMode: event.target.value as PaymentCheckoutMode
+                        })
+                      }
+                    >
+                      {paymentCheckoutModeValues.map((mode) => (
+                        <option key={mode} value={mode}>
+                          {mode}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Tipo</span>
+                    <select
+                      disabled={serviceForm.collectionMode === "none"}
+                      value={serviceForm.chargeType}
+                      onChange={(event) =>
+                        setServiceForm({
+                          ...serviceForm,
+                          chargeType: event.target.value as PaymentChargeType
+                        })
+                      }
+                    >
+                      {paymentChargeTypeValues.map((mode) => (
+                        <option key={mode} value={mode}>
+                          {mode}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {serviceForm.chargeType === "fixed" ? (
+                    <label className="field">
+                      <span>Valor</span>
+                      <input
+                        min="0"
+                        step="0.01"
+                        type="number"
+                        value={serviceForm.fixedAmount}
+                        onChange={(event) =>
+                          setServiceForm({ ...serviceForm, fixedAmount: event.target.value })
+                        }
+                      />
+                    </label>
+                  ) : (
+                    <label className="field">
+                      <span>Percentual</span>
+                      <input
+                        max="100"
+                        min="1"
+                        type="number"
+                        value={serviceForm.percentage}
+                        onChange={(event) =>
+                          setServiceForm({ ...serviceForm, percentage: event.target.value })
+                        }
+                      />
+                    </label>
+                  )}
                 </div>
+
+                <fieldset className="checkbox-group">
+                  <legend>Meios aceitos</legend>
+                  {paymentMethodValues.map((method) => (
+                    <label className="check-item" key={method}>
+                      <input
+                        checked={serviceForm.acceptedMethods.includes(method)}
+                        type="checkbox"
+                        onChange={() =>
+                          setServiceForm({
+                            ...serviceForm,
+                            acceptedMethods: toggleArrayValue(serviceForm.acceptedMethods, method)
+                          })
+                        }
+                      />
+                      <span>{method}</span>
+                    </label>
+                  ))}
+                </fieldset>
+
+                <div className="catalog-form-footer">
+                  <div className="button-row">
+                    {!isCreatingService && selectedService ? (
+                      <button
+                        className="secondary-button"
+                        onClick={() => openServiceWorkspace("view", selectedService.id)}
+                        type="button"
+                      >
+                        Visualizar
+                      </button>
+                    ) : null}
+                    <button className="secondary-button" onClick={() => closeServiceWorkspace()} type="button">
+                      Cancelar
+                    </button>
+                    <button className="primary-button" disabled={isBusy} type="submit">
+                      {selectedService ? "Salvar servico" : "Criar servico"}
+                    </button>
+                  </div>
+                </div>
+              </form>
+            )}
+          </WorkspaceRecordModal>
+        ) : null}
+
+        {isServiceDeleteDialogOpen && selectedService ? (
+          <WorkspaceRecordModal
+            subtitle="Essa acao remove o cadastro comercial selecionado."
+            title={`Excluir ${selectedService.nome}`}
+            footer={
+              <div className="button-row">
+                <button
+                  className="secondary-button"
+                  onClick={() => setIsServiceDeleteDialogOpen(false)}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="secondary-button is-danger"
+                  disabled={isBusy}
+                  onClick={() => void handleDeleteSelectedService()}
+                  type="button"
+                >
+                  Confirmar exclusao
+                </button>
               </div>
-            </form>
-          </EntitySection>
+            }
+            onClose={() => setIsServiceDeleteDialogOpen(false)}
+          >
+            <div className="workspace-record-delete-copy">
+              <strong>{selectedService.codigo} | {selectedService.nome}</strong>
+              <p>
+                O servico sera removido do catalogo. Se ele estiver vinculado a profissionais,
+                revise a equipe depois da exclusao.
+              </p>
+            </div>
+          </WorkspaceRecordModal>
         ) : null}
       </>
     );
@@ -3632,211 +3702,150 @@ export function App() {
     : "Sem especialidades ainda";
 
     return (
-      <EntityViewLayout
-        className="professional-entity-view"
-        eyebrow="Equipe"
-        title={isCreatingProfessional ? "Novo profissional" : selectedProfessional?.nome ?? "Editar profissional"}
-        subtitle={
-          isCreatingProfessional ?
-            "Cadastre o profissional e vincule os servicos que ele pode atender."
-          : "Entity view do profissional com identidade, servicos vinculados e atalhos para agenda e disponibilidade."
-        }
-        statusBadge={
-          selectedProfessional && !isCreatingProfessional ? (
-            <ViewBadge tone={resolveProfessionalStatusTone(selectedProfessional.status) as "success" | "warning" | "neutral"}>
-              {formatProfessionalStatus(selectedProfessional.status)}
-            </ViewBadge>
-          ) : (
-            <ViewBadge tone="info">Novo cadastro</ViewBadge>
-          )
-        }
-        pageActions={
-          !isCreatingProfessional && selectedProfessionalId ? (
-            <div className="button-row">
-              <button
-                className="secondary-button"
-                onClick={() => openProfessionalAgenda(selectedProfessionalId)}
-                type="button"
-              >
-                Ver agenda
-              </button>
-              <button
-                className="secondary-button"
-                onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
-                type="button"
-              >
-                Horarios
-              </button>
+      <div className="professionals-detail-stack">
+        <DocumentHeader
+          fields={[
+            {
+              id: "professional-code",
+              label: "Codigo",
+              value: selectedProfessional?.codigo ?? "Novo cadastro"
+            },
+            {
+              id: "professional-name",
+              label: "Nome",
+              value: professionalForm.nome || selectedProfessional?.nome || "Novo profissional"
+            },
+            {
+              id: "professional-status",
+              label: "Status",
+              value: formatProfessionalStatus(professionalForm.status)
+            },
+            {
+              id: "professional-services",
+              label: "Servicos vinculados",
+              value: `${linkedServiceNames.length}`
+            },
+            {
+              id: "professional-availability",
+              label: "Disponibilidade",
+              value: availabilitySummary
+            }
+          ]}
+        />
+
+        <div aria-label="Detalhe do profissional" className="dashboard-tabbar professional-detail-tabbar" role="tablist">
+          <button
+            aria-selected={professionalWorkspaceMode === "profile"}
+            className={professionalWorkspaceMode === "profile" ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+            onClick={() => setProfessionalWorkspaceMode("profile")}
+            role="tab"
+            type="button"
+          >
+            Cadastro e servicos
+          </button>
+          <button
+            aria-selected={false}
+            className="dashboard-tab-button"
+            disabled={!selectedProfessionalId}
+            onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
+            role="tab"
+            type="button"
+          >
+            Horarios
+          </button>
+        </div>
+
+        <form className="professional-editor-form professional-master-detail-form" id={formId} onSubmit={handleSaveProfessional}>
+          <EntitySection
+            title="Cadastro base"
+            description="Dados principais do profissional selecionado."
+          >
+            <div className="professional-editor-grid">
+              <label className="field">
+                <span>Nome</span>
+                <input
+                  required
+                  type="text"
+                  value={professionalForm.nome}
+                  onChange={(event) =>
+                    setProfessionalForm({ ...professionalForm, nome: event.target.value })
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Status</span>
+                <select
+                  value={professionalForm.status}
+                  onChange={(event) =>
+                    setProfessionalForm({
+                      ...professionalForm,
+                      status: event.target.value as ProfessionalStatus
+                    })
+                  }
+                >
+                  {professionalStatusValues.map((status) => (
+                    <option key={status} value={status}>
+                      {formatProfessionalStatus(status)}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
-          ) : undefined
-        }
-        identityCard={
-          <EntityIdentityCard
-            title="Identidade operacional"
-            description="Bloco base da entidade profissional conectado aos contratos reais do admin."
-            fields={[
-              {
-                id: "professional-name",
-                label: "Nome",
-                value: professionalForm.nome || selectedProfessional?.nome || "Novo profissional"
-              },
-              {
-                id: "professional-status",
-                label: "Status",
-                value: selectedProfessional && !isCreatingProfessional ?
-                    formatProfessionalStatus(selectedProfessional.status)
-                  : "Ativo ao criar"
-              },
-              {
-                id: "professional-services",
-                label: "Servicos",
-                value: `${linkedServiceNames.length} vinculado(s)`
-              },
-              {
-                id: "professional-availability",
-                label: "Disponibilidade",
-                value: availabilitySummary
-              }
-            ]}
-          />
-        }
-        sections={
-          <form className="professional-editor-form" id={formId} onSubmit={handleSaveProfessional}>
-            <EntitySection
-              title="Cadastro base"
-              description="Nome e status da entidade sem sair da tela de equipe."
-            >
-              <div className="professional-editor-grid">
-                <label className="field">
-                  <span>Nome</span>
-                  <input
-                    required
-                    type="text"
-                    value={professionalForm.nome}
-                    onChange={(event) =>
-                      setProfessionalForm({ ...professionalForm, nome: event.target.value })
-                    }
-                  />
-                </label>
+          </EntitySection>
 
-                {isCreatingProfessional ? (
-                  <div className="professional-editor-note">
-                    <strong>Status inicial</strong>
-                    <p>Novos profissionais entram como ativos e podem ter o status ajustado depois.</p>
-                  </div>
-                ) : (
-                  <label className="field">
-                    <span>Status</span>
-                    <select
-                      value={professionalForm.status}
-                      onChange={(event) =>
-                        setProfessionalForm({
-                          ...professionalForm,
-                          status: event.target.value as ProfessionalStatus
-                        })
-                      }
-                    >
-                      {professionalStatusValues.map((status) => (
-                        <option key={status} value={status}>
-                          {formatProfessionalStatus(status)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-            </EntitySection>
+          <EntitySection
+            title="Servicos vinculados"
+            description="Relacione os servicos que esse profissional pode atender."
+          >
+            <fieldset className="professional-services-fieldset">
+              <legend>Servicos vinculados</legend>
+              {services.length ? (
+                <div className="professional-services-grid">
+                  {services.map((service) => (
+                    <label className="professional-service-option" key={service.id}>
+                      <input
+                        checked={professionalForm.especialidades.includes(service.id)}
+                        type="checkbox"
+                        onChange={() =>
+                          setProfessionalForm({
+                            ...professionalForm,
+                            especialidades: toggleArrayValue(
+                              professionalForm.especialidades,
+                              service.id
+                            )
+                          })
+                        }
+                      />
+                      <div>
+                        <strong>{service.codigo} | {service.nome}</strong>
+                        <span>
+                          {formatMinutesAsHours(service.duracaoMin)} | {formatCurrency(service.precoBase)}
+                        </span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
+              )}
+            </fieldset>
+          </EntitySection>
 
-            <EntitySection
-              title="Servicos vinculados"
-              description="Vincule apenas os servicos que este profissional realmente pode atender."
-            >
-              <fieldset className="professional-services-fieldset">
-                <legend>Servicos vinculados</legend>
-                {services.length ? (
-                  <div className="professional-services-grid">
-                    {services.map((service) => (
-                      <label className="professional-service-option" key={service.id}>
-                        <input
-                          checked={professionalForm.especialidades.includes(service.id)}
-                          type="checkbox"
-                          onChange={() =>
-                            setProfessionalForm({
-                              ...professionalForm,
-                              especialidades: toggleArrayValue(
-                                professionalForm.especialidades,
-                                service.id
-                              )
-                            })
-                          }
-                        />
-                        <div>
-                          <strong>{service.nome}</strong>
-                          <span>
-                            {formatMinutesAsHours(service.duracaoMin)} | {formatCurrency(service.precoBase)}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
-                )}
-              </fieldset>
-            </EntitySection>
-          </form>
-        }
-        aside={
-          <EntityAsideSummary
-            title="Resumo lateral"
-            description="Atalhos e leitura lateral do profissional dentro da equipe."
-            items={[
-              {
-                id: "professional-aside-services",
-                label: "Especialidades ativas",
-                value: `${linkedServiceNames.length}`,
-                description: linkedServicesLabel,
-                active: true
-              },
-              {
-                id: "professional-aside-availability",
-                label: "Disponibilidade semanal",
-                value: availabilitySummary,
-                description: "A janela semanal alimenta slots publicos e agenda interna.",
-                action: !isCreatingProfessional && selectedProfessionalId ? (
-                  <button
-                    className="secondary-button"
-                    onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
-                    type="button"
-                  >
-                    Editar horarios
-                  </button>
-                ) : undefined
-              },
-              {
-                id: "professional-aside-agenda",
-                label: "Agenda filtrada",
-                description: "Abre a agenda administrativa ja filtrada para este profissional.",
-                action: !isCreatingProfessional && selectedProfessionalId ? (
-                  <button
-                    className="secondary-button"
-                    onClick={() => openProfessionalAgenda(selectedProfessionalId)}
-                    type="button"
-                  >
-                    Ver agenda
-                  </button>
-                ) : undefined
-              }
-            ]}
-          />
-        }
-        footerActions={
           <div className="professional-editor-footer">
             <div className="professional-editor-summary">
               <span>{linkedServiceNames.length} servico(s) vinculado(s)</span>
               <span>{linkedServicesPreview}</span>
             </div>
             <div className="button-row">
+              {!isCreatingProfessional && selectedProfessionalId ? (
+                <button
+                  className="secondary-button"
+                  onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                  type="button"
+                >
+                  Ver agenda
+                </button>
+              ) : null}
               {!isCreatingProfessional && selectedProfessionalId ? (
                 <button
                   className="secondary-button"
@@ -3851,8 +3860,8 @@ export function App() {
               </button>
             </div>
           </div>
-        }
-      />
+        </form>
+      </div>
     );
 
   }
@@ -3869,156 +3878,117 @@ export function App() {
     : "Sem servicos vinculados";
 
     return (
-      <EntityViewLayout
-        className="professional-entity-view"
-        eyebrow="Disponibilidade"
-        title={selectedProfessional ? `Horarios de ${selectedProfessional.nome}` : "Agenda semanal"}
-        subtitle="Configure a janela semanal que alimenta slots, booking publico e agenda interna."
-        statusBadge={<ViewBadge tone="info">{availabilitySummary}</ViewBadge>}
-        pageActions={
-          <div className="button-row">
-            <button
-              className="secondary-button"
-              onClick={() => setProfessionalWorkspaceMode("profile")}
-              type="button"
-            >
-              Voltar ao cadastro
-            </button>
-            {selectedProfessionalId ? (
-              <button
-                className="secondary-button"
-                onClick={() => openProfessionalAgenda(selectedProfessionalId)}
-                type="button"
-              >
-                Ver agenda
-              </button>
-            ) : null}
-          </div>
-        }
-        identityCard={
-          <EntityIdentityCard
-            title="Identidade da disponibilidade"
-            description="Leitura base da entidade antes de editar a disponibilidade semanal."
-            fields={[
-              {
-                id: "availability-professional-name",
-                label: "Profissional",
-                value: selectedProfessional?.nome ?? "Nao selecionado"
-              },
-              {
-                id: "availability-professional-status",
-                label: "Status",
-                value: selectedProfessional ? formatProfessionalStatus(selectedProfessional.status) : "Nao definido"
-              },
-              {
-                id: "availability-services",
-                label: "Servicos",
-                value: linkedServicesLabel
-              },
-              {
-                id: "availability-summary",
-                label: "Janela atual",
-                value: availabilitySummary
-              }
-            ]}
-          />
-        }
-        sections={
-          <form className="professional-availability-form" id={formId} onSubmit={handleSaveAvailability}>
-            <EntitySection
-              title="Janela semanal"
-              description="Cada linha altera a disponibilidade semanal persistida para o profissional selecionado."
-            >
-              <div className="professional-availability-grid">
-                {availabilityDays.map((day) => (
-                  <div className="professional-availability-row" key={day.weekday}>
-                    <label className="professional-availability-day">
-                      <input
-                        checked={day.enabled}
-                        type="checkbox"
-                        onChange={(event) =>
-                          setAvailabilityDays((current) =>
-                            current.map((item) =>
-                              item.weekday === day.weekday
-                                ? { ...item, enabled: event.target.checked }
-                                : item
-                            )
-                          )
-                        }
-                      />
-                      <span>{weekdayLabels[day.weekday]}</span>
-                    </label>
+      <div className="professionals-detail-stack">
+        <DocumentHeader
+          fields={[
+            {
+              id: "availability-professional-code",
+              label: "Codigo",
+              value: selectedProfessional?.codigo ?? "Nao definido"
+            },
+            {
+              id: "availability-professional-name",
+              label: "Profissional",
+              value: selectedProfessional?.nome ?? "Nao selecionado"
+            },
+            {
+              id: "availability-professional-status",
+              label: "Status",
+              value: selectedProfessional ? formatProfessionalStatus(selectedProfessional.status) : "Nao definido"
+            },
+            {
+              id: "availability-services",
+              label: "Servicos",
+              value: linkedServicesLabel
+            },
+            {
+              id: "availability-summary",
+              label: "Janela atual",
+              value: availabilitySummary
+            }
+          ]}
+        />
 
+        <div aria-label="Detalhe do profissional" className="dashboard-tabbar professional-detail-tabbar" role="tablist">
+          <button
+            aria-selected={false}
+            className="dashboard-tab-button"
+            onClick={() => setProfessionalWorkspaceMode("profile")}
+            role="tab"
+            type="button"
+          >
+            Cadastro e servicos
+          </button>
+          <button
+            aria-selected={professionalWorkspaceMode === "availability"}
+            className={professionalWorkspaceMode === "availability" ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+            onClick={() => setProfessionalWorkspaceMode("availability")}
+            role="tab"
+            type="button"
+          >
+            Horarios
+          </button>
+        </div>
+
+        <form className="professional-availability-form professional-master-detail-form" id={formId} onSubmit={handleSaveAvailability}>
+          <EntitySection
+            title="Janela semanal"
+            description="Cada linha altera a disponibilidade semanal persistida para o profissional selecionado."
+          >
+            <div className="professional-availability-grid">
+              {availabilityDays.map((day) => (
+                <div className="professional-availability-row" key={day.weekday}>
+                  <label className="professional-availability-day">
                     <input
-                      disabled={!day.enabled}
-                      type="time"
-                      value={day.startTime}
+                      checked={day.enabled}
+                      type="checkbox"
                       onChange={(event) =>
                         setAvailabilityDays((current) =>
                           current.map((item) =>
                             item.weekday === day.weekday
-                              ? { ...item, startTime: event.target.value }
+                              ? { ...item, enabled: event.target.checked }
                               : item
                           )
                         )
                       }
                     />
+                    <span>{weekdayLabels[day.weekday]}</span>
+                  </label>
 
-                    <input
-                      disabled={!day.enabled}
-                      type="time"
-                      value={day.endTime}
-                      onChange={(event) =>
-                        setAvailabilityDays((current) =>
-                          current.map((item) =>
-                            item.weekday === day.weekday
-                              ? { ...item, endTime: event.target.value }
-                              : item
-                          )
+                  <input
+                    disabled={!day.enabled}
+                    type="time"
+                    value={day.startTime}
+                    onChange={(event) =>
+                      setAvailabilityDays((current) =>
+                        current.map((item) =>
+                          item.weekday === day.weekday
+                            ? { ...item, startTime: event.target.value }
+                            : item
                         )
-                      }
-                    />
-                  </div>
-                ))}
-              </div>
-            </EntitySection>
-          </form>
-        }
-        aside={
-          <EntityAsideSummary
-            title="Resumo lateral"
-            description="Contexto rapido da agenda derivada desta janela semanal."
-            items={[
-              {
-                id: "availability-aside-summary",
-                label: "Resumo semanal",
-                value: availabilitySummary,
-                description: "Esse resumo e recalculado a partir das regras reais persistidas.",
-                active: true
-              },
-              {
-                id: "availability-aside-limitations",
-                label: "Limites do corte",
-                description: "Calendario de excecoes por data e bloqueios pontuais continuam fora desta fase."
-              },
-              {
-                id: "availability-aside-agenda",
-                label: "Agenda do profissional",
-                description: "Use a agenda filtrada para validar o impacto operacional das regras atuais.",
-                action: selectedProfessionalId ? (
-                  <button
-                    className="secondary-button"
-                    onClick={() => openProfessionalAgenda(selectedProfessionalId)}
-                    type="button"
-                  >
-                    Abrir agenda
-                  </button>
-                ) : undefined
-              }
-            ]}
-          />
-        }
-        footerActions={
+                      )
+                    }
+                  />
+
+                  <input
+                    disabled={!day.enabled}
+                    type="time"
+                    value={day.endTime}
+                    onChange={(event) =>
+                      setAvailabilityDays((current) =>
+                        current.map((item) =>
+                          item.weekday === day.weekday
+                            ? { ...item, endTime: event.target.value }
+                            : item
+                        )
+                      )
+                    }
+                  />
+                </div>
+              ))}
+            </div>
+          </EntitySection>
+
           <div className="professional-editor-footer">
             <div className="professional-editor-summary">
               <span>Base semanal real do profissional selecionado</span>
@@ -4032,6 +4002,15 @@ export function App() {
               >
                 Voltar ao cadastro
               </button>
+              {selectedProfessionalId ? (
+                <button
+                  className="secondary-button"
+                  onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                  type="button"
+                >
+                  Ver agenda
+                </button>
+              ) : null}
               <button
                 className="primary-button"
                 disabled={isBusy || !selectedProfessionalId}
@@ -4042,114 +4021,97 @@ export function App() {
               </button>
             </div>
           </div>
-        }
-      />
+        </form>
+      </div>
     );
 
   }
 
   function renderProfessionalsPanel(): JSX.Element {
-    const selectedCardProfessionalId =
-      professionalWorkspaceMode === "overview" || isCreatingProfessional ? "" : selectedProfessionalId;
+    const hasDetail = isCreatingProfessional || Boolean(selectedProfessionalId);
 
     return (
-      <section className="professionals-view">
-        <div className="professionals-header">
-          <div>
-            <h2>Equipe de Profissionais</h2>
-          </div>
+      <MasterDetailLayout
+        className="professionals-master-detail"
+        eyebrow="Equipe"
+        title="Profissionais"
+        subtitle="Cadastro principal da equipe com detalhe relacional de servicos e horarios."
+        toolbar={
           <button
             className="admin-primary-action"
             onClick={() => openProfessionalProfileWorkspace()}
             type="button"
           >
             <Plus className="w-4 h-4" />
-            Novo Profissional
+            Novo profissional
           </button>
-        </div>
+        }
+        masterTitle="Equipe cadastrada"
+        masterDescription="Selecione um profissional para editar cadastro, servicos vinculados e horarios."
+        master={
+          professionals.length ? (
+            <div className="entity-record-list professionals-master-list" role="list">
+              {professionals.map((professional) => {
+                const linkedServiceNames = resolveProfessionalServiceNames(professional, services);
+                const isSelected = !isCreatingProfessional && professional.id === selectedProfessionalId;
 
-        {professionals.length ? (
-          <div className="professionals-card-grid">
-            {professionals.map((professional, index) => {
-              const linkedServiceNames = resolveProfessionalServiceNames(professional, services);
-              const professionalStatusTone = resolveProfessionalStatusTone(professional.status);
-              const professionalStatusLabel = formatProfessionalStatus(professional.status).toUpperCase();
-              const avatarVariant = professionalAvatarVariants[index % professionalAvatarVariants.length];
-              const isActiveCard = professional.id === selectedCardProfessionalId;
-
-              return (
-                <article
-                  className={isActiveCard ? "professional-card is-active" : "professional-card"}
-                  key={professional.id}
-                >
-                  <div className="professional-card-status">
-                    <span className={`professional-status-chip is-${professionalStatusTone}`}>
-                      {professionalStatusLabel}
-                    </span>
-                  </div>
-
+                return (
                   <button
-                    className="professional-card-main"
+                    aria-pressed={isSelected}
+                    className={isSelected ? "entity-record-row is-selected" : "entity-record-row"}
+                    key={professional.id}
                     onClick={() => openProfessionalProfileWorkspace(professional.id)}
                     type="button"
                   >
-                    <div className={`professional-avatar ${avatarVariant}`}>
-                      {resolveProfessionalInitials(professional.nome)}
+                    <span className="entity-record-row-index">{professional.codigo}</span>
+                    <div className="entity-record-row-main">
+                      <strong>{professional.nome}</strong>
+                      <span>{resolveProfessionalSummaryLine(linkedServiceNames)}</span>
                     </div>
-                    <div className="professional-card-copy">
-                      <h3>{professional.nome}</h3>
-                      <p>{resolveProfessionalSummaryLine(linkedServiceNames)}</p>
+                    <div className="entity-record-row-meta">
+                      <span>{linkedServiceNames.length} servico(s)</span>
+                      <span className={`status-pill is-${resolveProfessionalStatusTone(professional.status)}`}>
+                        {formatProfessionalStatus(professional.status)}
+                      </span>
                     </div>
                   </button>
-
-                  <div className="professional-card-actions">
-                    <button
-                      className="professional-card-action"
-                      onClick={() => openProfessionalAgenda(professional.id)}
-                      type="button"
-                    >
-                      <CalendarIcon className="w-5 h-5" />
-                      <span>Ver Agenda</span>
-                    </button>
-                    <button
-                      className="professional-card-action"
-                      onClick={() => openProfessionalAvailabilityWorkspace(professional.id)}
-                      type="button"
-                    >
-                      <Clock className="w-5 h-5" />
-                      <span>Horarios</span>
-                    </button>
-                    <button
-                      className="professional-card-action"
-                      onClick={() => openProfessionalProfileWorkspace(professional.id)}
-                      type="button"
-                    >
-                      <BookOpen className="w-5 h-5" />
-                      <span>Servicos</span>
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <article className="professional-empty-state">
-            <div>
-              <h3>Nenhum profissional cadastrado</h3>
-              <p>Crie o primeiro perfil da equipe para liberar agenda, horarios e vinculo com servicos.</p>
+                );
+              })}
             </div>
-            <button className="admin-primary-action" onClick={() => openProfessionalProfileWorkspace()} type="button">
-              <Plus className="w-4 h-4" />
-              Criar primeiro profissional
-            </button>
-          </article>
-        )}
-
-        {professionalWorkspaceMode === "profile" ? renderProfessionalProfileWorkspace() : null}
-        {professionalWorkspaceMode === "availability" && selectedProfessionalId ?
-          renderProfessionalAvailabilityWorkspace()
-        : null}
-      </section>
+          ) : (
+            <article className="professional-empty-state">
+              <div>
+                <h3>Nenhum profissional cadastrado</h3>
+                <p>Crie o primeiro perfil da equipe para liberar agenda, horarios e vinculo com servicos.</p>
+              </div>
+            </article>
+          )
+        }
+        detailTitle={
+          professionalWorkspaceMode === "availability"
+            ? "Horarios e agenda"
+            : isCreatingProfessional
+              ? "Novo profissional"
+              : "Cadastro e servicos"
+        }
+        detailDescription={
+          professionalWorkspaceMode === "availability"
+            ? "Ajuste a janela semanal que alimenta agenda e slots."
+            : "Edite o cadastro do profissional e os servicos que ele pode atender."
+        }
+        detail={
+          hasDetail
+            ? professionalWorkspaceMode === "availability"
+              ? renderProfessionalAvailabilityWorkspace()
+              : renderProfessionalProfileWorkspace()
+            : undefined
+        }
+        emptyDetail={
+          <div className="empty-state">
+            Selecione um profissional para abrir o detalhe da equipe ou crie um novo cadastro.
+          </div>
+        }
+      />
     );
   }
 

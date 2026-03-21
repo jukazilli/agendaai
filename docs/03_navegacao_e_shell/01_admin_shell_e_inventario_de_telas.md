@@ -85,8 +85,10 @@ No chrome global do shell:
 - podem compartilhar linguagem visual de editor;
 - nao devem ocupar a mesma rota da agenda;
 - entidades simples de cadastro, como `catalogo`, devem nascer em `registro master` com lista principal e acoes explicitas de `novo`, `visualizar` e `editar`;
+- `catalogo` deve abrir `visualizar`, `editar`, `novo` e `excluir` em popup, sem empilhar o formulario inteiro abaixo da lista principal;
 - quando a entidade for simples, o workspace nao deve carregar blocos narrativos como `o que voce controla aqui`, `em evolucao`, resumos laterais ou politicas duplicadas fora do proprio registro;
 - `master-detail` deve ficar reservado para superficies com vinculos ou leitura relacional mais densa, como `profissionais` com `servicos` e `horarios`;
+- `profissionais` deve usar lista master simples no lado esquerdo e detalhe relacional no lado direito, com abas locais para `cadastro e servicos` e `horarios`;
 - disponibilidade detalhada pode nascer em `profissionais` ou migrar depois para `calendario`.
 
 ### Agenda
@@ -152,6 +154,12 @@ Em `21/03/2026`, `Relatorios` deixou de ser uma tela fixa de cards e visoes inte
 - `services`, `professionals` e `clients` agora expõem `codigo` persistido para lookup e indexacao operacional;
 - `report_definitions` foram persistidas no store local e em Postgres quando `DATABASE_URL` existe;
 - o modulo salva apenas a definicao reutilizavel do relatorio, nunca snapshot do resultado encontrado.
+
+Ainda em `21/03/2026`, os cadastros operacionais foram realinhados ao shell oficial:
+
+- `catalogo` permaneceu como `registro master`, mas passou a abrir `novo`, `visualizar`, `editar` e `excluir` em popup;
+- `profissionais` saiu do grid de cards como superficie principal e passou a operar em `master-detail`;
+- o detalhe de `profissionais` agora separa `cadastro e servicos` de `horarios`, preservando a relacao operacional com agenda e servicos sem misturar tudo na mesma tela.
 
 Este documento continua sendo a referencia oficial para:
 

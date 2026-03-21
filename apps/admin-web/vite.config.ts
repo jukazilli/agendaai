@@ -10,6 +10,10 @@ export default defineConfig({
   resolve: {
     alias: [
       {
+        find: "@agendaai/contracts",
+        replacement: path.resolve(__dirname, "../../packages/contracts/src/index.ts")
+      },
+      {
         find: "@agendaai/ui/foundations.css",
         replacement: path.resolve(__dirname, "../../packages/ui/src/foundations.css")
       },

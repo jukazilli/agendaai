@@ -74,6 +74,9 @@ export const reportSortDirectionSchema = z.enum(reportSortDirectionValues);
 export const reportLookupKindValues = ["service", "professional", "client", "status"] as const;
 export const reportLookupKindSchema = z.enum(reportLookupKindValues);
 
+export const reportRelationModeValues = ["inner", "left", "right"] as const;
+export const reportRelationModeSchema = z.enum(reportRelationModeValues);
+
 const reportFilterValueSchema = z.union([
   z.string(),
   z.number(),
@@ -85,6 +88,11 @@ export const reportMetricDefinitionSchema = z.object({
   name: nonEmptyStringSchema,
   operation: reportMetricOperationSchema,
   field: nonEmptyStringSchema
+});
+
+export const reportFieldOptionSchema = z.object({
+  value: nonEmptyStringSchema,
+  label: nonEmptyStringSchema
 });
 
 export const reportFilterConditionNodeSchema = z.object({
@@ -127,6 +135,12 @@ export const reportSortDefinitionSchema = z.object({
   priority: z.number().int().positive()
 });
 
+export const reportRelationSelectionSchema = z.object({
+  relationId: nonEmptyStringSchema,
+  targetBase: reportBuilderBaseSchema,
+  mode: reportRelationModeSchema
+});
+
 export const reportDefinitionSchema = contractEnvelopeSchema.extend({
   id: entityIdSchema,
   tenantId: tenantIdSchema,
@@ -137,6 +151,7 @@ export const reportDefinitionSchema = contractEnvelopeSchema.extend({
   base: reportBuilderBaseSchema,
   visualization: reportVisualizationSchema,
   metric: reportMetricDefinitionSchema,
+  relation: reportRelationSelectionSchema.nullable().optional(),
   filters: z.array(reportFilterNodeSchema),
   groupBy: z.array(nonEmptyStringSchema),
   orderBy: z.array(reportSortDefinitionSchema),
@@ -170,7 +185,8 @@ export const reportCatalogFieldSchema = z.object({
   sortable: z.boolean(),
   operators: z.array(reportOperatorSchema),
   aggregations: z.array(reportMetricOperationSchema),
-  lookupKind: reportLookupKindSchema.optional()
+  lookupKind: reportLookupKindSchema.optional(),
+  options: z.array(reportFieldOptionSchema).optional()
 });
 
 export const reportBuilderBaseOptionSchema = z.object({
@@ -179,9 +195,19 @@ export const reportBuilderBaseOptionSchema = z.object({
   description: optionalTrimmedStringSchema
 });
 
+export const reportRelationOptionSchema = z.object({
+  id: nonEmptyStringSchema,
+  base: reportBuilderBaseSchema,
+  targetBase: reportBuilderBaseSchema,
+  label: nonEmptyStringSchema,
+  description: optionalTrimmedStringSchema,
+  modes: z.array(reportRelationModeSchema)
+});
+
 export const reportBuilderCatalogSchema = contractEnvelopeSchema.extend({
   baseOptions: z.array(reportBuilderBaseOptionSchema),
   fields: z.array(reportCatalogFieldSchema),
+  relationOptions: z.array(reportRelationOptionSchema),
   groupByOptions: z.array(
     z.object({
       id: nonEmptyStringSchema,
@@ -245,15 +271,19 @@ export type ReportLogicalConnective = z.infer<typeof reportLogicalConnectiveSche
 export type ReportValueMode = z.infer<typeof reportValueModeSchema>;
 export type ReportSortDirection = z.infer<typeof reportSortDirectionSchema>;
 export type ReportLookupKind = z.infer<typeof reportLookupKindSchema>;
+export type ReportRelationMode = z.infer<typeof reportRelationModeSchema>;
 export type ReportMetricDefinition = z.infer<typeof reportMetricDefinitionSchema>;
+export type ReportFieldOption = z.infer<typeof reportFieldOptionSchema>;
 export type ReportFilterConditionNode = z.infer<typeof reportFilterConditionNodeSchema>;
 export type ReportFilterGroupStartNode = z.infer<typeof reportFilterGroupStartNodeSchema>;
 export type ReportFilterGroupEndNode = z.infer<typeof reportFilterGroupEndNodeSchema>;
 export type ReportFilterNode = z.infer<typeof reportFilterNodeSchema>;
 export type ReportSortDefinition = z.infer<typeof reportSortDefinitionSchema>;
+export type ReportRelationSelection = z.infer<typeof reportRelationSelectionSchema>;
 export type ReportDefinition = z.infer<typeof reportDefinitionSchema>;
 export type ReportDefinitionSummary = z.infer<typeof reportDefinitionSummarySchema>;
 export type ReportCatalogField = z.infer<typeof reportCatalogFieldSchema>;
+export type ReportRelationOption = z.infer<typeof reportRelationOptionSchema>;
 export type ReportBuilderCatalog = z.infer<typeof reportBuilderCatalogSchema>;
 export type ReportExecutionRequest = z.infer<typeof reportExecutionRequestSchema>;
 export type ReportExecutionChip = z.infer<typeof reportExecutionChipSchema>;

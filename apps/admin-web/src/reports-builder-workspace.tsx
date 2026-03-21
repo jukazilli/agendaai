@@ -1,4 +1,4 @@
-import {
+﻿import {
   Filter,
   FolderOpen,
   Play,
@@ -10,12 +10,15 @@ import { Fragment, useEffect, useMemo, useRef, useState, type JSX, type ReactNod
 
 import type {
   ReportBuilderCatalog,
+  ReportCatalogField,
   ReportDefinition,
   ReportExecutionTable,
   ReportExecutionResponse,
+  ReportFieldOption,
   ReportFilterConditionNode,
   ReportFilterNode,
   ReportOperator,
+  ReportRelationMode,
   ReportSortDirection
 } from "@agendaai/contracts";
 
@@ -154,6 +157,11 @@ export function ReportsBuilderWorkspace({
 }: ReportsBuilderWorkspaceProps): JSX.Element {
   const activeTab = openTabs.find((tab) => tab.id === activeTabId) ?? null;
   const activeDefinition = activeTab?.definition ?? null;
+  const catalogFields = catalog?.fields ?? [];
+  const catalogBaseOptions = catalog?.baseOptions?.length ? catalog.baseOptions : fallbackBaseOptions;
+  const catalogGroupByOptions = catalog?.groupByOptions ?? [];
+  const catalogRelationOptions = catalog?.relationOptions ?? [];
+  const catalogSystemDefinitions = catalog?.systemDefinitions ?? [];
   const [isBuilderCollapsed, setIsBuilderCollapsed] = useState(false);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [isModelsModalOpen, setIsModelsModalOpen] = useState(false);
@@ -163,7 +171,7 @@ export function ReportsBuilderWorkspace({
   const [filterEditor, setFilterEditor] = useState<FilterEditorState>(() =>
     createDefaultFilterEditor(null, null)
   );
-  const [sortEditor, setSortEditor] = useState<SortEditorState>(() => createDefaultSortEditor(null));
+  const [sortEditor, setSortEditor] = useState<SortEditorState>(() => createDefaultSortEditor(null, null));
   const [saveDraft, setSaveDraft] = useState({ name: "", description: "" });
   const filtersSectionRef = useRef<HTMLDivElement | null>(null);
 
@@ -201,14 +209,43 @@ export function ReportsBuilderWorkspace({
   }, [activeDefinition, catalog]);
 
   const activeField = catalog && activeDefinition
-    ? catalog.fields.find(
+    ? catalogFields.find(
         (field) => field.id === filterEditor.field && field.bases.includes(activeDefinition.base)
       ) ?? null
     : null;
+  const filterableFields = useMemo(
+    () =>
+      catalog && activeDefinition
+        ? catalogFields.filter((field) => field.filterable && field.bases.includes(activeDefinition.base))
+        : [],
+    [activeDefinition, catalog, catalogFields]
+  );
+  const sortableFields = useMemo(
+    () =>
+      catalog && activeDefinition
+        ? catalogFields.filter((field) => field.sortable && field.bases.includes(activeDefinition.base))
+        : [],
+    [activeDefinition, catalog, catalogFields]
+  );
+  const groupableOptions = useMemo(
+    () =>
+      catalog && activeDefinition
+        ? catalogGroupByOptions.filter((option) => option.bases.includes(activeDefinition.base))
+        : [],
+    [activeDefinition, catalog, catalogGroupByOptions]
+  );
+  const relationOptions = useMemo(
+    () =>
+      catalog && activeDefinition
+        ? catalogRelationOptions.filter((option) => option.base === activeDefinition.base)
+        : [],
+    [activeDefinition, catalog, catalogRelationOptions]
+  );
+  const activeFieldOptions = activeField?.options ?? [];
 
   const baseLookupRows = useMemo(
     () =>
-      (catalog?.baseOptions?.length ? catalog.baseOptions : fallbackBaseOptions).map((option) => ({
+      catalogBaseOptions.map((option) => ({
         id: option.id,
         value: option.id,
         code: option.id,
@@ -216,7 +253,7 @@ export function ReportsBuilderWorkspace({
         secondary: option.description ?? "",
         searchText: `${option.id} ${option.label} ${option.description ?? ""}`
       })),
-    [catalog]
+    [catalogBaseOptions]
   );
 
   const activeLookupRows = useMemo(() => {
@@ -229,8 +266,16 @@ export function ReportsBuilderWorkspace({
   }, [baseLookupRows, lookupQuery, lookupRows, lookupState]);
 
   const modelOptions = useMemo(
-    () => [...(catalog?.systemDefinitions ?? []), ...savedModels],
-    [catalog, savedModels]
+    () => [...catalogSystemDefinitions, ...savedModels],
+    [catalogSystemDefinitions, savedModels]
+  );
+  const systemModels = useMemo(
+    () => modelOptions.filter((definition) => definition.source === "system"),
+    [modelOptions]
+  );
+  const userModels = useMemo(
+    () => modelOptions.filter((definition) => definition.source === "saved"),
+    [modelOptions]
   );
 
   const payloadPreview = activeDefinition ? JSON.stringify(activeDefinition, null, 2) : "";
@@ -328,24 +373,10 @@ export function ReportsBuilderWorkspace({
   function handleLookupSelect(value: string): void {
     if (lookupState?.kind === "base" && activeDefinition && catalog) {
       const nextBase = value as ReportDefinition["base"];
-      const nextMetricField =
-        catalog.fields.find((field) => field.bases.includes(nextBase))?.id ??
-        activeDefinition.metric.field;
-      onUpdateDefinition(activeTabId, {
-        ...activeDefinition,
-        base: nextBase,
-        metric: {
-          ...activeDefinition.metric,
-          field: nextMetricField
-        },
-        groupBy: [],
-        filters: [],
-        orderBy: activeDefinition.orderBy.map((entry, index) => ({
-          ...entry,
-          field: nextMetricField,
-          priority: index + 1
-        }))
-      });
+      const nextDefinition = normalizeDefinitionForBase(catalog, activeDefinition, nextBase);
+      onUpdateDefinition(activeTabId, nextDefinition);
+      setFilterEditor(createDefaultFilterEditor(catalog, nextDefinition));
+      setSortEditor(createDefaultSortEditor(catalog, nextDefinition));
       setLookupState(null);
       setLookupQuery("");
       return;
@@ -383,7 +414,7 @@ export function ReportsBuilderWorkspace({
         <div className="reports-builder-heading">
           <span className="eyebrow">Relatorios</span>
           <h1>Relatorios personalizados</h1>
-          <p>Monte, execute e salve modelos reutilizaveis sem misturar a configuracao com a leitura do resultado.</p>
+          <p>Monte, execute e salve modelos reutilizaveis sem misturar os filtros da consulta com a leitura do resultado.</p>
         </div>
         <div className="reports-builder-actions">
           <button
@@ -498,7 +529,7 @@ export function ReportsBuilderWorkspace({
           <div className="reports-builder-panel-header">
             <div>
               <h2>Montagem do relatorio</h2>
-              <p>Escolha base, calculo, filtros e ordenacao do relatorio atual.</p>
+              <p>Escolha o objeto de negocio, o indicador, os filtros e a ordenacao desta leitura.</p>
             </div>
           </div>
 
@@ -559,7 +590,7 @@ export function ReportsBuilderWorkspace({
 
                   <div className="reports-builder-grid reports-builder-grid-4">
                     <label className="field">
-                      <span>Base</span>
+                      <span>Objeto de negocio</span>
                       <div className="reports-builder-input-with-action">
                         <input
                           type="text"
@@ -576,7 +607,7 @@ export function ReportsBuilderWorkspace({
                       </div>
                     </label>
                     <label className="field">
-                      <span>Variavel</span>
+                      <span>Indicador</span>
                       <input
                         type="text"
                         value={activeDefinition.metric.name}
@@ -592,7 +623,7 @@ export function ReportsBuilderWorkspace({
                       />
                     </label>
                     <label className="field">
-                      <span>Operacao</span>
+                      <span>Calculo</span>
                       <select
                         value={activeDefinition.metric.operation}
                         onChange={(event) =>
@@ -613,7 +644,7 @@ export function ReportsBuilderWorkspace({
                       </select>
                     </label>
                     <label className="field">
-                      <span>Campo calculado</span>
+                      <span>Campo do indicador</span>
                       <select
                         value={activeDefinition.metric.field}
                         onChange={(event) =>
@@ -639,7 +670,7 @@ export function ReportsBuilderWorkspace({
 
                   <div className="reports-builder-grid reports-builder-grid-2">
                     <label className="field">
-                      <span>Agrupar por</span>
+                      <span>Quebrar por</span>
                       <select
                         value={activeDefinition.groupBy[0] ?? ""}
                         onChange={(event) =>
@@ -649,9 +680,8 @@ export function ReportsBuilderWorkspace({
                           })
                         }
                       >
-                        <option value="">Sem agrupamento</option>
-                        {catalog.groupByOptions
-                          .filter((option) => option.bases.includes(activeDefinition.base))
+                        <option value="">Sem quebra</option>
+                        {groupableOptions
                           .map((option) => (
                             <option key={option.id} value={option.id}>
                               {option.label}
@@ -665,177 +695,218 @@ export function ReportsBuilderWorkspace({
                       <small>{activeDefinition.source === "saved" ? "Modelo salvo" : "Modelo do sistema"}</small>
                     </div>
                   </div>
+
+                  {relationOptions.length > 0 ? (
+                    <div className="reports-builder-grid reports-builder-grid-2">
+                      <label className="field">
+                        <span>Relacionar com</span>
+                        <select
+                          value={activeDefinition.relation?.relationId ?? ""}
+                          onChange={(event) => {
+                            const relationId = event.target.value;
+                            if (!relationId) {
+                              onUpdateDefinition(activeTabId, {
+                                ...activeDefinition,
+                                relation: null
+                              });
+                              return;
+                            }
+
+                            const relation = relationOptions.find((option) => option.id === relationId);
+                            if (!relation) {
+                              return;
+                            }
+
+                            onUpdateDefinition(activeTabId, {
+                              ...activeDefinition,
+                              relation: {
+                                relationId: relation.id,
+                                targetBase: relation.targetBase,
+                                mode: relation.modes[0] as ReportRelationMode
+                              }
+                            });
+                          }}
+                        >
+                          <option value="">Sem relacionamento adicional</option>
+                          {relationOptions.map((option) => (
+                            <option key={option.id} value={option.id}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="field">
+                        <span>Como trazer os registros</span>
+                        <select
+                          disabled={!activeDefinition.relation}
+                          value={activeDefinition.relation?.mode ?? "inner"}
+                          onChange={(event) =>
+                            onUpdateDefinition(activeTabId, {
+                              ...activeDefinition,
+                              relation: activeDefinition.relation
+                                ? {
+                                    ...activeDefinition.relation,
+                                    mode: event.target.value as ReportRelationMode
+                                  }
+                                : null
+                            })
+                          }
+                        >
+                          {resolveRelationModeOptions(
+                            relationOptions.find((option) => option.id === activeDefinition.relation?.relationId)
+                          ).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+                  ) : null}
                 </div>
               </section>
 
               <section className="reports-builder-section-card" ref={filtersSectionRef}>
                 <div className="reports-builder-section-head">
-                  <h3>Filtros</h3>
+                  <h3>Filtros do contexto</h3>
                 </div>
                 <div className="reports-builder-section-body">
-                  <div className="reports-builder-grid reports-builder-grid-4">
-                    <label className="field">
-                      <span>Conectar com</span>
-                      <select
-                        value={filterEditor.connective}
-                        onChange={(event) =>
-                          setFilterEditor((current) => ({
-                            ...current,
-                            connective: event.target.value as "AND" | "OR"
-                          }))
-                        }
-                      >
-                        <option value="AND">E</option>
-                        <option value="OR">OU</option>
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Campo</span>
-                      <select
-                        value={filterEditor.field}
-                        onChange={(event) => {
-                          const field = event.target.value;
-                          setFilterEditor((current) => ({
-                            ...current,
-                            field,
-                            operator: resolveDefaultOperator(catalog, field)
-                          }));
-                        }}
-                      >
-                        {catalog.fields
-                          .filter((field) => field.filterable && field.bases.includes(activeDefinition.base))
-                          .map((field) => (
-                            <option key={field.id} value={field.id}>
-                              {field.label}
-                            </option>
-                          ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Operador</span>
-                      <select
-                        value={filterEditor.operator}
-                        onChange={(event) =>
-                          setFilterEditor((current) => ({
-                            ...current,
-                            operator: event.target.value as ReportOperator
-                          }))
-                        }
-                      >
-                        {(activeField?.operators ?? []).map((operator) => (
-                          <option key={operator} value={operator}>
-                            {operator}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="field">
-                      <span>Modo</span>
-                      <select
-                        value={filterEditor.valueMode}
-                        onChange={(event) =>
-                          setFilterEditor((current) => ({
-                            ...current,
-                            valueMode: event.target.value as FilterEditorState["valueMode"]
-                          }))
-                        }
-                      >
-                        <option value="value">Valor fixo</option>
-                        <option value="parameter">Parametro</option>
-                      </select>
-                    </label>
-                  </div>
-
-                  <div className="reports-builder-grid reports-builder-grid-3">
-                    <label className="field">
-                      <span>Valor</span>
-                      <div className="reports-builder-input-with-action">
-                        <input
-                          type="text"
-                          value={filterEditor.valuePrimary}
-                          onChange={(event) =>
-                            setFilterEditor((current) => ({
-                              ...current,
-                              valuePrimary: event.target.value
-                            }))
-                          }
-                        />
-                        {canAddLookup ? (
-                          <button
-                            className="icon-button"
-                            onClick={() => setLookupState({ kind: activeField.lookupKind as LookupKind })}
-                            type="button"
+                  {filterableFields.length > 0 ? (
+                    <>
+                      <div className="reports-builder-grid reports-builder-grid-4">
+                        <label className="field">
+                          <span>Conectar com</span>
+                          <select
+                            value={filterEditor.connective}
+                            onChange={(event) =>
+                              setFilterEditor((current) => ({
+                                ...current,
+                                connective: event.target.value as "AND" | "OR"
+                              }))
+                            }
                           >
-                            <Search className="w-4 h-4" />
-                          </button>
-                        ) : null}
+                            <option value="AND">E</option>
+                            <option value="OR">OU</option>
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Campo</span>
+                          <select
+                            value={filterEditor.field}
+                            onChange={(event) => {
+                              const field = event.target.value;
+                              setFilterEditor((current) => ({
+                                ...current,
+                                field,
+                                operator: resolveDefaultOperator(catalog, field),
+                                valuePrimary: "",
+                                valueSecondary: ""
+                              }));
+                            }}
+                          >
+                            {filterableFields.map((field) => (
+                              <option key={field.id} value={field.id}>
+                                {field.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Operador</span>
+                          <select
+                            value={filterEditor.operator}
+                            onChange={(event) =>
+                              setFilterEditor((current) => ({
+                                ...current,
+                                operator: event.target.value as ReportOperator,
+                                valuePrimary: "",
+                                valueSecondary: ""
+                              }))
+                            }
+                          >
+                            {(activeField?.operators ?? []).map((operator) => (
+                              <option key={operator} value={operator}>
+                                {resolveOperatorLabel(operator)}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="field">
+                          <span>Modo do valor</span>
+                          <select
+                            value={filterEditor.valueMode}
+                            onChange={(event) =>
+                              setFilterEditor((current) => ({
+                                ...current,
+                                valueMode: event.target.value as FilterEditorState["valueMode"]
+                              }))
+                            }
+                          >
+                            <option value="value">Valor fixo</option>
+                            <option value="parameter">Parametro</option>
+                          </select>
+                        </label>
                       </div>
-                    </label>
 
-                    {filterEditor.operator === "between" ? (
-                      <label className="field">
-                        <span>Ate</span>
-                        <input
-                          type="text"
-                          value={filterEditor.valueSecondary}
-                          onChange={(event) =>
-                            setFilterEditor((current) => ({
-                              ...current,
-                              valueSecondary: event.target.value
-                            }))
-                          }
-                        />
-                      </label>
-                    ) : (
-                      <div />
-                    )}
-
-                    <label className="field">
-                      <span>Nome do parametro</span>
-                      <input
-                        type="text"
-                        value={filterEditor.parameterName}
-                        onChange={(event) =>
+                      {renderFilterValueEditor({
+                        activeField,
+                        activeFieldOptions,
+                        canAddLookup,
+                        filterEditor,
+                        lookupKind: activeField?.lookupKind as LookupKind | undefined,
+                        onLookup: (kind) => setLookupState({ kind }),
+                        onChangePrimary: (value) =>
                           setFilterEditor((current) => ({
                             ...current,
-                            parameterName: event.target.value
+                            valuePrimary: value
+                          })),
+                        onChangeSecondary: (value) =>
+                          setFilterEditor((current) => ({
+                            ...current,
+                            valueSecondary: value
+                          })),
+                        onChangeParameterName: (value) =>
+                          setFilterEditor((current) => ({
+                            ...current,
+                            parameterName: value
                           }))
-                        }
-                      />
-                    </label>
-                  </div>
+                      })}
 
-                  <div className="button-row">
-                    <button className="secondary-button" onClick={handleAddCondition} type="button">
-                      Adicionar filtro
-                    </button>
-                  </div>
+                      <div className="button-row">
+                        <button className="secondary-button" onClick={handleAddCondition} type="button">
+                          Adicionar filtro
+                        </button>
+                      </div>
 
-                  <div className="reports-builder-tree-list">
-                    {activeDefinition.filters.length > 0 ? (
-                      activeDefinition.filters.map((node) => (
-                        <FilterNodeView
-                          catalog={catalog}
-                          key={node.id}
-                          node={node}
-                          onRemove={handleRemoveFilter}
-                        />
-                      ))
-                    ) : (
-                      <div className="empty-state">Nenhuma condicao adicionada ainda.</div>
-                    )}
-                  </div>
+                      <div className="reports-builder-tree-list">
+                        {activeDefinition.filters.length > 0 ? (
+                          activeDefinition.filters.map((node) => (
+                            <FilterNodeView
+                              catalog={catalog}
+                              key={node.id}
+                              node={node}
+                              onRemove={handleRemoveFilter}
+                            />
+                          ))
+                        ) : (
+                          <div className="empty-state">Nenhum filtro aplicado ainda.</div>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="empty-state">Esse objeto de negocio ainda nao tem filtros disponiveis.</div>
+                  )}
                 </div>
               </section>
 
               <section className="reports-builder-section-card">
                 <div className="reports-builder-section-head">
-                  <h3>Ordenacao e prioridade</h3>
+                  <h3>Ordenacao</h3>
                 </div>
                 <div className="reports-builder-section-body">
                   <div className="reports-builder-grid reports-builder-grid-3">
                     <label className="field">
-                      <span>Campo</span>
+                      <span>Ordenar por</span>
                       <select
                         value={sortEditor.field}
                         onChange={(event) =>
@@ -845,8 +916,7 @@ export function ReportsBuilderWorkspace({
                           }))
                         }
                       >
-                        {catalog.fields
-                          .filter((field) => field.sortable && field.bases.includes(activeDefinition.base))
+                        {sortableFields
                           .map((field) => (
                             <option key={field.id} value={field.id}>
                               {field.label}
@@ -855,7 +925,7 @@ export function ReportsBuilderWorkspace({
                       </select>
                     </label>
                     <label className="field">
-                      <span>Direcao</span>
+                      <span>Sentido</span>
                       <select
                         value={sortEditor.direction}
                         onChange={(event) =>
@@ -867,7 +937,7 @@ export function ReportsBuilderWorkspace({
                       >
                         {sortDirectionOptions.map((option) => (
                           <option key={option} value={option}>
-                            {option}
+                            {resolveSortDirectionLabel(option)}
                           </option>
                         ))}
                       </select>
@@ -903,7 +973,7 @@ export function ReportsBuilderWorkspace({
                           <div className="reports-builder-tree-node" key={entry.id}>
                             <div>
                               <strong>{resolveFieldLabel(catalog, entry.field)}</strong>
-                              <span>{entry.direction} • prioridade {entry.priority}</span>
+                              <span>{resolveSortDirectionLabel(entry.direction)} • prioridade {entry.priority}</span>
                             </div>
                             <button className="icon-button" onClick={() => handleRemoveSort(entry.id)} type="button">
                               <X className="w-4 h-4" />
@@ -1011,35 +1081,62 @@ export function ReportsBuilderWorkspace({
           subtitle="Modelos do sistema e modelos que voce salvou para reutilizar."
           onClose={() => setIsModelsModalOpen(false)}
         >
-          <div className="reports-builder-modal-list">
-            {modelOptions.length > 0 ? (
-              modelOptions.map((definition) => (
-                <button
-                  className="reports-builder-model-item"
-                  key={`${definition.source}:${definition.id}:${definition.code}`}
-                  onClick={() => {
-                    if (definition.source === "system") {
+          <div className="stack-form">
+            {systemModels.length > 0 ? (
+              <div className="reports-builder-modal-list">
+                <div className="reports-builder-section-head">
+                  <h3>Modelos do sistema</h3>
+                </div>
+                {systemModels.map((definition) => (
+                  <button
+                    className="reports-builder-model-item"
+                    key={`${definition.source}:${definition.id}:${definition.code}`}
+                    onClick={() => {
                       onOpenSystemDefinition(definition.code);
-                    } else {
+                      setIsModelsModalOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <div>
+                      <strong>{definition.name}</strong>
+                      <span>{definition.description || "Sem descricao informada."}</span>
+                      <span>Sistema • atualizado em {formatRelativeDateTime(definition.updatedAt)}</span>
+                    </div>
+                    <small>{definition.code}</small>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div className="reports-builder-modal-list">
+              <div className="reports-builder-section-head">
+                <h3>Modelos salvos por voce e equipe</h3>
+              </div>
+              {userModels.length > 0 ? (
+                userModels.map((definition) => (
+                  <button
+                    className="reports-builder-model-item"
+                    key={`${definition.source}:${definition.id}:${definition.code}`}
+                    onClick={() => {
                       onOpenSavedDefinition(definition.id);
-                    }
-                    setIsModelsModalOpen(false);
-                  }}
-                  type="button"
-                >
-                  <div>
-                    <strong>{definition.name}</strong>
-                    <span>{definition.description || "Sem descricao informada."}</span>
-                    <span>
-                      {definition.authorName || "AgendaAI"} • atualizado em {formatRelativeDateTime(definition.updatedAt)}
-                    </span>
-                  </div>
-                  <small>{definition.code}</small>
-                </button>
-              ))
-            ) : (
-              <div className="empty-state">Nenhum modelo disponivel ainda.</div>
-            )}
+                      setIsModelsModalOpen(false);
+                    }}
+                    type="button"
+                  >
+                    <div>
+                      <strong>{definition.name}</strong>
+                      <span>{definition.description || "Sem descricao informada."}</span>
+                      <span>
+                        {definition.authorName || "AgendaAI"} • atualizado em {formatRelativeDateTime(definition.updatedAt)}
+                      </span>
+                    </div>
+                    <small>{definition.code}</small>
+                  </button>
+                ))
+              ) : (
+                <div className="empty-state">Nenhum modelo salvo pela equipe ainda.</div>
+              )}
+            </div>
           </div>
         </Modal>
       ) : null}
@@ -1047,7 +1144,7 @@ export function ReportsBuilderWorkspace({
       {isFilterModalOpen && activeDefinition && catalog ? (
         <Modal
           title={`Filtros | ${activeDefinition.name}`}
-          subtitle="Preencha os filtros e aplique apenas no relatorio atual."
+          subtitle={`Preencha os filtros do objeto de negocio ${resolveBaseLabel(catalog, activeDefinition.base)} e aplique apenas neste relatorio.`}
           footer={
             <Fragment>
               <button
@@ -1070,158 +1167,131 @@ export function ReportsBuilderWorkspace({
           onClose={() => setIsFilterModalOpen(false)}
         >
           <div className="stack-form">
-            <div className="reports-builder-grid reports-builder-grid-4">
-              <label className="field">
-                <span>Conectar com</span>
-                <select
-                  value={filterEditor.connective}
-                  onChange={(event) =>
-                    setFilterEditor((current) => ({
-                      ...current,
-                      connective: event.target.value as "AND" | "OR"
-                    }))
-                  }
-                >
-                  <option value="AND">E</option>
-                  <option value="OR">OU</option>
-                </select>
-              </label>
-              <label className="field">
-                <span>Campo</span>
-                <select
-                  value={filterEditor.field}
-                  onChange={(event) => {
-                    const field = event.target.value;
-                    setFilterEditor((current) => ({
-                      ...current,
-                      field,
-                      operator: resolveDefaultOperator(catalog, field)
-                    }));
-                  }}
-                >
-                  {catalog.fields
-                    .filter((field) => field.filterable && field.bases.includes(activeDefinition.base))
-                    .map((field) => (
-                      <option key={field.id} value={field.id}>
-                        {field.label}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Operador</span>
-                <select
-                  value={filterEditor.operator}
-                  onChange={(event) =>
-                    setFilterEditor((current) => ({
-                      ...current,
-                      operator: event.target.value as ReportOperator
-                    }))
-                  }
-                >
-                  {(activeField?.operators ?? []).map((operator) => (
-                    <option key={operator} value={operator}>
-                      {operator}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                <span>Modo</span>
-                <select
-                  value={filterEditor.valueMode}
-                  onChange={(event) =>
-                    setFilterEditor((current) => ({
-                      ...current,
-                      valueMode: event.target.value as FilterEditorState["valueMode"]
-                    }))
-                  }
-                >
-                  <option value="value">Valor fixo</option>
-                  <option value="parameter">Parametro</option>
-                </select>
-              </label>
-            </div>
-
-            <div className="reports-builder-grid reports-builder-grid-3">
-              <label className="field">
-                <span>Valor</span>
-                <div className="reports-builder-input-with-action">
-                  <input
-                    type="text"
-                    value={filterEditor.valuePrimary}
-                    onChange={(event) =>
-                      setFilterEditor((current) => ({
-                        ...current,
-                        valuePrimary: event.target.value
-                      }))
-                    }
-                  />
-                  {canAddLookup ? (
-                    <button
-                      className="icon-button"
-                      onClick={() => setLookupState({ kind: activeField.lookupKind as LookupKind })}
-                      type="button"
+            {filterableFields.length > 0 ? (
+              <>
+                <div className="reports-builder-grid reports-builder-grid-4">
+                  <label className="field">
+                    <span>Conectar com</span>
+                    <select
+                      value={filterEditor.connective}
+                      onChange={(event) =>
+                        setFilterEditor((current) => ({
+                          ...current,
+                          connective: event.target.value as "AND" | "OR"
+                        }))
+                      }
                     >
-                      <Search className="w-4 h-4" />
-                    </button>
-                  ) : null}
+                      <option value="AND">E</option>
+                      <option value="OR">OU</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Campo</span>
+                    <select
+                      value={filterEditor.field}
+                      onChange={(event) => {
+                        const field = event.target.value;
+                        setFilterEditor((current) => ({
+                          ...current,
+                          field,
+                          operator: resolveDefaultOperator(catalog, field),
+                          valuePrimary: "",
+                          valueSecondary: ""
+                        }));
+                      }}
+                    >
+                      {filterableFields.map((field) => (
+                        <option key={field.id} value={field.id}>
+                          {field.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Operador</span>
+                    <select
+                      value={filterEditor.operator}
+                      onChange={(event) =>
+                        setFilterEditor((current) => ({
+                          ...current,
+                          operator: event.target.value as ReportOperator,
+                          valuePrimary: "",
+                          valueSecondary: ""
+                        }))
+                      }
+                    >
+                      {(activeField?.operators ?? []).map((operator) => (
+                        <option key={operator} value={operator}>
+                          {resolveOperatorLabel(operator)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Modo do valor</span>
+                    <select
+                      value={filterEditor.valueMode}
+                      onChange={(event) =>
+                        setFilterEditor((current) => ({
+                          ...current,
+                          valueMode: event.target.value as FilterEditorState["valueMode"]
+                        }))
+                      }
+                    >
+                      <option value="value">Valor fixo</option>
+                      <option value="parameter">Parametro</option>
+                    </select>
+                  </label>
                 </div>
-              </label>
 
-              {filterEditor.operator === "between" ? (
-                <label className="field">
-                  <span>Ate</span>
-                  <input
-                    type="text"
-                    value={filterEditor.valueSecondary}
-                    onChange={(event) =>
-                      setFilterEditor((current) => ({
-                        ...current,
-                        valueSecondary: event.target.value
-                      }))
-                    }
-                  />
-                </label>
-              ) : (
-                <div />
-              )}
-
-              <label className="field">
-                <span>Nome do parametro</span>
-                <input
-                  type="text"
-                  value={filterEditor.parameterName}
-                  onChange={(event) =>
+                {renderFilterValueEditor({
+                  activeField,
+                  activeFieldOptions,
+                  canAddLookup,
+                  filterEditor,
+                  lookupKind: activeField?.lookupKind as LookupKind | undefined,
+                  onLookup: (kind) => setLookupState({ kind }),
+                  onChangePrimary: (value) =>
                     setFilterEditor((current) => ({
                       ...current,
-                      parameterName: event.target.value
+                      valuePrimary: value
+                    })),
+                  onChangeSecondary: (value) =>
+                    setFilterEditor((current) => ({
+                      ...current,
+                      valueSecondary: value
+                    })),
+                  onChangeParameterName: (value) =>
+                    setFilterEditor((current) => ({
+                      ...current,
+                      parameterName: value
                     }))
-                  }
-                />
-              </label>
-            </div>
+                })}
 
-            <div className="button-row">
-              <button className="secondary-button" onClick={handleAddCondition} type="button">
-                Adicionar condicao
-              </button>
-            </div>
+                <div className="button-row">
+                  <button className="secondary-button" onClick={handleAddCondition} type="button">
+                    Adicionar filtro
+                  </button>
+                </div>
 
-            <div className="reports-builder-tree-list">
-              {activeDefinition.filters.length > 0 ? (
-                activeDefinition.filters.map((node) => (
-                  <FilterNodeView
-                    catalog={catalog}
-                    key={node.id}
-                    node={node}
-                    onRemove={handleRemoveFilter}
-                  />
-                ))
-              ) : (
-                <div className="empty-state">Nenhuma condicao adicionada ainda.</div>
-              )}
-            </div>
+                <div className="reports-builder-tree-list">
+                  {activeDefinition.filters.length > 0 ? (
+                    activeDefinition.filters.map((node) => (
+                      <FilterNodeView
+                        catalog={catalog}
+                        key={node.id}
+                        node={node}
+                        onRemove={handleRemoveFilter}
+                      />
+                    ))
+                  ) : (
+                    <div className="empty-state">Nenhum filtro aplicado ainda.</div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="empty-state">Esse objeto de negocio ainda nao tem filtros disponiveis.</div>
+            )}
           </div>
         </Modal>
       ) : null}
@@ -1266,7 +1336,11 @@ export function ReportsBuilderWorkspace({
       {lookupState ? (
         <Modal
           title="Consulta padrao"
-          subtitle="Selecione um registro para preencher o filtro atual."
+          subtitle={
+            lookupState.kind === "base"
+              ? "Selecione o objeto de negocio que deseja analisar."
+              : "Selecione um registro para preencher o filtro atual."
+          }
           onClose={() => {
             setLookupState(null);
             setLookupQuery("");
@@ -1333,11 +1407,74 @@ function createDefaultFilterEditor(
   };
 }
 
-function createDefaultSortEditor(definition: ReportDefinition | null): SortEditorState {
+function createDefaultSortEditor(
+  catalog: ReportBuilderCatalog | null,
+  definition: ReportDefinition | null
+): SortEditorState {
   return {
-    field: definition?.metric.field ?? "",
+    field:
+      catalog && definition
+        ? resolveFirstSortableField(catalog, definition.base)
+        : definition?.metric.field ?? "",
     direction: "desc",
     priority: "1"
+  };
+}
+
+function normalizeDefinitionForBase(
+  catalog: ReportBuilderCatalog,
+  definition: ReportDefinition,
+  nextBase: ReportDefinition["base"]
+): ReportDefinition {
+  const firstMetricField =
+    catalog.fields.find((field) => field.bases.includes(nextBase))?.id ?? definition.metric.field;
+  const nextGroupBy = definition.groupBy.filter((groupId) =>
+    catalog.groupByOptions.some((option) => option.id === groupId && option.bases.includes(nextBase))
+  );
+  const nextFilters = definition.filters.filter((node) =>
+    node.kind === "condition"
+      ? fieldBelongsToBase(catalog, node.field, nextBase)
+      : false
+  );
+  const nextOrderBy = definition.orderBy
+    .filter((entry) => fieldBelongsToBase(catalog, entry.field, nextBase))
+    .map((entry, index) => ({
+      ...entry,
+      priority: index + 1
+    }));
+  const nextRelation = definition.relation &&
+      catalog.relationOptions.some(
+        (option) =>
+          option.id === definition.relation?.relationId &&
+          option.base === nextBase &&
+          option.targetBase === definition.relation?.targetBase
+      )
+    ? definition.relation
+    : null;
+
+  return {
+    ...definition,
+    base: nextBase,
+    metric: {
+      ...definition.metric,
+      field: fieldBelongsToBase(catalog, definition.metric.field, nextBase)
+        ? definition.metric.field
+        : firstMetricField
+    },
+    relation: nextRelation,
+    groupBy: nextGroupBy,
+    filters: nextFilters,
+    orderBy:
+      nextOrderBy.length > 0
+        ? nextOrderBy
+        : [
+            {
+              id: createLocalId(),
+              field: firstMetricField,
+              direction: "desc",
+              priority: 1
+            }
+          ]
   };
 }
 
@@ -1378,6 +1515,29 @@ function resolveValueLabel(value: ReportFilterConditionNode["value"]): string {
   return String(value);
 }
 
+function resolveOperatorLabel(operator: ReportOperator): string {
+  if (operator === "equals") return "Igual a";
+  if (operator === "not_equals") return "Diferente de";
+  if (operator === "gt") return "Maior que";
+  if (operator === "gte") return "Maior ou igual a";
+  if (operator === "lt") return "Menor que";
+  if (operator === "lte") return "Menor ou igual a";
+  if (operator === "between") return "Entre";
+  if (operator === "in") return "Dentro da lista";
+  if (operator === "not_in") return "Fora da lista";
+  if (operator === "contains") return "Contem";
+  return "Comeca com";
+}
+
+function resolveSortDirectionLabel(direction: ReportSortDirection): string {
+  if (direction === "desc" || direction === "largest_first") return "Maior para menor";
+  if (direction === "asc" || direction === "smallest_first") return "Menor para maior";
+  if (direction === "newest_first") return "Mais recente primeiro";
+  if (direction === "oldest_first") return "Mais antigo primeiro";
+  if (direction === "za") return "Z para A";
+  return "A para Z";
+}
+
 function resolveLookupColumns(kind: LookupKind): readonly string[] {
   if (kind === "base") {
     return ["Codigo", "Base", "Descricao"];
@@ -1393,6 +1553,126 @@ function resolveLookupColumns(kind: LookupKind): readonly string[] {
 
 function resolveBaseLabel(catalog: ReportBuilderCatalog, base: ReportDefinition["base"]): string {
   return (catalog.baseOptions?.length ? catalog.baseOptions : fallbackBaseOptions).find((option) => option.id === base)?.label ?? base;
+}
+
+function resolveRelationModeOptions(
+  relation:
+    | ReportBuilderCatalog["relationOptions"][number]
+    | undefined
+): ReadonlyArray<{ readonly value: ReportRelationMode; readonly label: string }> {
+  const modes = relation?.modes ?? ["inner", "left", "right"];
+  return modes.map((mode) => ({
+    value: mode,
+    label:
+      mode === "inner"
+        ? "Somente registros com vinculo"
+        : mode === "left"
+          ? "Trazer mesmo sem vinculo do lado principal"
+          : "Trazer mesmo sem vinculo do lado relacionado"
+  }));
+}
+
+function renderFilterValueEditor({
+  activeField,
+  activeFieldOptions,
+  canAddLookup,
+  filterEditor,
+  lookupKind,
+  onLookup,
+  onChangePrimary,
+  onChangeSecondary,
+  onChangeParameterName
+}: {
+  readonly activeField: ReportCatalogField | null;
+  readonly activeFieldOptions: readonly ReportFieldOption[];
+  readonly canAddLookup: boolean;
+  readonly filterEditor: FilterEditorState;
+  readonly lookupKind?: LookupKind;
+  readonly onLookup: (kind: LookupKind) => void;
+  readonly onChangePrimary: (value: string) => void;
+  readonly onChangeSecondary: (value: string) => void;
+  readonly onChangeParameterName: (value: string) => void;
+}): JSX.Element {
+  const inputType = activeField?.type === "date"
+    ? "date"
+    : activeField?.type === "number"
+      ? "number"
+      : "text";
+
+  const isMultiEnum = activeField?.type === "enum" && (filterEditor.operator === "in" || filterEditor.operator === "not_in");
+
+  return (
+    <div className="reports-builder-grid reports-builder-grid-3">
+      <label className="field">
+        <span>Valor</span>
+        {activeField?.type === "enum" ? (
+          isMultiEnum ? (
+            <select
+              multiple
+              value={filterEditor.valuePrimary ? filterEditor.valuePrimary.split(",").filter(Boolean) : []}
+              onChange={(event) =>
+                onChangePrimary(
+                  [...event.target.selectedOptions].map((option) => option.value).join(",")
+                )
+              }
+            >
+              {activeFieldOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <select value={filterEditor.valuePrimary} onChange={(event) => onChangePrimary(event.target.value)}>
+              <option value="">Selecione</option>
+              {activeFieldOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          )
+        ) : (
+          <div className="reports-builder-input-with-action">
+            <input
+              readOnly={canAddLookup && filterEditor.valueMode === "value"}
+              type={inputType}
+              value={filterEditor.valuePrimary}
+              onChange={(event) => onChangePrimary(event.target.value)}
+            />
+            {canAddLookup && lookupKind ? (
+              <button className="icon-button" onClick={() => onLookup(lookupKind)} type="button">
+                <Search className="w-4 h-4" />
+              </button>
+            ) : null}
+          </div>
+        )}
+      </label>
+
+      {filterEditor.operator === "between" ? (
+        <label className="field">
+          <span>Ate</span>
+          <input
+            type={inputType}
+            value={filterEditor.valueSecondary}
+            onChange={(event) => onChangeSecondary(event.target.value)}
+          />
+        </label>
+      ) : (
+        <div />
+      )}
+
+      <label className="field">
+        <span>Nome do parametro</span>
+        <input
+          disabled={filterEditor.valueMode !== "parameter"}
+          type="text"
+          value={filterEditor.parameterName}
+          onChange={(event) => onChangeParameterName(event.target.value)}
+        />
+      </label>
+    </div>
+  );
 }
 
 function createLocalId(): string {
@@ -1440,11 +1720,11 @@ function FilterNodeView({
     <div className="reports-builder-tree-node">
       <div>
         <strong>
-          {node.connective ? `${node.connective} ` : ""}
+          {node.connective ? `${node.connective === "AND" ? "E" : "OU"} ` : ""}
           {resolveFieldLabel(catalog, node.field)}
         </strong>
         <span>
-          {node.operator} • {resolveValueLabel(node.value)}
+          {resolveOperatorLabel(node.operator)} • {resolveValueLabel(node.value)}
           {node.valueMode === "parameter" && node.parameterName ? ` • parametro ${node.parameterName}` : ""}
         </span>
       </div>
@@ -1523,3 +1803,4 @@ function Modal({
     </div>
   );
 }
+

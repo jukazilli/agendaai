@@ -57,6 +57,41 @@ const reportBaseOptions = [
   { id: "payments", label: "Pagamentos", description: "Cobranca ligada aos atendimentos." }
 ] as const;
 
+const reportRelationOptions = [
+  {
+    id: "service_professionals",
+    base: "services",
+    targetBase: "professionals",
+    label: "Servicos x profissionais",
+    description: "Cruza o cadastro comercial com a equipe vinculada.",
+    modes: ["inner", "left", "right"]
+  },
+  {
+    id: "professional_services",
+    base: "professionals",
+    targetBase: "services",
+    label: "Profissionais x servicos",
+    description: "Mostra os servicos que cada profissional pode atender.",
+    modes: ["inner", "left", "right"]
+  },
+  {
+    id: "payment_booking",
+    base: "payments",
+    targetBase: "bookings",
+    label: "Pagamentos x atendimentos",
+    description: "Relaciona cobranca, booking, cliente e agenda.",
+    modes: ["inner", "left", "right"]
+  },
+  {
+    id: "availability_professionals",
+    base: "availability",
+    targetBase: "professionals",
+    label: "Agenda x profissionais",
+    description: "Liga capacidade publicada e equipe ativa.",
+    modes: ["inner", "left", "right"]
+  }
+] as const;
+
 const systemDefinitionsSeed = [
   { code: "RPT-EXECUTIVE", name: "Visao executiva", description: "Resumo do negocio no recorte ativo.", base: "bookings", visualization: "kpi_table", metric: { name: "faturamento", operation: "sum", field: "recognized_revenue" }, groupBy: [] },
   { code: "RPT-REVENUE", name: "Receita e servicos", description: "Faturamento, ticket e mix de servicos.", base: "bookings", visualization: "ranking", metric: { name: "faturamento", operation: "sum", field: "recognized_revenue" }, groupBy: ["service_id"] },
@@ -75,6 +110,7 @@ export function createFallbackReportBuilderCatalog(tenantId: string): ReportBuil
     version: contractVersion,
     baseOptions: reportBaseOptions.map((entry) => ({ ...entry })),
     fields: [...reportFieldCatalog],
+    relationOptions: reportRelationOptions.map((entry) => ({ ...entry, modes: [...entry.modes] })),
     groupByOptions: reportGroupByOptions.map((entry) => ({ ...entry, bases: [...entry.bases] })),
     systemDefinitions: buildFallbackSystemReportDefinitions(tenantId)
   };
@@ -93,6 +129,7 @@ function buildFallbackSystemReportDefinitions(tenantId: string): ReportDefinitio
     base: seed.base,
     visualization: seed.visualization,
     metric: { ...seed.metric },
+    relation: null,
     filters: [],
     groupBy: [...seed.groupBy],
     orderBy: [{ id: `${seed.code}-sort-1`, field: seed.metric.field, direction: "desc", priority: 1 }],

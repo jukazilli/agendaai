@@ -3011,6 +3011,68 @@ a {
   border-top: 1px solid rgba(226, 232, 240, 0.9);
 }
 
+.workspace-record-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.46);
+  backdrop-filter: blur(8px);
+}
+
+.workspace-record-modal {
+  width: min(960px, 100%);
+  max-height: min(90vh, 920px);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 32px 80px rgba(15, 23, 42, 0.18);
+}
+
+.workspace-record-modal-header,
+.workspace-record-modal-footer {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px;
+}
+
+.workspace-record-modal-header {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.workspace-record-modal-header h2,
+.workspace-record-delete-copy strong {
+  margin: 0;
+}
+
+.workspace-record-modal-header p,
+.workspace-record-delete-copy p {
+  margin: 6px 0 0;
+  color: var(--ag-color-text-muted);
+  line-height: 1.6;
+}
+
+.workspace-record-modal-body {
+  overflow: auto;
+  padding: 24px;
+}
+
+.workspace-record-modal-footer {
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.workspace-record-delete-copy {
+  display: grid;
+  gap: 8px;
+}
+
 .settings-aside-stack {
   display: grid;
   gap: 16px;
@@ -3741,8 +3803,23 @@ a {
 }
 
 .professional-entity-view .ag-view-panel,
+.professionals-master-detail .ag-view-panel,
 .clients-master-detail .ag-view-panel {
   background: rgba(255, 255, 255, 0.94);
+}
+
+.professionals-detail-stack,
+.professional-master-detail-form {
+  display: grid;
+  gap: 20px;
+}
+
+.professional-detail-tabbar {
+  justify-content: flex-start;
+}
+
+.professionals-master-list {
+  min-height: 100%;
 }
 
 .agenda-booking-document {
