@@ -70,7 +70,6 @@ import {
   createService,
   createTenantOnboarding,
   executeReportDefinition as executeAdminReportDefinition,
-  deleteService,
   fetchReportBuilderCatalog,
   fetchAdminReportsReadModel,
   fetchAvailabilitySlots,
@@ -82,8 +81,8 @@ import {
   savePaymentSettings,
   saveProfessionalAvailability,
   syncPaymentIntent,
-  updateReportDefinition as updateAdminReportDefinition,
   updateBooking,
+  deleteService,
   updateProfessional,
   updateService,
   updateTenantBranding,
@@ -2657,15 +2656,16 @@ export function App() {
 
     const draftDefinition: ReportDefinition = {
       ...tab.definition,
+      id: crypto.randomUUID(),
+      code: tab.definition.code,
+      source: "saved",
       name,
-      description
+      description,
+      locked: false
     };
 
     try {
-      const persisted =
-        draftDefinition.source === "saved"
-          ? await updateAdminReportDefinition(apiBaseUrl, sessionToken, draftDefinition.id, draftDefinition)
-          : await createReportDefinition(apiBaseUrl, sessionToken, draftDefinition);
+      const persisted = await createReportDefinition(apiBaseUrl, sessionToken, draftDefinition);
       await reloadSavedReportBuilderDefinitions();
       const nextTabId = createReportBuilderTabId(persisted);
 

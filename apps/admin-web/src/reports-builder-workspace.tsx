@@ -334,6 +334,14 @@ export function ReportsBuilderWorkspace({
           <p>Monte, execute e salve definicoes reutilizaveis sem misturar filtros globais com a leitura do resultado.</p>
         </div>
         <div className="reports-builder-actions">
+          <button
+            className={isBuilderCollapsed ? "secondary-button is-active" : "secondary-button"}
+            disabled={!activeTab}
+            onClick={() => setIsBuilderCollapsed((current) => !current)}
+            type="button"
+          >
+            {isBuilderCollapsed ? "Mostrar builder" : "Ocultar builder"}
+          </button>
           {showMenuButton && onToggleMenu ? (
             <div
               className="reports-builder-menu-anchor"
@@ -440,13 +448,6 @@ export function ReportsBuilderWorkspace({
               <h2>Builder</h2>
               <p>Metrica, filtros, agrupamento e ordenacao do relatorio atual.</p>
             </div>
-            <button
-              className="ghost-button"
-              onClick={() => setIsBuilderCollapsed((current) => !current)}
-              type="button"
-            >
-              {isBuilderCollapsed ? "Mostrar builder" : "Ocultar builder"}
-            </button>
           </div>
 
           {activeDefinition && catalog ? (
@@ -1159,7 +1160,7 @@ export function ReportsBuilderWorkspace({
       {isSaveModalOpen ? (
         <Modal
           title="Salvar modelo"
-          subtitle="Persistir apenas a definicao reutilizavel."
+          subtitle="Sempre cria uma nova definicao reutilizavel, sem sobrescrever o modelo anterior."
           footer={
             <Fragment>
               <button className="secondary-button" onClick={() => setIsSaveModalOpen(false)} type="button">
