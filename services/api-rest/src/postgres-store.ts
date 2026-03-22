@@ -2,13 +2,20 @@ import { Pool, type PoolClient } from "pg";
 
 import type {
   AvailabilityRuleInput,
+  CreateBankBalanceCommand,
+  CreateBankCommand,
+  CreateBankPaymentCommand,
+  CreateBankReceiptCommand,
+  CreateBankTransferCommand,
   ClientContactInput,
   ConfigureTenantBrandingCommand,
   ConfigureTenantSlugCommand,
   CreateBookingCommand,
+  CreateExpenseScheduleCommand,
   ReportDefinition,
   TenantPaymentSettings,
   CreateProfessionalCommand,
+  CreateRevenueScheduleCommand,
   CreateServiceCommand,
   CreateTenantCommand,
   PublicCreateBookingInput
@@ -20,13 +27,17 @@ import {
   type ApiRestStorePort,
   type ApiRestStoreSnapshot,
   type BookingPatchInput,
+  type BankBalancePatchInput,
+  type BankPatchInput,
   type ClientPatchInput,
+  type ExpensePatchInput,
   type PaymentIntentPatchInput,
   type ProfessionalPatchInput,
   type PublicAvailabilitySlot,
   type PublicBookingResult,
   type PublicCatalogSnapshot,
   type PublicTenantProfile,
+  type RevenuePatchInput,
   type ServicePatchInput,
   type TenantOnboardingResult
 } from "./store";
@@ -37,6 +48,26 @@ interface PostgresSnapshotRow {
 
 interface PostgresReportDefinitionRow {
   definition: ReportDefinition;
+}
+
+interface PostgresBankRow {
+  bank: import("@agendaai/contracts").Bank;
+}
+
+interface PostgresBankBalanceRow {
+  balance: import("@agendaai/contracts").BankBalance;
+}
+
+interface PostgresRevenueRow {
+  revenue: import("@agendaai/contracts").RevenueSchedule;
+}
+
+interface PostgresExpenseRow {
+  expense: import("@agendaai/contracts").ExpenseSchedule;
+}
+
+interface PostgresBankMovementRow {
+  movement: import("@agendaai/contracts").BankMovement;
 }
 
 interface PostgresApiRestStoreOptions {
@@ -155,6 +186,159 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     const deleted = this.store.deleteService(tenantId, serviceId);
     await this.persistSnapshot();
     return deleted;
+  }
+
+  async listBanks(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listBanks(tenantId);
+  }
+
+  async getBank(tenantId: string, bankId: string) {
+    await this.ensureReady();
+    return this.store.getBank(tenantId, bankId);
+  }
+
+  async createBank(command: CreateBankCommand) {
+    await this.ensureReady();
+    const bank = this.store.createBank(command);
+    await this.persistSnapshot();
+    return bank;
+  }
+
+  async updateBank(tenantId: string, bankId: string, patch: BankPatchInput) {
+    await this.ensureReady();
+    const bank = this.store.updateBank(tenantId, bankId, patch);
+    await this.persistSnapshot();
+    return bank;
+  }
+
+  async listBankBalances(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listBankBalances(tenantId);
+  }
+
+  async getBankBalance(tenantId: string, balanceId: string) {
+    await this.ensureReady();
+    return this.store.getBankBalance(tenantId, balanceId);
+  }
+
+  async getBankBalanceByBankId(tenantId: string, bankId: string) {
+    await this.ensureReady();
+    return this.store.getBankBalanceByBankId(tenantId, bankId);
+  }
+
+  async createBankBalance(command: CreateBankBalanceCommand) {
+    await this.ensureReady();
+    const balance = this.store.createBankBalance(command);
+    await this.persistSnapshot();
+    return balance;
+  }
+
+  async updateBankBalance(tenantId: string, balanceId: string, patch: BankBalancePatchInput) {
+    await this.ensureReady();
+    const balance = this.store.updateBankBalance(tenantId, balanceId, patch);
+    await this.persistSnapshot();
+    return balance;
+  }
+
+  async listRevenueSchedules(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listRevenueSchedules(tenantId);
+  }
+
+  async getRevenueSchedule(tenantId: string, revenueId: string) {
+    await this.ensureReady();
+    return this.store.getRevenueSchedule(tenantId, revenueId);
+  }
+
+  async saveRevenueSchedule(entry: import("@agendaai/contracts").RevenueSchedule) {
+    await this.ensureReady();
+    const revenue = this.store.saveRevenueSchedule(entry);
+    await this.persistSnapshot();
+    return revenue;
+  }
+
+  async createRevenueSchedule(command: CreateRevenueScheduleCommand) {
+    await this.ensureReady();
+    const items = this.store.createRevenueSchedule(command);
+    await this.persistSnapshot();
+    return items;
+  }
+
+  async updateRevenueSchedule(tenantId: string, revenueId: string, patch: RevenuePatchInput) {
+    await this.ensureReady();
+    const revenue = this.store.updateRevenueSchedule(tenantId, revenueId, patch);
+    await this.persistSnapshot();
+    return revenue;
+  }
+
+  async listExpenseSchedules(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listExpenseSchedules(tenantId);
+  }
+
+  async getExpenseSchedule(tenantId: string, expenseId: string) {
+    await this.ensureReady();
+    return this.store.getExpenseSchedule(tenantId, expenseId);
+  }
+
+  async saveExpenseSchedule(entry: import("@agendaai/contracts").ExpenseSchedule) {
+    await this.ensureReady();
+    const expense = this.store.saveExpenseSchedule(entry);
+    await this.persistSnapshot();
+    return expense;
+  }
+
+  async createExpenseSchedule(command: CreateExpenseScheduleCommand) {
+    await this.ensureReady();
+    const items = this.store.createExpenseSchedule(command);
+    await this.persistSnapshot();
+    return items;
+  }
+
+  async updateExpenseSchedule(tenantId: string, expenseId: string, patch: ExpensePatchInput) {
+    await this.ensureReady();
+    const expense = this.store.updateExpenseSchedule(tenantId, expenseId, patch);
+    await this.persistSnapshot();
+    return expense;
+  }
+
+  async listBankMovements(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listBankMovements(tenantId);
+  }
+
+  async getBankMovement(tenantId: string, movementId: string) {
+    await this.ensureReady();
+    return this.store.getBankMovement(tenantId, movementId);
+  }
+
+  async saveBankMovement(entry: import("@agendaai/contracts").BankMovement) {
+    await this.ensureReady();
+    const movement = this.store.saveBankMovement(entry);
+    await this.persistSnapshot();
+    return movement;
+  }
+
+  async receiveRevenue(command: CreateBankReceiptCommand) {
+    await this.ensureReady();
+    const movement = this.store.receiveRevenue(command);
+    await this.persistSnapshot();
+    return movement;
+  }
+
+  async payExpense(command: CreateBankPaymentCommand) {
+    await this.ensureReady();
+    const movement = this.store.payExpense(command);
+    await this.persistSnapshot();
+    return movement;
+  }
+
+  async transferBetweenBanks(command: CreateBankTransferCommand) {
+    await this.ensureReady();
+    const movement = this.store.transferBetweenBanks(command);
+    await this.persistSnapshot();
+    return movement;
   }
 
   async getPaymentSettings(tenantId: string) {
@@ -407,10 +591,22 @@ export class PostgresApiRestStore implements ApiRestStorePort {
       [SNAPSHOT_KEY]
     );
 
-    const reportDefinitions = await this.loadPersistedReportDefinitions();
-    const mergedSnapshot = mergeSnapshotWithPersistedDefinitions(
+    const [reportDefinitions, banks, balances, revenues, expenses, movements] = await Promise.all([
+      this.loadPersistedReportDefinitions(),
+      this.loadPersistedBanks(),
+      this.loadPersistedBankBalances(),
+      this.loadPersistedRevenueSchedules(),
+      this.loadPersistedExpenseSchedules(),
+      this.loadPersistedBankMovements()
+    ]);
+    const mergedSnapshot = mergeSnapshotWithPersistedData(
       result.rows[0]?.payload,
-      reportDefinitions
+      reportDefinitions,
+      banks,
+      balances,
+      revenues,
+      expenses,
+      movements
     );
 
     this.store.restoreSnapshot(mergedSnapshot);
@@ -433,8 +629,68 @@ export class PostgresApiRestStore implements ApiRestStorePort {
       )
     `);
     await queryable.query(`
+      create table if not exists finance_banks (
+        id text primary key,
+        tenant_id text not null,
+        bank jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await queryable.query(`
+      create table if not exists finance_bank_balances (
+        id text primary key,
+        tenant_id text not null,
+        balance jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await queryable.query(`
+      create table if not exists finance_revenue_schedules (
+        id text primary key,
+        tenant_id text not null,
+        revenue jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await queryable.query(`
+      create table if not exists finance_expense_schedules (
+        id text primary key,
+        tenant_id text not null,
+        expense jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await queryable.query(`
+      create table if not exists finance_bank_movements (
+        id text primary key,
+        tenant_id text not null,
+        movement jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await queryable.query(`
       create index if not exists report_definitions_tenant_idx
         on report_definitions (tenant_id)
+    `);
+    await queryable.query(`
+      create index if not exists finance_banks_tenant_idx
+        on finance_banks (tenant_id)
+    `);
+    await queryable.query(`
+      create index if not exists finance_bank_balances_tenant_idx
+        on finance_bank_balances (tenant_id)
+    `);
+    await queryable.query(`
+      create index if not exists finance_revenue_schedules_tenant_idx
+        on finance_revenue_schedules (tenant_id)
+    `);
+    await queryable.query(`
+      create index if not exists finance_expense_schedules_tenant_idx
+        on finance_expense_schedules (tenant_id)
+    `);
+    await queryable.query(`
+      create index if not exists finance_bank_movements_tenant_idx
+        on finance_bank_movements (tenant_id)
     `);
   }
 
@@ -447,6 +703,41 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return result.rows.map((row) => row.definition);
   }
 
+  private async loadPersistedBanks(queryable: PostgresQueryable = this.pool) {
+    const result = await queryable.query<PostgresBankRow>(
+      "select bank from finance_banks order by updated_at asc, id asc"
+    );
+    return result.rows.map((row) => row.bank);
+  }
+
+  private async loadPersistedBankBalances(queryable: PostgresQueryable = this.pool) {
+    const result = await queryable.query<PostgresBankBalanceRow>(
+      "select balance from finance_bank_balances order by updated_at asc, id asc"
+    );
+    return result.rows.map((row) => row.balance);
+  }
+
+  private async loadPersistedRevenueSchedules(queryable: PostgresQueryable = this.pool) {
+    const result = await queryable.query<PostgresRevenueRow>(
+      "select revenue from finance_revenue_schedules order by updated_at asc, id asc"
+    );
+    return result.rows.map((row) => row.revenue);
+  }
+
+  private async loadPersistedExpenseSchedules(queryable: PostgresQueryable = this.pool) {
+    const result = await queryable.query<PostgresExpenseRow>(
+      "select expense from finance_expense_schedules order by updated_at asc, id asc"
+    );
+    return result.rows.map((row) => row.expense);
+  }
+
+  private async loadPersistedBankMovements(queryable: PostgresQueryable = this.pool) {
+    const result = await queryable.query<PostgresBankMovementRow>(
+      "select movement from finance_bank_movements order by updated_at asc, id asc"
+    );
+    return result.rows.map((row) => row.movement);
+  }
+
   private async persistSnapshot(): Promise<void> {
     const snapshot = this.store.exportSnapshot();
     const nextPersist = this.persistQueue.catch(() => undefined).then(async () => {
@@ -456,6 +747,11 @@ export class PostgresApiRestStore implements ApiRestStorePort {
         await this.ensureSchema(client);
 
         const definitions = snapshot.reportDefinitions ?? [];
+        const banks = snapshot.banks ?? [];
+        const balances = snapshot.bankBalances ?? [];
+        const revenues = snapshot.revenueSchedules ?? [];
+        const expenses = snapshot.expenseSchedules ?? [];
+        const movements = snapshot.bankMovements ?? [];
         for (const definition of definitions) {
           await client.query(
             `
@@ -470,6 +766,76 @@ export class PostgresApiRestStore implements ApiRestStorePort {
             [definition.id, definition.tenantId, JSON.stringify(definition)]
           );
         }
+        for (const bank of banks) {
+          await client.query(
+            `
+              insert into finance_banks (id, tenant_id, bank, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    bank = excluded.bank,
+                    updated_at = excluded.updated_at
+            `,
+            [bank.id, bank.tenantId, JSON.stringify(bank)]
+          );
+        }
+        for (const balance of balances) {
+          await client.query(
+            `
+              insert into finance_bank_balances (id, tenant_id, balance, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    balance = excluded.balance,
+                    updated_at = excluded.updated_at
+            `,
+            [balance.id, balance.tenantId, JSON.stringify(balance)]
+          );
+        }
+        for (const revenue of revenues) {
+          await client.query(
+            `
+              insert into finance_revenue_schedules (id, tenant_id, revenue, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    revenue = excluded.revenue,
+                    updated_at = excluded.updated_at
+            `,
+            [revenue.id, revenue.tenantId, JSON.stringify(revenue)]
+          );
+        }
+        for (const expense of expenses) {
+          await client.query(
+            `
+              insert into finance_expense_schedules (id, tenant_id, expense, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    expense = excluded.expense,
+                    updated_at = excluded.updated_at
+            `,
+            [expense.id, expense.tenantId, JSON.stringify(expense)]
+          );
+        }
+        for (const movement of movements) {
+          await client.query(
+            `
+              insert into finance_bank_movements (id, tenant_id, movement, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    movement = excluded.movement,
+                    updated_at = excluded.updated_at
+            `,
+            [movement.id, movement.tenantId, JSON.stringify(movement)]
+          );
+        }
 
         if (definitions.length === 0) {
           await client.query("delete from report_definitions");
@@ -478,6 +844,11 @@ export class PostgresApiRestStore implements ApiRestStorePort {
             definitions.map((definition) => definition.id)
           ]);
         }
+        await deleteMissingRows(client, "finance_banks", banks.map((entry) => entry.id));
+        await deleteMissingRows(client, "finance_bank_balances", balances.map((entry) => entry.id));
+        await deleteMissingRows(client, "finance_revenue_schedules", revenues.map((entry) => entry.id));
+        await deleteMissingRows(client, "finance_expense_schedules", expenses.map((entry) => entry.id));
+        await deleteMissingRows(client, "finance_bank_movements", movements.map((entry) => entry.id));
 
         await client.query(
           `
@@ -520,24 +891,57 @@ function emptySnapshot(): ApiRestStoreSnapshot {
     availabilityRules: [],
     bookings: [],
     reportDefinitions: [],
+    banks: [],
+    bankBalances: [],
+    revenueSchedules: [],
+    expenseSchedules: [],
+    bankMovements: [],
     sessions: []
   };
 }
 
-function mergeSnapshotWithPersistedDefinitions(
+function mergeSnapshotWithPersistedData(
   snapshot: ApiRestStoreSnapshot | undefined,
-  reportDefinitions: ReportDefinition[]
+  reportDefinitions: ReportDefinition[],
+  banks: import("@agendaai/contracts").Bank[],
+  balances: import("@agendaai/contracts").BankBalance[],
+  revenues: import("@agendaai/contracts").RevenueSchedule[],
+  expenses: import("@agendaai/contracts").ExpenseSchedule[],
+  movements: import("@agendaai/contracts").BankMovement[]
 ): ApiRestStoreSnapshot {
   const baseSnapshot = snapshot
     ? {
         ...snapshot,
-        reportDefinitions: [...(snapshot.reportDefinitions ?? [])]
+        reportDefinitions: [...(snapshot.reportDefinitions ?? [])],
+        banks: [...(snapshot.banks ?? [])],
+        bankBalances: [...(snapshot.bankBalances ?? [])],
+        revenueSchedules: [...(snapshot.revenueSchedules ?? [])],
+        expenseSchedules: [...(snapshot.expenseSchedules ?? [])],
+        bankMovements: [...(snapshot.bankMovements ?? [])]
       }
     : emptySnapshot();
 
   return {
     ...baseSnapshot,
     reportDefinitions:
-      reportDefinitions.length > 0 ? reportDefinitions : (baseSnapshot.reportDefinitions ?? [])
+      reportDefinitions.length > 0 ? reportDefinitions : (baseSnapshot.reportDefinitions ?? []),
+    banks: banks.length > 0 ? banks : (baseSnapshot.banks ?? []),
+    bankBalances: balances.length > 0 ? balances : (baseSnapshot.bankBalances ?? []),
+    revenueSchedules: revenues.length > 0 ? revenues : (baseSnapshot.revenueSchedules ?? []),
+    expenseSchedules: expenses.length > 0 ? expenses : (baseSnapshot.expenseSchedules ?? []),
+    bankMovements: movements.length > 0 ? movements : (baseSnapshot.bankMovements ?? [])
   };
+}
+
+async function deleteMissingRows(
+  queryable: PostgresQueryable,
+  tableName: string,
+  ids: readonly string[]
+): Promise<void> {
+  if (ids.length === 0) {
+    await queryable.query(`delete from ${tableName}`);
+    return;
+  }
+
+  await queryable.query(`delete from ${tableName} where not (id = any($1::text[]))`, [ids]);
 }

@@ -6,6 +6,12 @@ import type {
   AdminUser,
   AvailabilityRule,
   AvailabilityRuleInput,
+  Bank,
+  BankBalance,
+  BankMovement,
+  BankMovementSourceType,
+  BankMovementStatus,
+  BankMovementType,
   Booking,
   CashEntry,
   CashEntryKind,
@@ -13,11 +19,24 @@ import type {
   ClientContactInput,
   ConfigureTenantBrandingCommand,
   ConfigureTenantSlugCommand,
+  CreateBankBalanceCommand,
+  CreateBankCommand,
+  CreateBankPaymentCommand,
+  CreateBankReceiptCommand,
+  CreateBankTransferCommand,
   CreateBookingCommand,
-  PublicCreateBookingInput,
+  CreateExpenseScheduleCommand,
   CreateProfessionalCommand,
+  CreateRevenueScheduleCommand,
+  ExpenseSchedule,
+  ExpenseScheduleOrigin,
+  ExpenseScheduleStatus,
   PaymentIntent,
+  PublicCreateBookingInput,
   ReportDefinition,
+  RevenueSchedule,
+  RevenueScheduleOrigin,
+  RevenueScheduleStatus,
   ServicePaymentPolicy,
   TenantPaymentSettings,
   CreateServiceCommand,
@@ -113,6 +132,39 @@ export interface PaymentIntentPatchInput {
   sandboxInitPoint?: string;
 }
 
+export interface BankPatchInput {
+  codigo?: string;
+  bacenCode?: string;
+  nomeBanco?: string;
+  agencia?: string;
+  conta?: string;
+  ativo?: boolean;
+}
+
+export interface BankBalancePatchInput {
+  codigo?: string;
+  saldoInicial?: number;
+  dataSaldoInicial?: string;
+  observacao?: string;
+}
+
+export interface RevenuePatchInput {
+  codigo?: string;
+  descricao?: string;
+  valor?: number;
+  dataVencimento?: string;
+  status?: RevenueScheduleStatus;
+}
+
+export interface ExpensePatchInput {
+  codigo?: string;
+  descricao?: string;
+  valor?: number;
+  dataVencimento?: string;
+  status?: ExpenseScheduleStatus;
+  beneficiarioNome?: string;
+}
+
 export interface StoredAdminUser extends AdminUser {
   readonly password: string;
 }
@@ -133,9 +185,14 @@ export interface ApiRestStoreSnapshot {
   readonly tenants: Tenant[];
   readonly adminUsers: StoredAdminUser[];
   readonly services: Service[];
+  readonly banks?: Bank[];
+  readonly bankBalances?: BankBalance[];
   readonly paymentSettings?: TenantPaymentSettings[];
   readonly paymentIntents?: PaymentIntent[];
   readonly cashEntries?: CashEntry[];
+  readonly revenueSchedules?: RevenueSchedule[];
+  readonly expenseSchedules?: ExpenseSchedule[];
+  readonly bankMovements?: BankMovement[];
   readonly clients: Client[];
   readonly professionals: Professional[];
   readonly availabilityRules: AvailabilityRule[];
@@ -163,6 +220,52 @@ export interface ApiRestStorePort {
     patch: ServicePatchInput
   ): MaybePromise<Service | undefined>;
   deleteService(tenantId: string, serviceId: string): MaybePromise<boolean>;
+  listBanks(tenantId: string): MaybePromise<Bank[]>;
+  getBank(tenantId: string, bankId: string): MaybePromise<Bank | undefined>;
+  createBank(command: CreateBankCommand): MaybePromise<Bank>;
+  updateBank(tenantId: string, bankId: string, patch: BankPatchInput): MaybePromise<Bank | undefined>;
+  listBankBalances(tenantId: string): MaybePromise<BankBalance[]>;
+  getBankBalance(tenantId: string, balanceId: string): MaybePromise<BankBalance | undefined>;
+  getBankBalanceByBankId(tenantId: string, bankId: string): MaybePromise<BankBalance | undefined>;
+  createBankBalance(command: CreateBankBalanceCommand): MaybePromise<BankBalance>;
+  updateBankBalance(
+    tenantId: string,
+    balanceId: string,
+    patch: BankBalancePatchInput
+  ): MaybePromise<BankBalance | undefined>;
+  listRevenueSchedules(tenantId: string): MaybePromise<RevenueSchedule[]>;
+  getRevenueSchedule(
+    tenantId: string,
+    revenueId: string
+  ): MaybePromise<RevenueSchedule | undefined>;
+  saveRevenueSchedule(entry: RevenueSchedule): MaybePromise<RevenueSchedule>;
+  createRevenueSchedule(command: CreateRevenueScheduleCommand): MaybePromise<RevenueSchedule[]>;
+  updateRevenueSchedule(
+    tenantId: string,
+    revenueId: string,
+    patch: RevenuePatchInput
+  ): MaybePromise<RevenueSchedule | undefined>;
+  listExpenseSchedules(tenantId: string): MaybePromise<ExpenseSchedule[]>;
+  getExpenseSchedule(
+    tenantId: string,
+    expenseId: string
+  ): MaybePromise<ExpenseSchedule | undefined>;
+  saveExpenseSchedule(entry: ExpenseSchedule): MaybePromise<ExpenseSchedule>;
+  createExpenseSchedule(command: CreateExpenseScheduleCommand): MaybePromise<ExpenseSchedule[]>;
+  updateExpenseSchedule(
+    tenantId: string,
+    expenseId: string,
+    patch: ExpensePatchInput
+  ): MaybePromise<ExpenseSchedule | undefined>;
+  listBankMovements(tenantId: string): MaybePromise<BankMovement[]>;
+  getBankMovement(
+    tenantId: string,
+    movementId: string
+  ): MaybePromise<BankMovement | undefined>;
+  saveBankMovement(entry: BankMovement): MaybePromise<BankMovement>;
+  receiveRevenue(command: CreateBankReceiptCommand): MaybePromise<BankMovement>;
+  payExpense(command: CreateBankPaymentCommand): MaybePromise<BankMovement>;
+  transferBetweenBanks(command: CreateBankTransferCommand): MaybePromise<BankMovement>;
   getPaymentSettings(tenantId: string): MaybePromise<TenantPaymentSettings | undefined>;
   upsertPaymentSettings(command: TenantPaymentSettings): MaybePromise<TenantPaymentSettings>;
   recordPaymentIntent(intent: PaymentIntent): MaybePromise<PaymentIntent>;
@@ -252,9 +355,14 @@ export class ApiRestStore implements ApiRestStorePort {
   private readonly adminUsers = new Map<string, StoredAdminUser>();
   private readonly adminUserIdsByEmail = new Map<string, string>();
   private readonly services = new Map<string, Service>();
+  private readonly banks = new Map<string, Bank>();
+  private readonly bankBalances = new Map<string, BankBalance>();
   private readonly paymentSettings = new Map<string, TenantPaymentSettings>();
   private readonly paymentIntents = new Map<string, PaymentIntent>();
   private readonly cashEntries = new Map<string, CashEntry>();
+  private readonly revenueSchedules = new Map<string, RevenueSchedule>();
+  private readonly expenseSchedules = new Map<string, ExpenseSchedule>();
+  private readonly bankMovements = new Map<string, BankMovement>();
   private readonly clients = new Map<string, Client>();
   private readonly professionals = new Map<string, Professional>();
   private readonly availabilityRules = new Map<string, AvailabilityRule>();
@@ -302,6 +410,7 @@ export class ApiRestStore implements ApiRestStorePort {
     this.adminUsers.set(adminUser.id, adminUser);
     this.adminUserIdsByEmail.set(adminUser.email, adminUser.id);
 
+    this.ensureFinancialDefaults();
     const session = this.issueSession(adminUser);
 
     return {
@@ -485,6 +594,327 @@ export class ApiRestStore implements ApiRestStorePort {
     }
 
     return true;
+  }
+
+  listBanks(tenantId: string): Bank[] {
+    return [...this.banks.values()]
+      .filter((bank) => bank.tenantId === tenantId)
+      .sort((left, right) => left.codigo.localeCompare(right.codigo));
+  }
+
+  getBank(tenantId: string, bankId: string): Bank | undefined {
+    const bank = this.banks.get(bankId);
+    return bank && bank.tenantId === tenantId ? bank : undefined;
+  }
+
+  createBank(command: CreateBankCommand): Bank {
+    this.assertBankAccountUnique(command.tenantId, command.bacenCode, command.agencia, command.conta);
+    const now = new Date().toISOString();
+    const bank: Bank = {
+      version: "v1",
+      id: randomUUID(),
+      tenantId: command.tenantId,
+      codigo: normalizeExplicitCode(command.codigo) ?? this.nextEntityCode(command.tenantId, "bank"),
+      bacenCode: command.bacenCode,
+      nomeBanco: command.nomeBanco,
+      agencia: command.agencia,
+      conta: command.conta,
+      ativo: command.ativo ?? true,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.banks.set(bank.id, bank);
+    return bank;
+  }
+
+  updateBank(tenantId: string, bankId: string, patch: BankPatchInput): Bank | undefined {
+    const bank = this.getBank(tenantId, bankId);
+    if (!bank) {
+      return undefined;
+    }
+
+    const nextBacenCode = patch.bacenCode ?? bank.bacenCode;
+    const nextAgencia = patch.agencia ?? bank.agencia;
+    const nextConta = patch.conta ?? bank.conta;
+    this.assertBankAccountUnique(tenantId, nextBacenCode, nextAgencia, nextConta, bank.id);
+
+    const nextBank: Bank = {
+      ...bank,
+      ...patch,
+      codigo: normalizeExplicitCode(patch.codigo) ?? bank.codigo,
+      updatedAt: new Date().toISOString()
+    };
+    this.banks.set(nextBank.id, nextBank);
+    return nextBank;
+  }
+
+  listBankBalances(tenantId: string): BankBalance[] {
+    return [...this.bankBalances.values()]
+      .filter((balance) => balance.tenantId === tenantId)
+      .sort((left, right) => left.codigo.localeCompare(right.codigo));
+  }
+
+  getBankBalance(tenantId: string, balanceId: string): BankBalance | undefined {
+    const balance = this.bankBalances.get(balanceId);
+    return balance && balance.tenantId === tenantId ? balance : undefined;
+  }
+
+  getBankBalanceByBankId(tenantId: string, bankId: string): BankBalance | undefined {
+    return this.listBankBalances(tenantId).find((balance) => balance.bankId === bankId);
+  }
+
+  createBankBalance(command: CreateBankBalanceCommand): BankBalance {
+    this.assertBankBelongsToTenant(command.tenantId, command.bankId);
+    if (this.getBankBalanceByBankId(command.tenantId, command.bankId)) {
+      throw new Error("bank_balance_already_exists");
+    }
+
+    const now = new Date().toISOString();
+    const balance: BankBalance = {
+      version: "v1",
+      id: randomUUID(),
+      tenantId: command.tenantId,
+      codigo: normalizeExplicitCode(command.codigo) ?? this.nextEntityCode(command.tenantId, "bank_balance"),
+      bankId: command.bankId,
+      saldoInicial: command.saldoInicial,
+      saldoAtual: command.saldoInicial,
+      dataSaldoInicial: command.dataSaldoInicial,
+      observacao: command.observacao,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.bankBalances.set(balance.id, balance);
+    return balance;
+  }
+
+  updateBankBalance(
+    tenantId: string,
+    balanceId: string,
+    patch: BankBalancePatchInput
+  ): BankBalance | undefined {
+    const balance = this.getBankBalance(tenantId, balanceId);
+    if (!balance) {
+      return undefined;
+    }
+
+    const nextInitialBalance = patch.saldoInicial ?? balance.saldoInicial;
+    const nextBalance: BankBalance = {
+      ...balance,
+      ...patch,
+      codigo: normalizeExplicitCode(patch.codigo) ?? balance.codigo,
+      saldoInicial: nextInitialBalance,
+      saldoAtual: computeCurrentBalance(nextInitialBalance, this.listBankMovements(tenantId), balance.bankId),
+      updatedAt: new Date().toISOString()
+    };
+
+    this.bankBalances.set(nextBalance.id, nextBalance);
+    return nextBalance;
+  }
+
+  listRevenueSchedules(tenantId: string): RevenueSchedule[] {
+    return [...this.revenueSchedules.values()]
+      .filter((entry) => entry.tenantId === tenantId)
+      .sort((left, right) => left.dataVencimento.localeCompare(right.dataVencimento) || left.codigo.localeCompare(right.codigo));
+  }
+
+  getRevenueSchedule(tenantId: string, revenueId: string): RevenueSchedule | undefined {
+    const revenue = this.revenueSchedules.get(revenueId);
+    return revenue && revenue.tenantId === tenantId ? revenue : undefined;
+  }
+
+  saveRevenueSchedule(entry: RevenueSchedule): RevenueSchedule {
+    this.assertRevenueReferences(entry.tenantId, entry);
+    this.revenueSchedules.set(entry.id, entry);
+    return entry;
+  }
+
+  createRevenueSchedule(command: CreateRevenueScheduleCommand): RevenueSchedule[] {
+    return this.expandRevenueScheduleCommand(command).map((entry) => this.saveRevenueSchedule(entry));
+  }
+
+  updateRevenueSchedule(
+    tenantId: string,
+    revenueId: string,
+    patch: RevenuePatchInput
+  ): RevenueSchedule | undefined {
+    const revenue = this.getRevenueSchedule(tenantId, revenueId);
+    if (!revenue) {
+      return undefined;
+    }
+
+    const nextRevenue: RevenueSchedule = {
+      ...revenue,
+      ...patch,
+      codigo: normalizeExplicitCode(patch.codigo) ?? revenue.codigo,
+      updatedAt: new Date().toISOString()
+    };
+    this.saveRevenueSchedule(nextRevenue);
+    return nextRevenue;
+  }
+
+  listExpenseSchedules(tenantId: string): ExpenseSchedule[] {
+    return [...this.expenseSchedules.values()]
+      .filter((entry) => entry.tenantId === tenantId)
+      .sort((left, right) => left.dataVencimento.localeCompare(right.dataVencimento) || left.codigo.localeCompare(right.codigo));
+  }
+
+  getExpenseSchedule(tenantId: string, expenseId: string): ExpenseSchedule | undefined {
+    const expense = this.expenseSchedules.get(expenseId);
+    return expense && expense.tenantId === tenantId ? expense : undefined;
+  }
+
+  saveExpenseSchedule(entry: ExpenseSchedule): ExpenseSchedule {
+    this.expenseSchedules.set(entry.id, entry);
+    return entry;
+  }
+
+  createExpenseSchedule(command: CreateExpenseScheduleCommand): ExpenseSchedule[] {
+    return this.expandExpenseScheduleCommand(command).map((entry) => this.saveExpenseSchedule(entry));
+  }
+
+  updateExpenseSchedule(
+    tenantId: string,
+    expenseId: string,
+    patch: ExpensePatchInput
+  ): ExpenseSchedule | undefined {
+    const expense = this.getExpenseSchedule(tenantId, expenseId);
+    if (!expense) {
+      return undefined;
+    }
+
+    const nextExpense: ExpenseSchedule = {
+      ...expense,
+      ...patch,
+      codigo: normalizeExplicitCode(patch.codigo) ?? expense.codigo,
+      updatedAt: new Date().toISOString()
+    };
+    this.saveExpenseSchedule(nextExpense);
+    return nextExpense;
+  }
+
+  listBankMovements(tenantId: string): BankMovement[] {
+    return [...this.bankMovements.values()]
+      .filter((movement) => movement.tenantId === tenantId)
+      .sort((left, right) => right.dataMovimento.localeCompare(left.dataMovimento));
+  }
+
+  getBankMovement(tenantId: string, movementId: string): BankMovement | undefined {
+    const movement = this.bankMovements.get(movementId);
+    return movement && movement.tenantId === tenantId ? movement : undefined;
+  }
+
+  saveBankMovement(entry: BankMovement): BankMovement {
+    this.assertBankMovementReferences(entry.tenantId, entry);
+    this.bankMovements.set(entry.id, entry);
+    this.refreshBankBalances(entry.tenantId);
+    return entry;
+  }
+
+  receiveRevenue(command: CreateBankReceiptCommand): BankMovement {
+    this.assertBankBelongsToTenant(command.tenantId, command.bankIdDestino);
+    const revenue = command.revenueId ? this.getRevenueSchedule(command.tenantId, command.revenueId) : undefined;
+    if (command.revenueId && !revenue) {
+      throw new Error("revenue_not_found");
+    }
+    const cashEntry = command.cashEntryId ? this.getCashEntry(command.tenantId, command.cashEntryId) : undefined;
+    if (command.cashEntryId && !cashEntry) {
+      throw new Error("cash_entry_not_found");
+    }
+
+    const now = command.dataMovimento ?? new Date().toISOString();
+    const movement: BankMovement = {
+      version: "v1",
+      id: randomUUID(),
+      tenantId: command.tenantId,
+      codigo: this.nextEntityCode(command.tenantId, "bank_movement"),
+      tipo: "entrada",
+      bankIdDestino: command.bankIdDestino,
+      valor: command.valor,
+      historico: command.historico,
+      dataMovimento: now,
+      status: "lancado",
+      sourceType: revenue ? "revenue_schedule" : cashEntry ? "cash_entry" : "manual_receipt",
+      sourceId: revenue?.id ?? cashEntry?.id,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.saveBankMovement(movement);
+    if (revenue) {
+      this.saveRevenueSchedule({
+        ...revenue,
+        status: "recebida",
+        updatedAt: now
+      });
+    }
+    return movement;
+  }
+
+  payExpense(command: CreateBankPaymentCommand): BankMovement {
+    this.assertBankBelongsToTenant(command.tenantId, command.bankIdOrigem);
+    const expense = command.expenseId ? this.getExpenseSchedule(command.tenantId, command.expenseId) : undefined;
+    if (command.expenseId && !expense) {
+      throw new Error("expense_not_found");
+    }
+
+    const now = command.dataMovimento ?? new Date().toISOString();
+    const movement: BankMovement = {
+      version: "v1",
+      id: randomUUID(),
+      tenantId: command.tenantId,
+      codigo: this.nextEntityCode(command.tenantId, "bank_movement"),
+      tipo: "saida",
+      bankIdOrigem: command.bankIdOrigem,
+      valor: command.valor,
+      historico: command.historico,
+      beneficiarioNome: command.beneficiarioNome,
+      dataMovimento: now,
+      status: "lancado",
+      sourceType: expense ? "expense_schedule" : "manual_payment",
+      sourceId: expense?.id,
+      createdAt: now,
+      updatedAt: now
+    };
+
+    this.saveBankMovement(movement);
+    if (expense) {
+      this.saveExpenseSchedule({
+        ...expense,
+        status: "paga",
+        updatedAt: now
+      });
+    }
+    return movement;
+  }
+
+  transferBetweenBanks(command: CreateBankTransferCommand): BankMovement {
+    this.assertBankBelongsToTenant(command.tenantId, command.bankIdOrigem);
+    this.assertBankBelongsToTenant(command.tenantId, command.bankIdDestino);
+    if (command.bankIdOrigem === command.bankIdDestino) {
+      throw new Error("bank_transfer_same_account");
+    }
+
+    const now = command.dataMovimento ?? new Date().toISOString();
+    const movement: BankMovement = {
+      version: "v1",
+      id: randomUUID(),
+      tenantId: command.tenantId,
+      codigo: this.nextEntityCode(command.tenantId, "bank_movement"),
+      tipo: "transferencia",
+      bankIdOrigem: command.bankIdOrigem,
+      bankIdDestino: command.bankIdDestino,
+      valor: command.valor,
+      historico: command.historico,
+      dataMovimento: now,
+      status: "lancado",
+      sourceType: "transfer",
+      createdAt: now,
+      updatedAt: now
+    };
+
+    return this.saveBankMovement(movement);
   }
 
   getPaymentSettings(tenantId: string): TenantPaymentSettings | undefined {
@@ -1084,6 +1514,31 @@ export class ApiRestStore implements ApiRestStorePort {
     }
   }
 
+  private assertBankBelongsToTenant(tenantId: string, bankId: string): void {
+    if (!this.getBank(tenantId, bankId)) {
+      throw new Error("bank_not_found");
+    }
+  }
+
+  private assertBankAccountUnique(
+    tenantId: string,
+    bacenCode: string,
+    agencia: string,
+    conta: string,
+    bankToIgnoreId?: string
+  ): void {
+    const duplicate = this.listBanks(tenantId).find(
+      (bank) =>
+        bank.id !== bankToIgnoreId &&
+        bank.bacenCode === bacenCode &&
+        bank.agencia === agencia &&
+        bank.conta === conta
+    );
+    if (duplicate) {
+      throw new Error("bank_account_already_exists");
+    }
+  }
+
   private assertProfessionalBelongsToTenant(tenantId: string, professionalId: string): void {
     if (!this.getProfessional(tenantId, professionalId)) {
       throw new Error("professional_not_found");
@@ -1181,16 +1636,144 @@ export class ApiRestStore implements ApiRestStorePort {
 
   private nextEntityCode(
     tenantId: string,
-    entity: "service" | "professional" | "client"
+    entity:
+      | "service"
+      | "professional"
+      | "client"
+      | "bank"
+      | "bank_balance"
+      | "revenue"
+      | "expense"
+      | "bank_movement"
   ): string {
-    const prefix = entity === "service" ? "SRV" : entity === "professional" ? "PRO" : "CLI";
+    const prefix =
+      entity === "service" ? "SRV"
+      : entity === "professional" ? "PRO"
+      : entity === "client" ? "CLI"
+      : entity === "bank" ? "BNK"
+      : entity === "bank_balance" ? "SAL"
+      : entity === "revenue" ? "REC"
+      : entity === "expense" ? "DES"
+      : "MOV";
     const values =
       entity === "service"
         ? this.listServices(tenantId).map((item) => item.codigo)
         : entity === "professional"
           ? this.listProfessionals(tenantId).map((item) => item.codigo)
-          : this.listClients(tenantId).map((item) => item.codigo);
+          : entity === "client"
+            ? this.listClients(tenantId).map((item) => item.codigo)
+            : entity === "bank"
+              ? this.listBanks(tenantId).map((item) => item.codigo)
+              : entity === "bank_balance"
+                ? this.listBankBalances(tenantId).map((item) => item.codigo)
+                : entity === "revenue"
+                  ? this.listRevenueSchedules(tenantId).map((item) => item.codigo)
+                  : entity === "expense"
+                    ? this.listExpenseSchedules(tenantId).map((item) => item.codigo)
+                    : this.listBankMovements(tenantId).map((item) => item.codigo);
     return nextSequentialCode(prefix, values);
+  }
+
+  private refreshBankBalances(tenantId: string): void {
+    const movements = this.listBankMovements(tenantId);
+    for (const balance of this.listBankBalances(tenantId)) {
+      this.bankBalances.set(balance.id, {
+        ...balance,
+        saldoAtual: computeCurrentBalance(balance.saldoInicial, movements, balance.bankId),
+        updatedAt: new Date().toISOString()
+      });
+    }
+  }
+
+  private refreshAllBankBalances(): void {
+    for (const tenant of this.tenants.values()) {
+      this.refreshBankBalances(tenant.id);
+    }
+  }
+
+  private ensureFinancialDefaults(): void {
+    for (const tenant of this.tenants.values()) {
+      if (this.listBanks(tenant.id).length > 0) {
+        continue;
+      }
+
+      const now = new Date().toISOString();
+      const bank: Bank = {
+        version: "v1",
+        id: randomUUID(),
+        tenantId: tenant.id,
+        codigo: this.nextEntityCode(tenant.id, "bank"),
+        bacenCode: "001",
+        nomeBanco: "Banco do Brasil",
+        agencia: "0001",
+        conta: "12345-6",
+        ativo: true,
+        createdAt: now,
+        updatedAt: now
+      };
+      this.banks.set(bank.id, bank);
+
+      const balance: BankBalance = {
+        version: "v1",
+        id: randomUUID(),
+        tenantId: tenant.id,
+        codigo: this.nextEntityCode(tenant.id, "bank_balance"),
+        bankId: bank.id,
+        saldoInicial: 0,
+        saldoAtual: 0,
+        dataSaldoInicial: now.slice(0, 10),
+        createdAt: now,
+        updatedAt: now
+      };
+      this.bankBalances.set(balance.id, balance);
+    }
+  }
+
+  private assertRevenueReferences(tenantId: string, entry: RevenueSchedule): void {
+    if (entry.clientId) {
+      this.assertClientBelongsToTenant(tenantId, entry.clientId);
+    }
+    if (entry.serviceId) {
+      this.assertServiceBelongsToTenant(tenantId, entry.serviceId);
+    }
+    if (entry.professionalId) {
+      this.assertProfessionalBelongsToTenant(tenantId, entry.professionalId);
+    }
+    if (entry.bookingId && !this.getBooking(tenantId, entry.bookingId)) {
+      throw new Error("booking_not_found");
+    }
+    if (entry.cashEntryId && !this.getCashEntry(tenantId, entry.cashEntryId)) {
+      throw new Error("cash_entry_not_found");
+    }
+  }
+
+  private assertBankMovementReferences(tenantId: string, entry: BankMovement): void {
+    if (entry.bankIdOrigem) {
+      this.assertBankBelongsToTenant(tenantId, entry.bankIdOrigem);
+    }
+    if (entry.bankIdDestino) {
+      this.assertBankBelongsToTenant(tenantId, entry.bankIdDestino);
+    }
+    if (entry.tipo === "entrada" && !entry.bankIdDestino) {
+      throw new Error("bank_destination_required");
+    }
+    if (entry.tipo === "saida" && !entry.bankIdOrigem) {
+      throw new Error("bank_origin_required");
+    }
+    if (
+      entry.tipo === "transferencia" &&
+      (!entry.bankIdOrigem || !entry.bankIdDestino || entry.bankIdOrigem === entry.bankIdDestino)
+    ) {
+      throw new Error("bank_transfer_invalid");
+    }
+  }
+
+  private expandRevenueScheduleCommand(command: CreateRevenueScheduleCommand): RevenueSchedule[] {
+    return buildRevenueOccurrences(command, () => this.nextEntityCode(command.tenantId, "revenue"), command.codigo);
+  }
+
+  private expandExpenseScheduleCommand(command: CreateExpenseScheduleCommand): ExpenseSchedule[] {
+    return buildExpenseOccurrences(command, () => this.nextEntityCode(command.tenantId, "expense"), command.codigo);
   }
 
   private toPublicTenantProfile(tenant: Tenant): PublicTenantProfile {
@@ -1207,9 +1790,14 @@ export class ApiRestStore implements ApiRestStorePort {
       tenants: [...this.tenants.values()],
       adminUsers: [...this.adminUsers.values()],
       services: [...this.services.values()],
+      banks: [...this.banks.values()],
+      bankBalances: [...this.bankBalances.values()],
       paymentSettings: [...this.paymentSettings.values()],
       paymentIntents: [...this.paymentIntents.values()],
       cashEntries: [...this.cashEntries.values()],
+      revenueSchedules: [...this.revenueSchedules.values()],
+      expenseSchedules: [...this.expenseSchedules.values()],
+      bankMovements: [...this.bankMovements.values()],
       clients: [...this.clients.values()],
       professionals: [...this.professionals.values()],
       availabilityRules: [...this.availabilityRules.values()],
@@ -1225,9 +1813,14 @@ export class ApiRestStore implements ApiRestStorePort {
     this.adminUsers.clear();
     this.adminUserIdsByEmail.clear();
     this.services.clear();
+    this.banks.clear();
+    this.bankBalances.clear();
     this.paymentSettings.clear();
     this.paymentIntents.clear();
     this.cashEntries.clear();
+    this.revenueSchedules.clear();
+    this.expenseSchedules.clear();
+    this.bankMovements.clear();
     this.clients.clear();
     this.professionals.clear();
     this.availabilityRules.clear();
@@ -1251,6 +1844,17 @@ export class ApiRestStore implements ApiRestStorePort {
       this.services.set(hydratedService.id, hydratedService);
     }
 
+    for (const bank of snapshot.banks ?? []) {
+      this.banks.set(bank.id, hydrateBank(bank, this.nextEntityCode(bank.tenantId, "bank")));
+    }
+
+    for (const balance of snapshot.bankBalances ?? []) {
+      this.bankBalances.set(
+        balance.id,
+        hydrateBankBalance(balance, this.nextEntityCode(balance.tenantId, "bank_balance"))
+      );
+    }
+
     for (const paymentSettings of snapshot.paymentSettings ?? []) {
       this.paymentSettings.set(paymentSettings.tenantId, paymentSettings);
     }
@@ -1261,6 +1865,27 @@ export class ApiRestStore implements ApiRestStorePort {
 
     for (const cashEntry of snapshot.cashEntries ?? []) {
       this.cashEntries.set(cashEntry.id, cashEntry);
+    }
+
+    for (const revenue of snapshot.revenueSchedules ?? []) {
+      this.revenueSchedules.set(
+        revenue.id,
+        hydrateRevenueSchedule(revenue, this.nextEntityCode(revenue.tenantId, "revenue"))
+      );
+    }
+
+    for (const expense of snapshot.expenseSchedules ?? []) {
+      this.expenseSchedules.set(
+        expense.id,
+        hydrateExpenseSchedule(expense, this.nextEntityCode(expense.tenantId, "expense"))
+      );
+    }
+
+    for (const movement of snapshot.bankMovements ?? []) {
+      this.bankMovements.set(
+        movement.id,
+        hydrateBankMovement(movement, this.nextEntityCode(movement.tenantId, "bank_movement"))
+      );
     }
 
     for (const client of snapshot.clients) {
@@ -1291,6 +1916,9 @@ export class ApiRestStore implements ApiRestStorePort {
     for (const session of snapshot.sessions) {
       this.sessions.set(session.token, session);
     }
+
+    this.ensureFinancialDefaults();
+    this.refreshAllBankBalances();
   }
 }
 
@@ -1341,6 +1969,180 @@ function hydrateClient(client: Client, fallbackCode: string): Client {
   };
 }
 
+function hydrateBank(bank: Bank, fallbackCode: string): Bank {
+  return {
+    ...bank,
+    codigo: normalizeExplicitCode(bank.codigo) ?? fallbackCode,
+    ativo: bank.ativo ?? true
+  };
+}
+
+function hydrateBankBalance(balance: BankBalance, fallbackCode: string): BankBalance {
+  return {
+    ...balance,
+    codigo: normalizeExplicitCode(balance.codigo) ?? fallbackCode
+  };
+}
+
+function hydrateRevenueSchedule(revenue: RevenueSchedule, fallbackCode: string): RevenueSchedule {
+  return {
+    ...revenue,
+    codigo: normalizeExplicitCode(revenue.codigo) ?? fallbackCode
+  };
+}
+
+function hydrateExpenseSchedule(expense: ExpenseSchedule, fallbackCode: string): ExpenseSchedule {
+  return {
+    ...expense,
+    codigo: normalizeExplicitCode(expense.codigo) ?? fallbackCode
+  };
+}
+
+function hydrateBankMovement(movement: BankMovement, fallbackCode: string): BankMovement {
+  return {
+    ...movement,
+    codigo: normalizeExplicitCode(movement.codigo) ?? fallbackCode
+  };
+}
+
+function buildRevenueOccurrences(
+  command: CreateRevenueScheduleCommand,
+  nextCode: () => string,
+  explicitCode?: string
+): RevenueSchedule[] {
+  const now = new Date().toISOString();
+  const occurrenceTotal =
+    command.tipo === "recorrente" ? command.quantidadeOcorrencias ?? 1 : 1;
+  const recurrenceGroupId = occurrenceTotal > 1 ? randomUUID() : undefined;
+  return Array.from({ length: occurrenceTotal }, (_, index) => {
+    const dueDate = resolveOccurrenceDate(
+      command.dataVencimento,
+      command.tipo,
+      command.recorrencia,
+      command.diaSemanaVencimento,
+      index
+    );
+    return {
+      version: "v1",
+      id: randomUUID(),
+      tenantId: command.tenantId,
+      codigo: index === 0 && explicitCode ? normalizeExplicitCode(explicitCode) ?? nextCode() : nextCode(),
+      descricao: command.descricao,
+      valor: command.valor,
+      dataVencimento: dueDate,
+      tipo: command.tipo,
+      recorrencia: command.tipo === "recorrente" ? command.recorrencia : undefined,
+      quantidadeOcorrencias: command.tipo === "recorrente" ? occurrenceTotal : undefined,
+      diaSemanaVencimento: command.tipo === "recorrente" ? command.diaSemanaVencimento : undefined,
+      status: "aberta",
+      origem: command.bookingId || command.clientId || command.serviceId || command.professionalId ? "booking" : "manual",
+      bookingId: command.bookingId,
+      clientId: command.clientId,
+      serviceId: command.serviceId,
+      professionalId: command.professionalId,
+      grupoRecorrenciaId: recurrenceGroupId,
+      ocorrenciaIndice: occurrenceTotal > 1 ? index + 1 : undefined,
+      ocorrenciaTotal: occurrenceTotal > 1 ? occurrenceTotal : undefined,
+      createdAt: now,
+      updatedAt: now
+    };
+  });
+}
+
+function buildExpenseOccurrences(
+  command: CreateExpenseScheduleCommand,
+  nextCode: () => string,
+  explicitCode?: string
+): ExpenseSchedule[] {
+  const now = new Date().toISOString();
+  const occurrenceTotal =
+    command.tipo === "recorrente" ? command.quantidadeOcorrencias ?? 1 : 1;
+  const recurrenceGroupId = occurrenceTotal > 1 ? randomUUID() : undefined;
+  return Array.from({ length: occurrenceTotal }, (_, index) => {
+    const dueDate = resolveOccurrenceDate(
+      command.dataVencimento,
+      command.tipo,
+      command.recorrencia,
+      command.diaSemanaVencimento,
+      index
+    );
+    return {
+      version: "v1",
+      id: randomUUID(),
+      tenantId: command.tenantId,
+      codigo: index === 0 && explicitCode ? normalizeExplicitCode(explicitCode) ?? nextCode() : nextCode(),
+      descricao: command.descricao,
+      valor: command.valor,
+      dataVencimento: dueDate,
+      tipo: command.tipo,
+      recorrencia: command.tipo === "recorrente" ? command.recorrencia : undefined,
+      quantidadeOcorrencias: command.tipo === "recorrente" ? occurrenceTotal : undefined,
+      diaSemanaVencimento: command.tipo === "recorrente" ? command.diaSemanaVencimento : undefined,
+      status: "aberta",
+      origem: "manual",
+      beneficiarioNome: command.beneficiarioNome,
+      grupoRecorrenciaId: recurrenceGroupId,
+      ocorrenciaIndice: occurrenceTotal > 1 ? index + 1 : undefined,
+      ocorrenciaTotal: occurrenceTotal > 1 ? occurrenceTotal : undefined,
+      createdAt: now,
+      updatedAt: now
+    };
+  });
+}
+
+function resolveOccurrenceDate(
+  baseDate: string,
+  tipo: "unica" | "recorrente",
+  recurrence: "semanal" | "mensal" | undefined,
+  weekday: number | undefined,
+  index: number
+): string {
+  if (tipo !== "recorrente" || index === 0) {
+    return baseDate;
+  }
+
+  const date = new Date(`${baseDate}T00:00:00`);
+  if (recurrence === "semanal") {
+    date.setDate(date.getDate() + index * 7);
+    if (weekday !== undefined) {
+      while (date.getDay() !== weekday) {
+        date.setDate(date.getDate() + 1);
+      }
+    }
+  } else {
+    date.setMonth(date.getMonth() + index);
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+function computeCurrentBalance(
+  saldoInicial: number,
+  movements: readonly BankMovement[],
+  bankId: string
+): number {
+  const delta = movements.reduce((total, movement) => {
+    if (movement.status !== "lancado") {
+      return total;
+    }
+    if (movement.tipo === "entrada" && movement.bankIdDestino === bankId) {
+      return total + movement.valor;
+    }
+    if (movement.tipo === "saida" && movement.bankIdOrigem === bankId) {
+      return total - movement.valor;
+    }
+    if (movement.tipo === "transferencia") {
+      if (movement.bankIdOrigem === bankId) {
+        return total - movement.valor;
+      }
+      if (movement.bankIdDestino === bankId) {
+        return total + movement.valor;
+      }
+    }
+    return total;
+  }, 0);
+  return roundMoney(saldoInicial + delta);
+}
+
 function createDefaultTenantBranding(): TenantBranding {
   return {
     tagline: undefined,
@@ -1377,6 +2179,10 @@ function nextSequentialCode(prefix: string, existingCodes: readonly string[]): s
   }, 0);
 
   return `${prefix}-${String(maxNumber + 1).padStart(4, "0")}`;
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }
 
 function parseTimeWindow(startAt: string, endAt: string): TimeWindow {

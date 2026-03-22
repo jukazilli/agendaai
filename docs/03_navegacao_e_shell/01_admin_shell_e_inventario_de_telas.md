@@ -45,7 +45,7 @@ No chrome global do shell:
 | `/app/clientes` | Clientes e CRM | consultar carteira basica e historico essencial | listagem, ultima visita, origem, status de recorrencia, acesso ao detalhe | beta obrigatoria |
 | `/app/configuracoes` | Configuracoes do tenant | manter dados permanentes do negocio apos a implantacao | dados do tenant, slug, branding, integracoes e preferencias operacionais | beta obrigatoria |
 | `/app/calendario` | Calendario denso | operar visao semanal e diaria por profissional | grade temporal, filtros, conflito, reagendamento | pos-beta planejada |
-| `/app/financeiro` | Financeiro operacional | ler caixa e movimentos ligados ao atendimento | resumo financeiro, movimentacoes, conciliacao basica | pos-beta planejada |
+| `/app/financeiro` | Financeiro operacional | ler caixa, contas e movimentos ligados ao atendimento | fluxo de caixa, bancos, saldos iniciais, receitas, despesas e movimentos | beta obrigatoria |
 | `/app/relatorios` | Relatorios | montar, executar e salvar leituras gerenciais reutilizaveis | builder semantico, dock tabs, filtros por modal, lookup e modelos salvos | beta obrigatoria |
 | `/app/campanhas` | Campanhas e retorno | acionar win-back e comunicacoes | segmentos, disparos, historico de contato | pos-beta planejada |
 
@@ -70,9 +70,20 @@ No chrome global do shell:
 - deve ser uma tela de leitura e distribuicao de fluxo;
 - deve funcionar como ponto de entrada depois do login.
 - leituras concorrentes devem ser separadas por visoes dedicadas, preferencialmente via tab bar, em vez de cards e textos empilhados no mesmo viewport;
+- o primeiro tab do dashboard deve abrir em `fluxo de caixa`, deixando `agenda da semana` e `radar da semana` como leituras irmas;
+- filtros e acoes devem ficar locais ao tab ativo; `fluxo de caixa`, `agenda da semana` e `radar da semana` nao devem compartilhar uma faixa global unica;
 - dentro de cada visao, graficos, radar e atalhos devem usar superficies independentes e grids dedicadas para evitar uma coluna unica excessivamente longa;
 - metadados estruturais do tenant, como slug publica, timezone e link do booking, pertencem ao shell em modo de disclosure e nao ao corpo principal do dashboard;
 - atalhos, radar semanal e base real do tenant nao devem competir visualmente com KPI executivo e grafico principal na mesma coluna lateral.
+
+### Financeiro
+
+- deve existir como modulo proprio no shell, separado de `dashboard` e `relatorios`;
+- `fluxo de caixa` do dashboard funciona como ponto de entrada e a rota `financeiro` concentra a operacao detalhada;
+- a rota deve expor abas locais para `fluxo de caixa`, `bancos`, `saldos iniciais`, `receitas`, `despesas` e `movimentos`;
+- `bancos`, `saldos iniciais`, `receitas` e `despesas` devem operar como cadastros simples com popup de incluir/alterar;
+- `movimentos` deve expor acoes diretas de `receber`, `pagar` e `transferir`;
+- `cash entries` continuam como trilha operacional minima e passam a alimentar a leitura de recebimentos no financeiro.
 
 ### Implantacao
 

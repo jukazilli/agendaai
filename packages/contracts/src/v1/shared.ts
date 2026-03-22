@@ -17,6 +17,7 @@ export const optionalTrimmedStringSchema = z.string().trim().min(1).optional();
 
 // Timezone normalization still depends on a later cross-cutting decision.
 export const dateTimeStringSchema = z.string().trim().min(1);
+export const dateStringSchema = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 export const emailSchema = z.string().trim().email();
 export const phoneSchema = z.string().trim().min(1);

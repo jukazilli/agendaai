@@ -36,6 +36,7 @@ import {
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
 import {
+  type AdminFinancialReadModel,
   defaultServicePaymentPolicy,
   paymentChargeTypeValues,
   paymentCheckoutModeValues,
@@ -46,16 +47,21 @@ import {
   serviceStatusValues,
   type AdminReportsReadModel,
   type AvailabilityRule,
+  type Bank,
+  type BankBalance,
+  type BankMovement,
   type Booking,
   type CashEntry,
   type Client,
   type CreateTenantCommand,
+  type ExpenseSchedule,
   type PaymentIntent,
   type Professional,
   type ReportBuilderCatalog,
   type ReportDefinition,
   type ReportingGroupSummary,
   type ReportingMetricSummary,
+  type RevenueSchedule,
   type Service,
   type ProfessionalStatus,
   type ServiceStatus,
@@ -69,11 +75,16 @@ import {
   type AdminBootstrapPayload,
   createReportDefinition,
   createBooking,
+  createBank,
+  createBankBalance,
   createClient,
+  createExpenseSchedule,
   createProfessional,
+  createRevenueSchedule,
   createService,
   createTenantOnboarding,
   executeReportDefinition as executeAdminReportDefinition,
+  fetchAdminFinancialReadModel,
   fetchReportBuilderCatalog,
   fetchAdminReportsReadModel,
   fetchAvailabilitySlots,
@@ -85,9 +96,16 @@ import {
   savePaymentSettings,
   saveProfessionalAvailability,
   syncPaymentIntent,
+  payBankMovement,
+  receiveBankMovement,
+  transferBankMovement,
   updateBooking,
+  updateBank,
+  updateBankBalance,
+  updateExpenseSchedule,
   deleteService,
   updateProfessional,
+  updateRevenueSchedule,
   updateService,
   updateTenantBranding,
   updateTenantSlug
@@ -123,6 +141,7 @@ import {
 type AuthMode = "login" | "onboarding";
 type AdminRoute =
   | "dashboard"
+  | "financeiro"
   | "relatorios"
   | "operacional"
   | "agenda"
@@ -133,7 +152,9 @@ type AdminRoute =
 type AgendaViewMode = "day" | "week" | "month";
 type AgendaWorkspaceTab = "list" | "calendar";
 type DashboardRange = "7d" | "30d" | "all";
-type DashboardWorkspaceTab = "executive" | "agenda" | "radar" | "clients" | "shortcuts";
+type DashboardWorkspaceTab = "cashflow" | "agenda" | "radar";
+type FinanceWorkspaceTab = "cashflow" | "banks" | "balances" | "revenues" | "expenses" | "movements";
+type FinancialSituationFilter = "all" | "aberto" | "baixado";
 type OperationalWorkspaceTab = "overview" | "pending" | "confirmed" | "completed" | "noshow";
 type ServiceWorkspaceMode = "browse" | "view" | "edit" | "new";
 type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
@@ -221,6 +242,69 @@ interface CounterBookingReceipt {
   readonly client: Client;
   readonly service: Service;
   readonly professional: Professional;
+}
+
+interface BankFormState {
+  readonly codigo: string;
+  readonly bacenCode: string;
+  readonly nomeBanco: string;
+  readonly agencia: string;
+  readonly conta: string;
+  readonly ativo: boolean;
+}
+
+interface BankBalanceFormState {
+  readonly codigo: string;
+  readonly bankId: string;
+  readonly saldoInicial: string;
+  readonly dataSaldoInicial: string;
+  readonly observacao: string;
+}
+
+interface RevenueFormState {
+  readonly codigo: string;
+  readonly descricao: string;
+  readonly valor: string;
+  readonly dataVencimento: string;
+  readonly tipo: "unica" | "recorrente";
+  readonly recorrencia: "semanal" | "mensal";
+  readonly quantidadeOcorrencias: string;
+  readonly diaSemanaVencimento: string;
+}
+
+interface ExpenseFormState {
+  readonly codigo: string;
+  readonly descricao: string;
+  readonly valor: string;
+  readonly dataVencimento: string;
+  readonly tipo: "unica" | "recorrente";
+  readonly recorrencia: "semanal" | "mensal";
+  readonly quantidadeOcorrencias: string;
+  readonly diaSemanaVencimento: string;
+  readonly beneficiarioNome: string;
+}
+
+interface ReceiveMovementFormState {
+  readonly bankIdDestino: string;
+  readonly valor: string;
+  readonly historico: string;
+  readonly dataMovimento: string;
+}
+
+interface PayMovementFormState {
+  readonly bankIdOrigem: string;
+  readonly valor: string;
+  readonly historico: string;
+  readonly dataMovimento: string;
+  readonly beneficiarioNome: string;
+}
+
+interface TransferMovementFormState {
+  readonly bankIdOrigem: string;
+  readonly bankIdDestino: string;
+  readonly valor: string;
+  readonly historico: string;
+  readonly dataMovimento: string;
 }
 
 interface ReportsWorkspaceItem {
@@ -467,8 +551,18 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     icon: LayoutDashboard,
     eyebrow: "Gestao do negocio",
     title: "Dashboard",
-    description: "Visao executiva, agenda da semana e atalhos do negocio.",
+    description: "Fluxo de caixa, agenda da semana e radar operacional do negocio.",
     stage: "parcial"
+  },
+  financeiro: {
+    label: "Financeiro",
+    shortLabel: "FN",
+    section: "Gestao do negocio",
+    icon: DollarSign,
+    eyebrow: "Gestao do negocio",
+    title: "Financeiro",
+    description: "Bancos, saldos, receitas, despesas e movimentos bancarios.",
+    stage: "funcional"
   },
   relatorios: {
     label: "Relatorios",
@@ -553,7 +647,7 @@ const adminNavigationSections: ReadonlyArray<{
 }> = [
   {
     label: "Gestao do negocio",
-    routes: ["dashboard", "relatorios"]
+    routes: ["dashboard", "financeiro", "relatorios"]
   },
   {
     label: "Dia a dia",
@@ -592,6 +686,69 @@ const defaultCounterBookingForm: CounterBookingFormState = {
   email: "",
   origem: "balcao",
   status: "confirmado"
+};
+
+const defaultBankForm: BankFormState = {
+  codigo: "",
+  bacenCode: "001",
+  nomeBanco: "",
+  agencia: "",
+  conta: "",
+  ativo: true
+};
+
+const defaultBankBalanceForm: BankBalanceFormState = {
+  codigo: "",
+  bankId: "",
+  saldoInicial: "0",
+  dataSaldoInicial: formatDateInputValue(new Date()),
+  observacao: ""
+};
+
+const defaultRevenueForm: RevenueFormState = {
+  codigo: "",
+  descricao: "",
+  valor: "0",
+  dataVencimento: formatDateInputValue(new Date()),
+  tipo: "unica",
+  recorrencia: "semanal",
+  quantidadeOcorrencias: "1",
+  diaSemanaVencimento: String(new Date().getDay())
+};
+
+const defaultExpenseForm: ExpenseFormState = {
+  codigo: "",
+  descricao: "",
+  valor: "0",
+  dataVencimento: formatDateInputValue(new Date()),
+  tipo: "unica",
+  recorrencia: "semanal",
+  quantidadeOcorrencias: "1",
+  diaSemanaVencimento: String(new Date().getDay()),
+  beneficiarioNome: ""
+};
+
+const defaultReceiveMovementForm: ReceiveMovementFormState = {
+  bankIdDestino: "",
+  valor: "0",
+  historico: "",
+  dataMovimento: new Date().toISOString().slice(0, 16)
+};
+
+const defaultPayMovementForm: PayMovementFormState = {
+  bankIdOrigem: "",
+  valor: "0",
+  historico: "",
+  dataMovimento: new Date().toISOString().slice(0, 16),
+  beneficiarioNome: ""
+};
+
+const defaultTransferMovementForm: TransferMovementFormState = {
+  bankIdOrigem: "",
+  bankIdDestino: "",
+  valor: "0",
+  historico: "",
+  dataMovimento: new Date().toISOString().slice(0, 16)
 };
 
 const defaultServiceForm: ServiceFormState = {
@@ -1054,7 +1211,29 @@ export function App() {
   const [bootError, setBootError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
-  const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("executive");
+  const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("cashflow");
+  const [dashboardProfessionalFilter, setDashboardProfessionalFilter] = useState("all");
+  const [financialRange, setFinancialRange] = useState<DashboardRange>("30d");
+  const [financialSituation, setFinancialSituation] = useState<FinancialSituationFilter>("all");
+  const [financialBankFilter, setFinancialBankFilter] = useState("all");
+  const [financialReadModel, setFinancialReadModel] = useState<AdminFinancialReadModel | null>(null);
+  const [financeWorkspaceTab, setFinanceWorkspaceTab] = useState<FinanceWorkspaceTab>("cashflow");
+  const [financeModal, setFinanceModal] = useState<
+    null | "bank" | "balance" | "revenue" | "expense" | "receive" | "pay" | "transfer"
+  >(null);
+  const [editingBankId, setEditingBankId] = useState("");
+  const [editingBalanceId, setEditingBalanceId] = useState("");
+  const [editingRevenueId, setEditingRevenueId] = useState("");
+  const [editingExpenseId, setEditingExpenseId] = useState("");
+  const [bankForm, setBankForm] = useState<BankFormState>(defaultBankForm);
+  const [bankBalanceForm, setBankBalanceForm] = useState<BankBalanceFormState>(defaultBankBalanceForm);
+  const [revenueForm, setRevenueForm] = useState<RevenueFormState>(defaultRevenueForm);
+  const [expenseForm, setExpenseForm] = useState<ExpenseFormState>(defaultExpenseForm);
+  const [receiveMovementForm, setReceiveMovementForm] = useState<ReceiveMovementFormState>(defaultReceiveMovementForm);
+  const [payMovementForm, setPayMovementForm] = useState<PayMovementFormState>(defaultPayMovementForm);
+  const [transferMovementForm, setTransferMovementForm] = useState<TransferMovementFormState>(
+    defaultTransferMovementForm
+  );
   const [operationalWorkspaceTab, setOperationalWorkspaceTab] =
     useState<OperationalWorkspaceTab>("overview");
   const [isShellContextOpen, setIsShellContextOpen] = useState(false);
@@ -1242,6 +1421,7 @@ export function App() {
   useEffect(() => {
     if (!sessionToken) {
       setBootstrap(null);
+      setFinancialReadModel(null);
       setBootError(null);
       return;
     }
@@ -1272,6 +1452,40 @@ export function App() {
       ignore = true;
     };
   }, [apiBaseUrl, sessionToken]);
+
+  useEffect(() => {
+    if (!sessionToken) {
+      setFinancialReadModel(null);
+      return;
+    }
+
+    let ignore = false;
+
+    async function loadFinancialReadModel() {
+      try {
+        const nextReadModel = await fetchAdminFinancialReadModel(apiBaseUrl, sessionToken, {
+          range: financialRange,
+          bankId: financialBankFilter !== "all" ? financialBankFilter : undefined,
+          situation: financialSituation
+        });
+        if (!ignore) {
+          setFinancialReadModel(nextReadModel);
+        }
+      } catch (error) {
+        if (!ignore) {
+          setFeedback({
+            tone: "error",
+            message: toErrorMessage(error)
+          });
+        }
+      }
+    }
+
+    void loadFinancialReadModel();
+    return () => {
+      ignore = true;
+    };
+  }, [apiBaseUrl, financialBankFilter, financialRange, financialSituation, sessionToken]);
 
   useEffect(() => {
     if (!sessionToken) {
@@ -1567,6 +1781,12 @@ export function App() {
   const bookings = bootstrap?.bookings ?? [];
   const paymentIntents = bootstrap?.paymentIntents ?? [];
   const cashEntries = bootstrap?.cashEntries ?? [];
+  const banks = bootstrap?.banks ?? [];
+  const bankBalances = bootstrap?.bankBalances ?? [];
+  const revenueSchedules = bootstrap?.revenueSchedules ?? [];
+  const expenseSchedules = bootstrap?.expenseSchedules ?? [];
+  const bankMovements = bootstrap?.bankMovements ?? [];
+  const activeFinancialReadModel = financialReadModel ?? bootstrap?.financialReadModel ?? null;
   const bookableServices = services.filter((service) => service.status === "active");
   const activeProfessionals = professionals.filter((professional) => {
     const normalizedStatus = professional.status.trim().toLowerCase();
@@ -1602,7 +1822,35 @@ export function App() {
     buildRevenueEntries(previousDashboardBookings, services, professionals, clients, paymentIntents, cashEntries),
     previousDashboardBookings
   );
-  const dashboardChartData = buildDashboardChartData(bookings, services, cashEntries);
+  const dashboardAnchorDate = formatDateInputValue(new Date());
+  const dashboardWeekDates = buildAgendaWeekDates(dashboardAnchorDate);
+  const dashboardWeekBookings = filterBookingsByDates(bookings, dashboardWeekDates);
+  const dashboardWeekProfessionals =
+    dashboardProfessionalFilter === "all"
+      ? professionals
+      : professionals.filter((professional) => professional.id === dashboardProfessionalFilter);
+  const dashboardFilteredWeekBookings =
+    dashboardProfessionalFilter === "all"
+      ? dashboardWeekBookings
+      : dashboardWeekBookings.filter((booking) => booking.professionalId === dashboardProfessionalFilter);
+  const dashboardWeekCapacitySummary = summarizeWeekCapacity(
+    dashboardFilteredWeekBookings,
+    dashboardWeekDates,
+    dashboardWeekProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+  const dashboardWeekDaySummaries = buildWeekDaySummaries(
+    dashboardFilteredWeekBookings,
+    dashboardWeekDates,
+    dashboardWeekProfessionals,
+    weeklyAvailabilityByProfessional
+  );
+  const dashboardWeekProfessionalSummaries = buildWeekProfessionalSummaries(
+    dashboardFilteredWeekBookings,
+    dashboardWeekDates,
+    dashboardWeekProfessionals,
+    weeklyAvailabilityByProfessional
+  );
   const reportBookings = filterBookingsByReportSelection(
     filterBookingsByRange(bookings, reportsRange),
     reportsServiceFilter,
@@ -2034,7 +2282,16 @@ export function App() {
     if (!sessionToken) {
       return;
     }
-    setBootstrap(await fetchAdminBootstrap(apiBaseUrl, sessionToken));
+    const [nextBootstrap, nextFinancialReadModel] = await Promise.all([
+      fetchAdminBootstrap(apiBaseUrl, sessionToken),
+      fetchAdminFinancialReadModel(apiBaseUrl, sessionToken, {
+        range: financialRange,
+        bankId: financialBankFilter !== "all" ? financialBankFilter : undefined,
+        situation: financialSituation
+      })
+    ]);
+    setBootstrap(nextBootstrap);
+    setFinancialReadModel(nextFinancialReadModel);
   }
 
   async function runAction(task: () => Promise<void>): Promise<void> {
@@ -2049,6 +2306,267 @@ export function App() {
     } finally {
       setIsBusy(false);
     }
+  }
+
+  function closeFinanceModal(): void {
+    setFinanceModal(null);
+    setEditingBankId("");
+    setEditingBalanceId("");
+    setEditingRevenueId("");
+    setEditingExpenseId("");
+  }
+
+  function openBankModal(bank?: Bank): void {
+    setEditingBankId(bank?.id ?? "");
+    setBankForm(
+      bank
+        ? {
+            codigo: bank.codigo,
+            bacenCode: bank.bacenCode,
+            nomeBanco: bank.nomeBanco,
+            agencia: bank.agencia,
+            conta: bank.conta,
+            ativo: bank.ativo
+          }
+        : defaultBankForm
+    );
+    setFinanceModal("bank");
+  }
+
+  function openBankBalanceModal(balance?: BankBalance): void {
+    setEditingBalanceId(balance?.id ?? "");
+    setBankBalanceForm(
+      balance
+        ? {
+            codigo: balance.codigo,
+            bankId: balance.bankId,
+            saldoInicial: String(balance.saldoInicial),
+            dataSaldoInicial: balance.dataSaldoInicial,
+            observacao: balance.observacao ?? ""
+          }
+        : {
+            ...defaultBankBalanceForm,
+            bankId: banks[0]?.id ?? ""
+          }
+    );
+    setFinanceModal("balance");
+  }
+
+  function openRevenueModal(revenue?: RevenueSchedule): void {
+    setEditingRevenueId(revenue?.id ?? "");
+    setRevenueForm(
+      revenue
+        ? {
+            codigo: revenue.codigo,
+            descricao: revenue.descricao,
+            valor: String(revenue.valor),
+            dataVencimento: revenue.dataVencimento,
+            tipo: revenue.tipo,
+            recorrencia: revenue.recorrencia ?? "semanal",
+            quantidadeOcorrencias: String(revenue.quantidadeOcorrencias ?? 1),
+            diaSemanaVencimento: String(revenue.diaSemanaVencimento ?? new Date().getDay())
+          }
+        : defaultRevenueForm
+    );
+    setFinanceModal("revenue");
+  }
+
+  function openExpenseModal(expense?: ExpenseSchedule): void {
+    setEditingExpenseId(expense?.id ?? "");
+    setExpenseForm(
+      expense
+        ? {
+            codigo: expense.codigo,
+            descricao: expense.descricao,
+            valor: String(expense.valor),
+            dataVencimento: expense.dataVencimento,
+            tipo: expense.tipo,
+            recorrencia: expense.recorrencia ?? "semanal",
+            quantidadeOcorrencias: String(expense.quantidadeOcorrencias ?? 1),
+            diaSemanaVencimento: String(expense.diaSemanaVencimento ?? new Date().getDay()),
+            beneficiarioNome: expense.beneficiarioNome ?? ""
+          }
+        : defaultExpenseForm
+    );
+    setFinanceModal("expense");
+  }
+
+  function openReceiveModal(): void {
+    setReceiveMovementForm({
+      ...defaultReceiveMovementForm,
+      bankIdDestino: banks[0]?.id ?? ""
+    });
+    setFinanceModal("receive");
+  }
+
+  function openPayModal(): void {
+    setPayMovementForm({
+      ...defaultPayMovementForm,
+      bankIdOrigem: banks[0]?.id ?? ""
+    });
+    setFinanceModal("pay");
+  }
+
+  function openTransferModal(): void {
+    setTransferMovementForm({
+      ...defaultTransferMovementForm,
+      bankIdOrigem: banks[0]?.id ?? "",
+      bankIdDestino: banks[1]?.id ?? banks[0]?.id ?? ""
+    });
+    setFinanceModal("transfer");
+  }
+
+  async function handleSaveBank(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      if (editingBankId) {
+        await updateBank(apiBaseUrl, sessionToken, editingBankId, {
+          codigo: bankForm.codigo || undefined,
+          bacenCode: bankForm.bacenCode,
+          nomeBanco: bankForm.nomeBanco,
+          agencia: bankForm.agencia,
+          conta: bankForm.conta,
+          ativo: bankForm.ativo
+        });
+      } else {
+        await createBank(apiBaseUrl, sessionToken, {
+          codigo: bankForm.codigo || undefined,
+          bacenCode: bankForm.bacenCode,
+          nomeBanco: bankForm.nomeBanco,
+          agencia: bankForm.agencia,
+          conta: bankForm.conta,
+          ativo: bankForm.ativo
+        });
+      }
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Banco salvo." });
+    });
+  }
+
+  async function handleSaveBankBalance(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      if (editingBalanceId) {
+        await updateBankBalance(apiBaseUrl, sessionToken, editingBalanceId, {
+          codigo: bankBalanceForm.codigo || undefined,
+          saldoInicial: Number(bankBalanceForm.saldoInicial),
+          dataSaldoInicial: bankBalanceForm.dataSaldoInicial,
+          observacao: bankBalanceForm.observacao || undefined
+        });
+      } else {
+        await createBankBalance(apiBaseUrl, sessionToken, {
+          codigo: bankBalanceForm.codigo || undefined,
+          bankId: bankBalanceForm.bankId,
+          saldoInicial: Number(bankBalanceForm.saldoInicial),
+          dataSaldoInicial: bankBalanceForm.dataSaldoInicial,
+          observacao: bankBalanceForm.observacao || undefined
+        });
+      }
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Saldo inicial salvo." });
+    });
+  }
+
+  async function handleSaveRevenue(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      const payload = {
+        codigo: revenueForm.codigo || undefined,
+        descricao: revenueForm.descricao,
+        valor: Number(revenueForm.valor),
+        dataVencimento: revenueForm.dataVencimento,
+        tipo: revenueForm.tipo,
+        recorrencia: revenueForm.tipo === "recorrente" ? revenueForm.recorrencia : undefined,
+        quantidadeOcorrencias:
+          revenueForm.tipo === "recorrente" ? Number(revenueForm.quantidadeOcorrencias) : undefined,
+        diaSemanaVencimento:
+          revenueForm.tipo === "recorrente" ? Number(revenueForm.diaSemanaVencimento) : undefined
+      };
+      if (editingRevenueId) {
+        await updateRevenueSchedule(apiBaseUrl, sessionToken, editingRevenueId, payload);
+      } else {
+        await createRevenueSchedule(apiBaseUrl, sessionToken, payload);
+      }
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Receita salva." });
+    });
+  }
+
+  async function handleSaveExpense(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      const payload = {
+        codigo: expenseForm.codigo || undefined,
+        descricao: expenseForm.descricao,
+        valor: Number(expenseForm.valor),
+        dataVencimento: expenseForm.dataVencimento,
+        tipo: expenseForm.tipo,
+        recorrencia: expenseForm.tipo === "recorrente" ? expenseForm.recorrencia : undefined,
+        quantidadeOcorrencias:
+          expenseForm.tipo === "recorrente" ? Number(expenseForm.quantidadeOcorrencias) : undefined,
+        diaSemanaVencimento:
+          expenseForm.tipo === "recorrente" ? Number(expenseForm.diaSemanaVencimento) : undefined,
+        beneficiarioNome: expenseForm.beneficiarioNome || undefined
+      };
+      if (editingExpenseId) {
+        await updateExpenseSchedule(apiBaseUrl, sessionToken, editingExpenseId, payload);
+      } else {
+        await createExpenseSchedule(apiBaseUrl, sessionToken, payload);
+      }
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Despesa salva." });
+    });
+  }
+
+  async function handleReceiveMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      await receiveBankMovement(apiBaseUrl, sessionToken, {
+        bankIdDestino: receiveMovementForm.bankIdDestino,
+        valor: Number(receiveMovementForm.valor),
+        historico: receiveMovementForm.historico,
+        dataMovimento: new Date(receiveMovementForm.dataMovimento).toISOString()
+      });
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Recebimento lancado." });
+    });
+  }
+
+  async function handlePayMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      await payBankMovement(apiBaseUrl, sessionToken, {
+        bankIdOrigem: payMovementForm.bankIdOrigem,
+        valor: Number(payMovementForm.valor),
+        historico: payMovementForm.historico,
+        dataMovimento: new Date(payMovementForm.dataMovimento).toISOString(),
+        beneficiarioNome: payMovementForm.beneficiarioNome || undefined
+      });
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Pagamento lancado." });
+    });
+  }
+
+  async function handleTransferMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      await transferBankMovement(apiBaseUrl, sessionToken, {
+        bankIdOrigem: transferMovementForm.bankIdOrigem,
+        bankIdDestino: transferMovementForm.bankIdDestino,
+        valor: Number(transferMovementForm.valor),
+        historico: transferMovementForm.historico,
+        dataMovimento: new Date(transferMovementForm.dataMovimento).toISOString()
+      });
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Transferencia lancada." });
+    });
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -4532,6 +5050,257 @@ export function App() {
   }
 
   function renderDashboardView(): JSX.Element {
+    const dashboardTabs: ReadonlyArray<{
+      readonly id: DashboardWorkspaceTab;
+      readonly label: string;
+      readonly icon: LucideIcon;
+    }> = [
+      { id: "cashflow", label: "Fluxo de caixa", icon: DollarSign },
+      { id: "agenda", label: "Agenda da semana", icon: CalendarDays },
+      { id: "radar", label: "Radar da semana", icon: Activity }
+    ];
+
+    return (
+      <DocumentViewLayout
+        className="dashboard-document-view dashboard-document-view-financial"
+        title="Dashboard"
+        header={null}
+        summary={null}
+        tabs={
+          <div aria-label="Visoes do dashboard" className="dashboard-tabbar" role="tablist">
+            {dashboardTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  aria-selected={dashboardWorkspaceTab === tab.id}
+                  className={dashboardWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                  key={tab.id}
+                  onClick={() => setDashboardWorkspaceTab(tab.id)}
+                  role="tab"
+                  type="button"
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        }
+        items={
+          dashboardWorkspaceTab === "cashflow" ? (
+            renderFinancialCashflowPanels({
+              showOpenFinanceButton: true
+            })
+          ) : dashboardWorkspaceTab === "agenda" ? (
+            <EntitySection
+              title="Agenda da semana"
+              actions={
+                <div className="dashboard-document-actions">
+                  <label className="dashboard-select">
+                    <span>Profissional</span>
+                    <select onChange={(event) => setDashboardProfessionalFilter(event.target.value)} value={dashboardProfessionalFilter}>
+                      <option value="all">Todos</option>
+                      {professionals.map((professional) => (
+                        <option key={professional.id} value={professional.id}>
+                          {professional.nome}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+                    Abrir agenda
+                  </button>
+                </div>
+              }
+            >
+              <div className="dashboard-progress-stack">
+                <div className="dashboard-progress-block">
+                  <div className="dashboard-progress-copy">
+                    <span>Capacidade total</span>
+                    <strong>{formatMinutesAsHours(dashboardWeekCapacitySummary.totalMinutes)}</strong>
+                  </div>
+                  <div className="dashboard-progress-bar">
+                    <span style={{ width: "100%" }} />
+                  </div>
+                </div>
+                <div className="dashboard-progress-block">
+                  <div className="dashboard-progress-copy">
+                    <span>Horas ocupadas</span>
+                    <strong>
+                      {formatMinutesAsHours(dashboardWeekCapacitySummary.bookedMinutes)} ({formatUtilization(
+                        dashboardWeekCapacitySummary.bookedMinutes,
+                        dashboardWeekCapacitySummary.totalMinutes
+                      )})
+                    </strong>
+                  </div>
+                  <div className="dashboard-progress-bar">
+                    <span
+                      className="is-info"
+                      style={{
+                        width: `${Math.min(
+                          dashboardWeekCapacitySummary.totalMinutes > 0
+                            ? (dashboardWeekCapacitySummary.bookedMinutes / dashboardWeekCapacitySummary.totalMinutes) * 100
+                            : 0,
+                          100
+                        )}%`
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="dashboard-mini-grid">
+                <div className="dashboard-mini-card">
+                  <strong>{todayBookings.length}</strong>
+                  <span>Hoje</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{todayPendingCount}</strong>
+                  <span>Pendentes</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{todayConfirmedCount}</strong>
+                  <span>Confirmados</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{dashboardWeekCapacitySummary.openBookings}</strong>
+                  <span>Em aberto</span>
+                </div>
+              </div>
+            </EntitySection>
+          ) : (
+            <>
+              <EntitySection
+                title="Radar da semana"
+                actions={
+                  <div className="dashboard-document-actions">
+                    <label className="dashboard-select">
+                      <span>Profissional</span>
+                      <select onChange={(event) => setDashboardProfessionalFilter(event.target.value)} value={dashboardProfessionalFilter}>
+                        <option value="all">Todos</option>
+                        {professionals.map((professional) => (
+                          <option key={professional.id} value={professional.id}>
+                            {professional.nome}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
+                      Abrir relatorios
+                    </button>
+                  </div>
+                }
+              >
+                <DocumentSummaryCards
+                  metrics={[
+                    {
+                      id: "radar-capacity",
+                      label: "Capacidade total",
+                      value: formatMinutesAsHours(dashboardWeekCapacitySummary.totalMinutes)
+                    },
+                    {
+                      id: "radar-booked",
+                      label: "Horas ocupadas",
+                      value: formatMinutesAsHours(dashboardWeekCapacitySummary.bookedMinutes),
+                      helper: `${dashboardWeekCapacitySummary.bookingsCount} booking(s)`
+                    },
+                    {
+                      id: "radar-free",
+                      label: "Horas livres",
+                      value: formatMinutesAsHours(dashboardWeekCapacitySummary.freeMinutes)
+                    },
+                    {
+                      id: "radar-open",
+                      label: "Em aberto",
+                      value: dashboardWeekCapacitySummary.openBookings
+                    }
+                  ]}
+                />
+              </EntitySection>
+              <div className="dashboard-secondary-grid">
+                <EntitySection title="Capacidade por dia">
+                  <div className="dashboard-kpi-list">
+                    {dashboardWeekDaySummaries.map((summary) => (
+                      <article className="dashboard-kpi-item" key={summary.date}>
+                        <div className="dashboard-kpi-main">
+                          <strong>{formatAgendaDayLabel(summary.date)}</strong>
+                          <span>{summary.bookingsCount} booking(s)</span>
+                        </div>
+                        <div className="dashboard-kpi-side">
+                          <span>{formatMinutesAsHours(summary.bookedMinutes)} / {formatMinutesAsHours(summary.totalMinutes)}</span>
+                          <small>{summary.totalMinutes > 0 ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao` : "Sem capacidade"}</small>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </EntitySection>
+                <EntitySection title="Carga por profissional">
+                  <div className="dashboard-kpi-list">
+                    {dashboardWeekProfessionalSummaries.map((summary) => (
+                      <article className="dashboard-kpi-item" key={summary.professionalId}>
+                        <div className="dashboard-kpi-main">
+                          <strong>{resolveProfessionalName(summary.professionalId, professionals)}</strong>
+                          <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
+                        </div>
+                        <div className="dashboard-kpi-side">
+                          <span>{formatMinutesAsHours(summary.totalMinutes)}</span>
+                          <small>{summary.totalMinutes > 0 ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao` : "Sem escala"}</small>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                </EntitySection>
+              </div>
+            </>
+          )
+        }
+        aside={null}
+      />
+    );
+  }
+
+  function renderFinanceiroView(): JSX.Element {
+    const financeTabs: ReadonlyArray<{ readonly id: FinanceWorkspaceTab; readonly label: string }> = [
+      { id: "cashflow", label: "Fluxo de caixa" },
+      { id: "banks", label: "Bancos" },
+      { id: "balances", label: "Saldos iniciais" },
+      { id: "revenues", label: "Receitas" },
+      { id: "expenses", label: "Despesas" },
+      { id: "movements", label: "Movimentos" }
+    ];
+
+    return (
+      <DocumentViewLayout
+        className="dashboard-document-view dashboard-document-view-financial"
+        title="Financeiro"
+        header={null}
+        summary={null}
+        tabs={
+          <div aria-label="Abas do financeiro" className="dashboard-tabbar" role="tablist">
+            {financeTabs.map((tab) => (
+              <button
+                aria-selected={financeWorkspaceTab === tab.id}
+                className={financeWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                key={tab.id}
+                onClick={() => setFinanceWorkspaceTab(tab.id)}
+                role="tab"
+                type="button"
+              >
+                <span>{tab.label}</span>
+              </button>
+            ))}
+          </div>
+        }
+        items={
+          financeWorkspaceTab === "cashflow" ? renderFinancialCashflowPanels({ showOpenFinanceButton: false }) : renderFinanceRegistryPanels()
+        }
+        aside={null}
+      />
+    );
+  }
+
+  function renderDashboardViewLegacy(): JSX.Element {
+    return renderDashboardView();
+    /*
     const retentionRate =
       clientPortfolioSummary.activeCount > 0
         ? clientPortfolioSummary.returningCount / clientPortfolioSummary.activeCount
@@ -4981,6 +5750,317 @@ export function App() {
         }
         aside={null}
       />
+    );
+    */
+  }
+
+  function renderFinancialCashflowPanels(input: { readonly showOpenFinanceButton: boolean }): JSX.Element {
+    return (
+      <div className="dashboard-secondary-grid">
+        <div className="financial-cashflow-toolbar">
+          <div className="dashboard-document-actions">
+            <label className="dashboard-select">
+              <span>Periodo</span>
+              <select onChange={(event) => setFinancialRange(event.target.value as DashboardRange)} value={financialRange}>
+                <option value="7d">7 dias</option>
+                <option value="30d">30 dias</option>
+                <option value="all">Todo o historico</option>
+              </select>
+            </label>
+            <label className="dashboard-select">
+              <span>Conta</span>
+              <select onChange={(event) => setFinancialBankFilter(event.target.value)} value={financialBankFilter}>
+                <option value="all">Todas</option>
+                {banks.map((bank) => (
+                  <option key={bank.id} value={bank.id}>
+                    {bank.nomeBanco} {bank.agencia}/{bank.conta}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dashboard-select">
+              <span>Situacao</span>
+              <select onChange={(event) => setFinancialSituation(event.target.value as FinancialSituationFilter)} value={financialSituation}>
+                <option value="all">Tudo</option>
+                <option value="aberto">Em aberto</option>
+                <option value="baixado">Baixado</option>
+              </select>
+            </label>
+            <button className="secondary-button" onClick={() => openBankModal()} type="button">
+              Incluir banco
+            </button>
+            <button className="secondary-button" onClick={() => openBankBalanceModal()} type="button">
+              Saldo inicial
+            </button>
+            <button className="secondary-button" onClick={openReceiveModal} type="button">
+              Receber
+            </button>
+            <button className="secondary-button" onClick={openPayModal} type="button">
+              Pagar
+            </button>
+            <button className="secondary-button" onClick={openTransferModal} type="button">
+              Transferir
+            </button>
+            {input.showOpenFinanceButton ? (
+              <button className="primary-button" onClick={() => navigateTo("financeiro")} type="button">
+                Abrir financeiro
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        <EntitySection className="financial-cashflow-summary" title="Fluxo de caixa">
+          {activeFinancialReadModel ? (
+            <DocumentSummaryCards
+              metrics={activeFinancialReadModel.summary.map((metric) => ({
+                id: metric.id,
+                label: metric.label,
+                value: typeof metric.value === "number" ? formatCurrency(metric.value) : metric.value,
+                helper: metric.helper
+              }))}
+            />
+          ) : (
+            <p className="empty-state">Sem leitura financeira disponivel.</p>
+          )}
+        </EntitySection>
+
+        <EntitySection title="Contas e saldos">
+          <div className="dashboard-mini-grid">
+            {(activeFinancialReadModel?.bankAccounts ?? []).map((entry) => (
+              <button
+                className="dashboard-mini-card dashboard-mini-card-button"
+                key={entry.bankId}
+                onClick={() => {
+                  const bank = banks.find((item) => item.id === entry.bankId);
+                  if (bank) {
+                    openBankModal(bank);
+                  }
+                }}
+                type="button"
+              >
+                <strong>{entry.codigo}</strong>
+                <span>{entry.nomeBanco}</span>
+                <span>{entry.agencia}/{entry.conta}</span>
+                <span>{formatCurrency(entry.saldoAtual)}</span>
+              </button>
+            ))}
+          </div>
+        </EntitySection>
+
+        <EntitySection title="Proximos recebimentos">
+          <div className="records-column">
+            {(activeFinancialReadModel?.receivables ?? []).length ? (
+              (activeFinancialReadModel?.receivables ?? []).map((entry) => (
+                <article className="record-card" key={entry.id}>
+                  <div className="record-card-header">
+                    <div className="record-stack">
+                      <strong>{entry.descricao}</strong>
+                      <span>{entry.codigo}</span>
+                    </div>
+                    <strong>{formatCurrency(entry.valor)}</strong>
+                  </div>
+                  <div className="record-meta">
+                    <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
+                    <span>{entry.origem}</span>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="empty-state">Nenhum recebimento no recorte.</p>
+            )}
+          </div>
+        </EntitySection>
+
+        <EntitySection title="Proximos pagamentos">
+          <div className="records-column">
+            {(activeFinancialReadModel?.payables ?? []).length ? (
+              (activeFinancialReadModel?.payables ?? []).map((entry) => (
+                <article className="record-card" key={entry.id}>
+                  <div className="record-card-header">
+                    <div className="record-stack">
+                      <strong>{entry.descricao}</strong>
+                      <span>{entry.codigo}</span>
+                    </div>
+                    <strong>{formatCurrency(entry.valor)}</strong>
+                  </div>
+                  <div className="record-meta">
+                    <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
+                    <span>{entry.pessoa ?? "Sem beneficiario"}</span>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="empty-state">Nenhum pagamento no recorte.</p>
+            )}
+          </div>
+        </EntitySection>
+
+        <EntitySection title="Movimentos recentes">
+          <div className="records-column">
+            {(activeFinancialReadModel?.recentMovements ?? []).length ? (
+              (activeFinancialReadModel?.recentMovements ?? []).map((entry) => (
+                <article className="record-card" key={entry.id}>
+                  <div className="record-card-header">
+                    <div className="record-stack">
+                      <strong>{entry.historico}</strong>
+                      <span>{entry.codigo}</span>
+                    </div>
+                    <strong>{formatCurrency(entry.valor)}</strong>
+                  </div>
+                  <div className="record-meta">
+                    <span>{formatDateTime(entry.dataMovimento)}</span>
+                    <span>{entry.contaOrigem ?? "Operacao"}{entry.contaDestino ? ` → ${entry.contaDestino}` : ""}</span>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="empty-state">Nenhum movimento encontrado.</p>
+            )}
+          </div>
+        </EntitySection>
+      </div>
+    );
+  }
+
+  function renderFinanceRegistryPanels(): JSX.Element {
+    if (financeWorkspaceTab === "banks") {
+      return (
+        <EntitySection title="Bancos" actions={<button className="primary-button" onClick={() => openBankModal()} type="button">Incluir</button>}>
+          <div className="records-column">
+            {banks.map((bank) => (
+              <article className="record-card" key={bank.id}>
+                <div className="record-card-header">
+                  <div className="record-stack">
+                    <strong>{bank.codigo}</strong>
+                    <span>{bank.nomeBanco}</span>
+                  </div>
+                  <div className="record-card-actions">
+                    <button className="secondary-button" onClick={() => openBankModal(bank)} type="button">Alterar</button>
+                  </div>
+                </div>
+                <div className="record-meta">
+                  <span>BACEN {bank.bacenCode}</span>
+                  <span>{bank.agencia}/{bank.conta}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </EntitySection>
+      );
+    }
+
+    if (financeWorkspaceTab === "balances") {
+      return (
+        <EntitySection title="Saldos iniciais" actions={<button className="primary-button" onClick={() => openBankBalanceModal()} type="button">Incluir</button>}>
+          <div className="records-column">
+            {bankBalances.map((balance) => {
+              const bank = banks.find((item) => item.id === balance.bankId);
+              return (
+                <article className="record-card" key={balance.id}>
+                  <div className="record-card-header">
+                    <div className="record-stack">
+                      <strong>{balance.codigo}</strong>
+                      <span>{bank?.nomeBanco ?? "Banco"} {bank?.agencia}/{bank?.conta}</span>
+                    </div>
+                    <div className="record-card-actions">
+                      <button className="secondary-button" onClick={() => openBankBalanceModal(balance)} type="button">Alterar</button>
+                    </div>
+                  </div>
+                  <div className="record-meta">
+                    <span>Saldo inicial {formatCurrency(balance.saldoInicial)}</span>
+                    <span>Saldo atual {formatCurrency(balance.saldoAtual)}</span>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        </EntitySection>
+      );
+    }
+
+    if (financeWorkspaceTab === "revenues") {
+      return (
+        <EntitySection title="Receitas" actions={<button className="primary-button" onClick={() => openRevenueModal()} type="button">Incluir</button>}>
+          <div className="records-column">
+            {revenueSchedules.map((entry) => (
+              <article className="record-card" key={entry.id}>
+                <div className="record-card-header">
+                  <div className="record-stack">
+                    <strong>{entry.codigo}</strong>
+                    <span>{entry.descricao}</span>
+                  </div>
+                  <div className="record-card-actions">
+                    <button className="secondary-button" onClick={() => openRevenueModal(entry)} type="button">Alterar</button>
+                  </div>
+                </div>
+                <div className="record-meta">
+                  <span>{formatCurrency(entry.valor)}</span>
+                  <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
+                  <span>{entry.tipo}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </EntitySection>
+      );
+    }
+
+    if (financeWorkspaceTab === "expenses") {
+      return (
+        <EntitySection title="Despesas" actions={<button className="primary-button" onClick={() => openExpenseModal()} type="button">Incluir</button>}>
+          <div className="records-column">
+            {expenseSchedules.map((entry) => (
+              <article className="record-card" key={entry.id}>
+                <div className="record-card-header">
+                  <div className="record-stack">
+                    <strong>{entry.codigo}</strong>
+                    <span>{entry.descricao}</span>
+                  </div>
+                  <div className="record-card-actions">
+                    <button className="secondary-button" onClick={() => openExpenseModal(entry)} type="button">Alterar</button>
+                  </div>
+                </div>
+                <div className="record-meta">
+                  <span>{formatCurrency(entry.valor)}</span>
+                  <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
+                  <span>{entry.beneficiarioNome ?? "Sem beneficiario"}</span>
+                </div>
+              </article>
+            ))}
+          </div>
+        </EntitySection>
+      );
+    }
+
+    return (
+      <EntitySection
+        title="Movimentos"
+        actions={
+          <div className="dashboard-document-actions">
+            <button className="secondary-button" onClick={openReceiveModal} type="button">Receber</button>
+            <button className="secondary-button" onClick={openPayModal} type="button">Pagar</button>
+            <button className="primary-button" onClick={openTransferModal} type="button">Transferir</button>
+          </div>
+        }
+      >
+        <div className="records-column">
+          {bankMovements.map((entry) => (
+            <article className="record-card" key={entry.id}>
+              <div className="record-card-header">
+                <div className="record-stack">
+                  <strong>{entry.codigo}</strong>
+                  <span>{entry.historico}</span>
+                </div>
+                <strong>{formatCurrency(entry.valor)}</strong>
+              </div>
+              <div className="record-meta">
+                <span>{entry.tipo}</span>
+                <span>{formatDateTime(entry.dataMovimento)}</span>
+              </div>
+            </article>
+          ))}
+        </div>
+      </EntitySection>
     );
   }
 
@@ -5640,6 +6720,227 @@ export function App() {
           <div className="agenda-booking-modal-body">{renderAgendaBookingDocument()}</div>
         </section>
       </>
+    );
+  }
+
+  function renderFinanceModal(): JSX.Element | null {
+    if (!financeModal) {
+      return null;
+    }
+
+    if (financeModal === "bank") {
+      return (
+        <WorkspaceRecordModal
+          onClose={closeFinanceModal}
+          subtitle="Codigo, BACEN, agencia e conta."
+          title={editingBankId ? "Alterar banco" : "Incluir banco"}
+        >
+          <form className="stack-form" onSubmit={(event) => void handleSaveBank(event)}>
+            <div className="form-grid">
+              <label className="field">
+                <span>Codigo</span>
+                <input value={bankForm.codigo} onChange={(event) => setBankForm({ ...bankForm, codigo: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>BACEN</span>
+                <input required value={bankForm.bacenCode} onChange={(event) => setBankForm({ ...bankForm, bacenCode: event.target.value })} />
+              </label>
+              <label className="field field-wide">
+                <span>Nome do banco</span>
+                <input required value={bankForm.nomeBanco} onChange={(event) => setBankForm({ ...bankForm, nomeBanco: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>Agencia</span>
+                <input required value={bankForm.agencia} onChange={(event) => setBankForm({ ...bankForm, agencia: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>Conta</span>
+                <input required value={bankForm.conta} onChange={(event) => setBankForm({ ...bankForm, conta: event.target.value })} />
+              </label>
+            </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
+              <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+            </div>
+          </form>
+        </WorkspaceRecordModal>
+      );
+    }
+
+    if (financeModal === "balance") {
+      return (
+        <WorkspaceRecordModal
+          onClose={closeFinanceModal}
+          subtitle="Selecione o banco e informe o saldo inicial."
+          title={editingBalanceId ? "Alterar saldo inicial" : "Saldo inicial"}
+        >
+          <form className="stack-form" onSubmit={(event) => void handleSaveBankBalance(event)}>
+            <div className="form-grid">
+              <label className="field">
+                <span>Codigo</span>
+                <input value={bankBalanceForm.codigo} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, codigo: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>Banco</span>
+                <select required value={bankBalanceForm.bankId} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, bankId: event.target.value })}>
+                  <option value="">Selecione</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Saldo inicial</span>
+                <input required min="0" step="0.01" type="number" value={bankBalanceForm.saldoInicial} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, saldoInicial: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>Data</span>
+                <input required type="date" value={bankBalanceForm.dataSaldoInicial} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, dataSaldoInicial: event.target.value })} />
+              </label>
+            </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
+              <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+            </div>
+          </form>
+        </WorkspaceRecordModal>
+      );
+    }
+
+    if (financeModal === "revenue" || financeModal === "expense") {
+      const isRevenue = financeModal === "revenue";
+      const form = isRevenue ? revenueForm : expenseForm;
+      return (
+        <WorkspaceRecordModal
+          onClose={closeFinanceModal}
+          subtitle={isRevenue ? "Descricao, vencimento, valor e recorrencia." : "Descricao, vencimento, valor e beneficiario."}
+          title={isRevenue ? (editingRevenueId ? "Alterar receita" : "Incluir receita") : (editingExpenseId ? "Alterar despesa" : "Incluir despesa")}
+        >
+          <form className="stack-form" onSubmit={(event) => void (isRevenue ? handleSaveRevenue(event) : handleSaveExpense(event))}>
+            <div className="form-grid">
+              <label className="field">
+                <span>Codigo</span>
+                <input value={form.codigo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, codigo: event.target.value }) : setExpenseForm({ ...expenseForm, codigo: event.target.value })} />
+              </label>
+              <label className="field field-wide">
+                <span>Descricao</span>
+                <input required value={form.descricao} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, descricao: event.target.value }) : setExpenseForm({ ...expenseForm, descricao: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>Valor</span>
+                <input required min="0" step="0.01" type="number" value={form.valor} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, valor: event.target.value }) : setExpenseForm({ ...expenseForm, valor: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>Vencimento</span>
+                <input required type="date" value={form.dataVencimento} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, dataVencimento: event.target.value }) : setExpenseForm({ ...expenseForm, dataVencimento: event.target.value })} />
+              </label>
+              <label className="field">
+                <span>Tipo</span>
+                <select value={form.tipo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, tipo: event.target.value as RevenueFormState["tipo"] }) : setExpenseForm({ ...expenseForm, tipo: event.target.value as ExpenseFormState["tipo"] })}>
+                  <option value="unica">Unica</option>
+                  <option value="recorrente">Recorrente</option>
+                </select>
+              </label>
+              {form.tipo === "recorrente" ? (
+                <>
+                  <label className="field">
+                    <span>Recorrencia</span>
+                    <select value={form.recorrencia} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, recorrencia: event.target.value as RevenueFormState["recorrencia"] }) : setExpenseForm({ ...expenseForm, recorrencia: event.target.value as ExpenseFormState["recorrencia"] })}>
+                      <option value="semanal">Semanal</option>
+                      <option value="mensal">Mensal</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Ocorrencias</span>
+                    <input min="1" type="number" value={form.quantidadeOcorrencias} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, quantidadeOcorrencias: event.target.value }) : setExpenseForm({ ...expenseForm, quantidadeOcorrencias: event.target.value })} />
+                  </label>
+                </>
+              ) : null}
+              {!isRevenue ? (
+                <label className="field field-wide">
+                  <span>Beneficiario</span>
+                  <input value={expenseForm.beneficiarioNome} onChange={(event) => setExpenseForm({ ...expenseForm, beneficiarioNome: event.target.value })} />
+                </label>
+              ) : null}
+            </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
+              <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+            </div>
+          </form>
+        </WorkspaceRecordModal>
+      );
+    }
+
+    const movementTitle =
+      financeModal === "receive" ? "Receber" : financeModal === "pay" ? "Pagar" : "Transferir";
+
+    return (
+      <WorkspaceRecordModal onClose={closeFinanceModal} title={movementTitle}>
+        <form
+          className="stack-form"
+          onSubmit={(event) =>
+            void (financeModal === "receive"
+              ? handleReceiveMovement(event)
+              : financeModal === "pay"
+                ? handlePayMovement(event)
+                : handleTransferMovement(event))
+          }
+        >
+          <div className="form-grid">
+            {financeModal === "receive" ? (
+              <label className="field">
+                <span>Banco</span>
+                <select required value={receiveMovementForm.bankIdDestino} onChange={(event) => setReceiveMovementForm({ ...receiveMovementForm, bankIdDestino: event.target.value })}>
+                  <option value="">Selecione</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <label className="field">
+                <span>Banco origem</span>
+                <select required value={financeModal === "pay" ? payMovementForm.bankIdOrigem : transferMovementForm.bankIdOrigem} onChange={(event) => financeModal === "pay" ? setPayMovementForm({ ...payMovementForm, bankIdOrigem: event.target.value }) : setTransferMovementForm({ ...transferMovementForm, bankIdOrigem: event.target.value })}>
+                  <option value="">Selecione</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {financeModal === "transfer" ? (
+              <label className="field">
+                <span>Banco destino</span>
+                <select required value={transferMovementForm.bankIdDestino} onChange={(event) => setTransferMovementForm({ ...transferMovementForm, bankIdDestino: event.target.value })}>
+                  <option value="">Selecione</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+            <label className="field">
+              <span>Valor</span>
+              <input required min="0" step="0.01" type="number" value={financeModal === "receive" ? receiveMovementForm.valor : financeModal === "pay" ? payMovementForm.valor : transferMovementForm.valor} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm({ ...receiveMovementForm, valor: event.target.value }) : financeModal === "pay" ? setPayMovementForm({ ...payMovementForm, valor: event.target.value }) : setTransferMovementForm({ ...transferMovementForm, valor: event.target.value })} />
+            </label>
+            <label className="field field-wide">
+              <span>Historico</span>
+              <input required value={financeModal === "receive" ? receiveMovementForm.historico : financeModal === "pay" ? payMovementForm.historico : transferMovementForm.historico} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm({ ...receiveMovementForm, historico: event.target.value }) : financeModal === "pay" ? setPayMovementForm({ ...payMovementForm, historico: event.target.value }) : setTransferMovementForm({ ...transferMovementForm, historico: event.target.value })} />
+            </label>
+            {financeModal === "pay" ? (
+              <label className="field field-wide">
+                <span>Beneficiario</span>
+                <input value={payMovementForm.beneficiarioNome} onChange={(event) => setPayMovementForm({ ...payMovementForm, beneficiarioNome: event.target.value })} />
+              </label>
+            ) : null}
+          </div>
+          <div className="button-row">
+            <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
+            <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+          </div>
+        </form>
+      </WorkspaceRecordModal>
     );
   }
 
@@ -6752,6 +8053,8 @@ export function App() {
     switch (currentRoute) {
       case "dashboard":
         return renderDashboardView();
+      case "financeiro":
+        return renderFinanceiroView();
       case "relatorios":
         return renderReportsViewV2();
       case "operacional":
@@ -7180,6 +8483,7 @@ export function App() {
       {renderShellContextPanel()}
       {renderCounterBookingModal()}
       {renderAgendaBookingModal()}
+      {renderFinanceModal()}
     </Fragment>
   );
 }

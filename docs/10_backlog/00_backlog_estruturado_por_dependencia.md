@@ -48,3 +48,9 @@ O corte derivado de `beta teste` para o `AgendaAI` esta em:
 | --- | --- | --- | --- | --- | --- | --- |
 | 17 | B-17 | Catalogar semantica, metricas canonicas e DSL de relatorios | B-12 | FECHADO | catalogo semantico oficial, AST/DSL e matriz de cenarios homologados sobre o backend real | documento oficial, matriz de campos e especificacao do motor |
 | 18 | B-18 | Materializar report definitions e builder em pagina em branco | B-17 | FECHADO | `admin-web` abre builder de relatorios com filtros tipados, modelos salvos reutilizaveis e dock tabs por relatorio, sem persistir snapshot dos dados no fluxo normal | builder funcional, `report_definitions` persistidas, execucao validada, `codigo` persistido nas entidades de lookup e relatorios abrindo em dock tabs |
+
+## Trilha F - Financeiro Base e Caixa
+
+| Ordem | ID | Item | Dependencia | Status atual | Criterio de pronto | Evidencia esperada |
+| --- | --- | --- | --- | --- | --- | --- |
+| 19 | B-19 | Materializar financeiro base e fluxo de caixa no dashboard | B-10, B-12 | FECHADO | `api-rest` e `admin-web` passam a operar bancos, saldos iniciais, receitas, despesas e movimentos, com `dashboard` abrindo em `fluxo de caixa` e rota `financeiro` dedicada | contracts versionados, persistencia em memoria/Postgres, read model financeiro, rota `financeiro`, dashboard remasterizado e browser QA do fluxo principal |

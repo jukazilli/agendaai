@@ -4,12 +4,23 @@ import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 
 import {
+  bankMovementTypeValues,
   bookingStatusValues,
+  createBankBalanceSchema,
+  createBankPaymentSchema,
+  createBankReceiptSchema,
+  createBankSchema,
+  createBankTransferSchema,
+  createExpenseScheduleSchema,
+  createRevenueScheduleSchema,
   clientContactInputSchema,
   configureTenantBrandingSchema,
   configureTenantSlugSchema,
   contractVersion,
   createBookingCommandSchema,
+  expenseScheduleStatusValues,
+  financialRangeValues,
+  financialSituationValues,
   createProfessionalSchema,
   reportDefinitionSchema,
   reportExecutionRequestSchema,
@@ -25,6 +36,9 @@ import {
   tenantPaymentSettingsSchema,
   professionalStatusValues,
   type Booking,
+  type BankMovementType,
+  type FinancialRange,
+  type FinancialSituation,
   type CashEntry,
   type CashEntryKind,
   type Client,
@@ -51,6 +65,7 @@ import {
   type MercadoPagoGateway
 } from "./mercado-pago";
 import { createConfiguredStore } from "./postgres-store";
+import { buildAdminFinancialReadModel } from "./financial-read-model";
 import {
   buildSystemReportDefinitions,
   createReportBuilderCatalog,
@@ -142,7 +157,11 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     if (
       runtimeError.message === "client_not_found" ||
       runtimeError.message === "service_not_found" ||
-      runtimeError.message === "professional_not_found"
+      runtimeError.message === "professional_not_found" ||
+      runtimeError.message === "bank_not_found" ||
+      runtimeError.message === "revenue_not_found" ||
+      runtimeError.message === "expense_not_found" ||
+      runtimeError.message === "cash_entry_not_found"
     ) {
       reply.status(404).send({
         error: runtimeError.message,
@@ -153,11 +172,22 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
     if (
       runtimeError.message === "availability_rule_invalid" ||
-      runtimeError.message === "booking_time_invalid"
+      runtimeError.message === "booking_time_invalid" ||
+      runtimeError.message === "bank_destination_required" ||
+      runtimeError.message === "bank_origin_required" ||
+      runtimeError.message === "distinct_banks_required"
     ) {
       reply.status(400).send({
         error: runtimeError.message,
         message: "Availability or booking payload is invalid."
+      });
+      return;
+    }
+
+    if (runtimeError.message === "bank_account_already_exists") {
+      reply.status(409).send({
+        error: "bank_account_already_exists",
+        message: "Bank account already exists for this tenant."
       });
       return;
     }
@@ -851,6 +881,211 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         };
       });
 
+      adminRoutes.post("/banks", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createBankSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const bank = await store.createBank(command);
+        reply.status(201);
+        return bank;
+      });
+
+      adminRoutes.get("/banks", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listBanks(claims.tenantId)
+        };
+      });
+
+      adminRoutes.patch("/banks/:bankId", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const bankId = readRequiredString((request.params as Record<string, unknown>).bankId, "bankId");
+        const bank = await store.updateBank(claims.tenantId, bankId, parseBankPatch(requireRecord(request.body)));
+        if (!bank) {
+          throw new ApiHttpError(404, "bank_not_found", "Bank was not found for this tenant.");
+        }
+        return bank;
+      });
+
+      adminRoutes.post("/bank-balances", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createBankBalanceSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const balance = await store.createBankBalance(command);
+        reply.status(201);
+        return balance;
+      });
+
+      adminRoutes.get("/bank-balances", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listBankBalances(claims.tenantId)
+        };
+      });
+
+      adminRoutes.patch("/bank-balances/:balanceId", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const balanceId = readRequiredString(
+          (request.params as Record<string, unknown>).balanceId,
+          "balanceId"
+        );
+        const balance = await store.updateBankBalance(
+          claims.tenantId,
+          balanceId,
+          parseBankBalancePatch(requireRecord(request.body))
+        );
+        if (!balance) {
+          throw new ApiHttpError(404, "bank_not_found", "Bank balance was not found for this tenant.");
+        }
+        return balance;
+      });
+
+      adminRoutes.post("/revenues", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createRevenueScheduleSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const items = await store.createRevenueSchedule(command);
+        reply.status(201);
+        return { items };
+      });
+
+      adminRoutes.get("/revenues", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listRevenueSchedules(claims.tenantId)
+        };
+      });
+
+      adminRoutes.patch("/revenues/:revenueId", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const revenueId = readRequiredString(
+          (request.params as Record<string, unknown>).revenueId,
+          "revenueId"
+        );
+        const revenue = await store.updateRevenueSchedule(
+          claims.tenantId,
+          revenueId,
+          parseRevenuePatch(requireRecord(request.body))
+        );
+        if (!revenue) {
+          throw new ApiHttpError(404, "revenue_not_found", "Revenue was not found for this tenant.");
+        }
+        return revenue;
+      });
+
+      adminRoutes.post("/expenses", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createExpenseScheduleSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const items = await store.createExpenseSchedule(command);
+        reply.status(201);
+        return { items };
+      });
+
+      adminRoutes.get("/expenses", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listExpenseSchedules(claims.tenantId)
+        };
+      });
+
+      adminRoutes.patch("/expenses/:expenseId", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const expenseId = readRequiredString(
+          (request.params as Record<string, unknown>).expenseId,
+          "expenseId"
+        );
+        const expense = await store.updateExpenseSchedule(
+          claims.tenantId,
+          expenseId,
+          parseExpensePatch(requireRecord(request.body))
+        );
+        if (!expense) {
+          throw new ApiHttpError(404, "expense_not_found", "Expense was not found for this tenant.");
+        }
+        return expense;
+      });
+
+      adminRoutes.get("/bank-movements", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listBankMovements(claims.tenantId)
+        };
+      });
+
+      adminRoutes.post("/bank-movements/receive", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createBankReceiptSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const movement = await store.receiveRevenue(command);
+        reply.status(201);
+        return movement;
+      });
+
+      adminRoutes.post("/bank-movements/pay", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createBankPaymentSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const movement = await store.payExpense(command);
+        reply.status(201);
+        return movement;
+      });
+
+      adminRoutes.post("/bank-movements/transfer", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createBankTransferSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const movement = await store.transferBetweenBanks(command);
+        reply.status(201);
+        return movement;
+      });
+
+      adminRoutes.get("/read-models/financial", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const query = (request.query ?? {}) as Record<string, unknown>;
+        const range = readStringEnum(query.range ?? "30d", financialRangeValues, "range") as FinancialRange;
+        const situation = readStringEnum(
+          query.situation ?? "all",
+          financialSituationValues,
+          "situation"
+        ) as FinancialSituation;
+        const bankId =
+          typeof query.bankId === "string" && query.bankId.trim().length > 0 ? query.bankId.trim() : undefined;
+
+        return buildAdminFinancialReadModel({
+          range,
+          bankId,
+          situation,
+          banks: await store.listBanks(claims.tenantId),
+          balances: await store.listBankBalances(claims.tenantId),
+          revenues: await store.listRevenueSchedules(claims.tenantId),
+          expenses: await store.listExpenseSchedules(claims.tenantId),
+          movements: await store.listBankMovements(claims.tenantId),
+          cashEntries: await store.listCashEntries(claims.tenantId)
+        });
+      });
+
       adminRoutes.get("/reporting/catalog", async (request) => {
         const claims = requireAdminSession(request).claims;
         return createReportBuilderCatalog({
@@ -1197,6 +1432,191 @@ function parseBookingPatch(payload: Record<string, unknown>): BookingPatchInput 
   return requireNonEmptyPatch(patch, "booking");
 }
 
+function parseBankPatch(payload: Record<string, unknown>) {
+  const patch: {
+    codigo?: string;
+    bacenCode?: string;
+    nomeBanco?: string;
+    agencia?: string;
+    conta?: string;
+    ativo?: boolean;
+  } = {};
+
+  if ("codigo" in payload) {
+    patch.codigo = readRequiredString(payload.codigo, "codigo");
+  }
+  if ("bacenCode" in payload) {
+    patch.bacenCode = readBankCode(payload.bacenCode, "bacenCode");
+  }
+  if ("nomeBanco" in payload) {
+    patch.nomeBanco = readRequiredString(payload.nomeBanco, "nomeBanco");
+  }
+  if ("agencia" in payload) {
+    patch.agencia = readRequiredString(payload.agencia, "agencia");
+  }
+  if ("conta" in payload) {
+    patch.conta = readRequiredString(payload.conta, "conta");
+  }
+  if ("ativo" in payload) {
+    patch.ativo = readBoolean(payload.ativo, "ativo");
+  }
+
+  return requireNonEmptyPatch(patch, "bank");
+}
+
+function parseBankBalancePatch(payload: Record<string, unknown>) {
+  const patch: {
+    codigo?: string;
+    saldoInicial?: number;
+    dataSaldoInicial?: string;
+    observacao?: string | undefined;
+  } = {};
+
+  if ("codigo" in payload) {
+    patch.codigo = readRequiredString(payload.codigo, "codigo");
+  }
+  if ("saldoInicial" in payload) {
+    patch.saldoInicial = readNonNegativeNumber(payload.saldoInicial, "saldoInicial");
+  }
+  if ("dataSaldoInicial" in payload) {
+    patch.dataSaldoInicial = readDateString(payload.dataSaldoInicial, "dataSaldoInicial");
+  }
+  if ("observacao" in payload) {
+    patch.observacao =
+      typeof payload.observacao === "string" ? payload.observacao.trim() || undefined : undefined;
+  }
+
+  return requireNonEmptyPatch(patch, "bank balance");
+}
+
+function parseRevenuePatch(payload: Record<string, unknown>) {
+  const patch: {
+    codigo?: string;
+    descricao?: string;
+    valor?: number;
+    dataVencimento?: string;
+    tipo?: "unica" | "recorrente";
+    recorrencia?: "semanal" | "mensal" | undefined;
+    quantidadeOcorrencias?: number | undefined;
+    diaSemanaVencimento?: number | undefined;
+    status?: "aberta" | "recebida" | "cancelada";
+    clientId?: string | undefined;
+    serviceId?: string | undefined;
+    professionalId?: string | undefined;
+    bookingId?: string | undefined;
+  } = {};
+
+  if ("codigo" in payload) {
+    patch.codigo = readRequiredString(payload.codigo, "codigo");
+  }
+  if ("descricao" in payload) {
+    patch.descricao = readRequiredString(payload.descricao, "descricao");
+  }
+  if ("valor" in payload) {
+    patch.valor = readNonNegativeNumber(payload.valor, "valor");
+  }
+  if ("dataVencimento" in payload) {
+    patch.dataVencimento = readDateString(payload.dataVencimento, "dataVencimento");
+  }
+  if ("tipo" in payload) {
+    patch.tipo = readStringEnum(payload.tipo, ["unica", "recorrente"] as const, "tipo");
+  }
+  if ("recorrencia" in payload) {
+    patch.recorrencia = readOptionalStringEnum(
+      payload.recorrencia,
+      ["semanal", "mensal"] as const,
+      "recorrencia"
+    );
+  }
+  if ("quantidadeOcorrencias" in payload) {
+    patch.quantidadeOcorrencias =
+      payload.quantidadeOcorrencias == null
+        ? undefined
+        : readPositiveInteger(payload.quantidadeOcorrencias, "quantidadeOcorrencias");
+  }
+  if ("diaSemanaVencimento" in payload) {
+    patch.diaSemanaVencimento =
+      payload.diaSemanaVencimento == null
+        ? undefined
+        : readWeekday(payload.diaSemanaVencimento, "diaSemanaVencimento");
+  }
+  if ("status" in payload) {
+    patch.status = readStringEnum(payload.status, ["aberta", "recebida", "cancelada"] as const, "status");
+  }
+  if ("clientId" in payload) {
+    patch.clientId = readOptionalId(payload.clientId, "clientId");
+  }
+  if ("serviceId" in payload) {
+    patch.serviceId = readOptionalId(payload.serviceId, "serviceId");
+  }
+  if ("professionalId" in payload) {
+    patch.professionalId = readOptionalId(payload.professionalId, "professionalId");
+  }
+  if ("bookingId" in payload) {
+    patch.bookingId = readOptionalId(payload.bookingId, "bookingId");
+  }
+
+  return requireNonEmptyPatch(patch, "revenue");
+}
+
+function parseExpensePatch(payload: Record<string, unknown>) {
+  const patch: {
+    codigo?: string;
+    descricao?: string;
+    valor?: number;
+    dataVencimento?: string;
+    tipo?: "unica" | "recorrente";
+    recorrencia?: "semanal" | "mensal" | undefined;
+    quantidadeOcorrencias?: number | undefined;
+    diaSemanaVencimento?: number | undefined;
+    status?: (typeof expenseScheduleStatusValues)[number];
+    beneficiarioNome?: string | undefined;
+  } = {};
+
+  if ("codigo" in payload) {
+    patch.codigo = readRequiredString(payload.codigo, "codigo");
+  }
+  if ("descricao" in payload) {
+    patch.descricao = readRequiredString(payload.descricao, "descricao");
+  }
+  if ("valor" in payload) {
+    patch.valor = readNonNegativeNumber(payload.valor, "valor");
+  }
+  if ("dataVencimento" in payload) {
+    patch.dataVencimento = readDateString(payload.dataVencimento, "dataVencimento");
+  }
+  if ("tipo" in payload) {
+    patch.tipo = readStringEnum(payload.tipo, ["unica", "recorrente"] as const, "tipo");
+  }
+  if ("recorrencia" in payload) {
+    patch.recorrencia = readOptionalStringEnum(
+      payload.recorrencia,
+      ["semanal", "mensal"] as const,
+      "recorrencia"
+    );
+  }
+  if ("quantidadeOcorrencias" in payload) {
+    patch.quantidadeOcorrencias =
+      payload.quantidadeOcorrencias == null
+        ? undefined
+        : readPositiveInteger(payload.quantidadeOcorrencias, "quantidadeOcorrencias");
+  }
+  if ("diaSemanaVencimento" in payload) {
+    patch.diaSemanaVencimento =
+      payload.diaSemanaVencimento == null
+        ? undefined
+        : readWeekday(payload.diaSemanaVencimento, "diaSemanaVencimento");
+  }
+  if ("status" in payload) {
+    patch.status = readStringEnum(payload.status, expenseScheduleStatusValues, "status");
+  }
+  if ("beneficiarioNome" in payload) {
+    patch.beneficiarioNome = readOptionalString(payload.beneficiarioNome, "beneficiarioNome");
+  }
+
+  return requireNonEmptyPatch(patch, "expense");
+}
+
 function requireRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new ApiHttpError(400, "invalid_body", "Request body must be a JSON object.");
@@ -1262,6 +1682,39 @@ function readDateString(value: unknown, fieldName: string): string {
   return candidate;
 }
 
+function readBankCode(value: unknown, fieldName: string): string {
+  const candidate = readRequiredString(value, fieldName);
+  if (!/^\d{3}$/.test(candidate)) {
+    throw new ApiHttpError(400, "invalid_body", `Field '${fieldName}' must use a 3-digit BACEN code.`);
+  }
+  return candidate;
+}
+
+function readOptionalString(value: unknown, fieldName: string): string | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  if (typeof value !== "string") {
+    throw new ApiHttpError(400, "invalid_body", `Field '${fieldName}' must be a string.`);
+  }
+  const candidate = value.trim();
+  return candidate.length > 0 ? candidate : undefined;
+}
+
+function readOptionalId(value: unknown, fieldName: string): string | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  return readRequiredString(value, fieldName);
+}
+
+function readWeekday(value: unknown, fieldName: string): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > 6) {
+    throw new ApiHttpError(400, "invalid_body", `Field '${fieldName}' must be an integer from 0 to 6.`);
+  }
+  return value;
+}
+
 function readStringArray(value: unknown, fieldName: string): string[] {
   if (!Array.isArray(value)) {
     throw new ApiHttpError(400, "invalid_body", `Field '${fieldName}' must be an array.`);
@@ -1297,6 +1750,17 @@ function readStringEnum<const TValues extends readonly string[]>(
   }
 
   return candidate as TValues[number];
+}
+
+function readOptionalStringEnum<const TValues extends readonly string[]>(
+  value: unknown,
+  values: TValues,
+  fieldName: string
+): TValues[number] | undefined {
+  if (value == null) {
+    return undefined;
+  }
+  return readStringEnum(value, values, fieldName);
 }
 
 function createTenantPaymentSettings(
