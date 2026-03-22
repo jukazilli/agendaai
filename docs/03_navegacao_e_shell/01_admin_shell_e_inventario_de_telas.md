@@ -80,9 +80,11 @@ No chrome global do shell:
 
 - deve existir como modulo proprio no shell, separado de `dashboard` e `relatorios`;
 - `fluxo de caixa` do dashboard funciona como ponto de entrada e a rota `financeiro` concentra a operacao detalhada;
-- a rota deve expor abas locais para `fluxo de caixa`, `bancos`, `saldos iniciais`, `receitas`, `despesas` e `movimentos`;
-- `bancos`, `saldos iniciais`, `receitas` e `despesas` devem operar como cadastros simples com popup de incluir/alterar;
-- `movimentos` deve expor acoes diretas de `receber`, `pagar` e `transferir`;
+- a rota deve expor abas locais para `fluxo de caixa`, `bancos`, `saldos iniciais`, `receitas`, `despesas`, `movimentos bancarios` e `fechar caixa`;
+- cada aba local do financeiro deve operar em `document view` com browse zebrado, toolbar no topo e popup reutilizavel para `incluir`, `visualizar`, `alterar`, `receber`, `pagar`, `estornar`, `excluir` ou `fechar caixa`, conforme o contexto;
+- `bancos`, `saldos iniciais`, `receitas` e `despesas` devem operar como cadastros simples em browse + popup, nunca com acoes espalhadas por linha;
+- `movimentos bancarios` guardam a verdade de caixa; essa tela registra fatos ja ocorridos ou programados por data e trabalha com `incluir`, `visualizar`, `alterar` e `estornar`, sem virar a tela primaria de baixa de titulos;
+- `fechar caixa` deve operar por `banco + periodo`, listar pendencias do recorte e gerar movimentos bancarios correspondentes ao fechamento;
 - `cash entries` continuam como trilha operacional minima e passam a alimentar a leitura de recebimentos no financeiro.
 
 ### Implantacao
@@ -100,6 +102,7 @@ No chrome global do shell:
 - quando a entidade for simples, o workspace nao deve carregar blocos narrativos como `o que voce controla aqui`, `em evolucao`, resumos laterais ou politicas duplicadas fora do proprio registro;
 - `master-detail` deve ficar reservado para superficies com vinculos ou leitura relacional mais densa, como `profissionais` com `servicos` e `horarios`;
 - `profissionais` deve usar lista master simples no lado esquerdo e detalhe relacional no lado direito, com abas locais para `cadastro e servicos` e `horarios`;
+- `profissionais` pode manter `banco padrao` opcional por consulta, sem texto livre e sem tornar o vinculo obrigatorio;
 - disponibilidade detalhada pode nascer em `profissionais` ou migrar depois para `calendario`.
 
 ### Agenda
@@ -107,6 +110,7 @@ No chrome global do shell:
 - deve priorizar filtros, navegacao de data e acoes operacionais;
 - deve separar `lista` e `agenda` em visoes dedicadas, preferencialmente via tab bar responsiva;
 - o clique em um agendamento precisa abrir o detalhe completo da booking sem sair da rota, preferencialmente em modal operacional;
+- a rotina diaria deve expor `receber` e `estornar` como acoes de topo sobre o registro selecionado, sugerindo o banco do profissional quando ele existir;
 - capacidade agregada semanal e mensal pertence a `relatorios`, nao ao corpo principal desta tela.
 
 ### Relatorios

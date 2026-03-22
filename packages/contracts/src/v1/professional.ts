@@ -18,14 +18,16 @@ export const professionalSchema = contractEnvelopeSchema.extend({
   codigo: nonEmptyStringSchema,
   nome: nonEmptyStringSchema,
   status: professionalStatusSchema,
-  especialidades: specialtyIdsSchema
+  especialidades: specialtyIdsSchema,
+  bankId: entityIdSchema.optional()
 });
 
 export const createProfessionalSchema = contractEnvelopeSchema.extend({
   tenantId: tenantIdSchema,
   codigo: optionalTrimmedStringSchema,
   nome: nonEmptyStringSchema,
-  especialidades: specialtyIdsSchema
+  especialidades: specialtyIdsSchema,
+  bankId: entityIdSchema.optional()
 });
 
 export type Professional = z.infer<typeof professionalSchema>;

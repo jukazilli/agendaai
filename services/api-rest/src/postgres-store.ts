@@ -4,9 +4,11 @@ import type {
   AvailabilityRuleInput,
   CreateBankBalanceCommand,
   CreateBankCommand,
+  CreateBankMovementCommand,
   CreateBankPaymentCommand,
   CreateBankReceiptCommand,
   CreateBankTransferCommand,
+  CreateCashCloseCommand,
   ClientContactInput,
   ConfigureTenantBrandingCommand,
   ConfigureTenantSlugCommand,
@@ -14,6 +16,7 @@ import type {
   CreateExpenseScheduleCommand,
   ReportDefinition,
   TenantPaymentSettings,
+  ReverseBankMovementCommand,
   CreateProfessionalCommand,
   CreateRevenueScheduleCommand,
   CreateServiceCommand,
@@ -68,6 +71,14 @@ interface PostgresExpenseRow {
 
 interface PostgresBankMovementRow {
   movement: import("@agendaai/contracts").BankMovement;
+}
+
+interface PostgresCashCloseRow {
+  cash_close: import("@agendaai/contracts").CashClose;
+}
+
+interface PostgresCashCloseItemRow {
+  cash_close_item: import("@agendaai/contracts").CashCloseItem;
 }
 
 interface PostgresApiRestStoreOptions {
@@ -212,6 +223,13 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return bank;
   }
 
+  async deleteBank(tenantId: string, bankId: string) {
+    await this.ensureReady();
+    const deleted = this.store.deleteBank(tenantId, bankId);
+    await this.persistSnapshot();
+    return deleted;
+  }
+
   async listBankBalances(tenantId: string) {
     await this.ensureReady();
     return this.store.listBankBalances(tenantId);
@@ -239,6 +257,13 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     const balance = this.store.updateBankBalance(tenantId, balanceId, patch);
     await this.persistSnapshot();
     return balance;
+  }
+
+  async deleteBankBalance(tenantId: string, balanceId: string) {
+    await this.ensureReady();
+    const deleted = this.store.deleteBankBalance(tenantId, balanceId);
+    await this.persistSnapshot();
+    return deleted;
   }
 
   async listRevenueSchedules(tenantId: string) {
@@ -272,6 +297,13 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return revenue;
   }
 
+  async deleteRevenueSchedule(tenantId: string, revenueId: string) {
+    await this.ensureReady();
+    const deleted = this.store.deleteRevenueSchedule(tenantId, revenueId);
+    await this.persistSnapshot();
+    return deleted;
+  }
+
   async listExpenseSchedules(tenantId: string) {
     await this.ensureReady();
     return this.store.listExpenseSchedules(tenantId);
@@ -303,6 +335,13 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return expense;
   }
 
+  async deleteExpenseSchedule(tenantId: string, expenseId: string) {
+    await this.ensureReady();
+    const deleted = this.store.deleteExpenseSchedule(tenantId, expenseId);
+    await this.persistSnapshot();
+    return deleted;
+  }
+
   async listBankMovements(tenantId: string) {
     await this.ensureReady();
     return this.store.listBankMovements(tenantId);
@@ -316,6 +355,29 @@ export class PostgresApiRestStore implements ApiRestStorePort {
   async saveBankMovement(entry: import("@agendaai/contracts").BankMovement) {
     await this.ensureReady();
     const movement = this.store.saveBankMovement(entry);
+    await this.persistSnapshot();
+    return movement;
+  }
+
+  async createBankMovement(command: CreateBankMovementCommand) {
+    await this.ensureReady();
+    const movement = this.store.createBankMovement(command);
+    await this.persistSnapshot();
+    return movement;
+  }
+
+  async updateBankMovement(
+    tenantId: string,
+    movementId: string,
+    patch: Partial<
+      Pick<
+        import("@agendaai/contracts").BankMovement,
+        "tipo" | "bankIdOrigem" | "bankIdDestino" | "valor" | "historico" | "beneficiarioNome" | "dataMovimento"
+      >
+    >
+  ) {
+    await this.ensureReady();
+    const movement = this.store.updateBankMovement(tenantId, movementId, patch);
     await this.persistSnapshot();
     return movement;
   }
@@ -339,6 +401,30 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     const movement = this.store.transferBetweenBanks(command);
     await this.persistSnapshot();
     return movement;
+  }
+
+  async reverseBankMovement(command: ReverseBankMovementCommand) {
+    await this.ensureReady();
+    const movement = this.store.reverseBankMovement(command);
+    await this.persistSnapshot();
+    return movement;
+  }
+
+  async listCashCloses(tenantId: string) {
+    await this.ensureReady();
+    return this.store.listCashCloses(tenantId);
+  }
+
+  async listCashCloseItems(tenantId: string, cashCloseId: string) {
+    await this.ensureReady();
+    return this.store.listCashCloseItems(tenantId, cashCloseId);
+  }
+
+  async createCashClose(command: CreateCashCloseCommand) {
+    await this.ensureReady();
+    const result = this.store.createCashClose(command);
+    await this.persistSnapshot();
+    return result;
   }
 
   async getPaymentSettings(tenantId: string) {
@@ -591,13 +677,15 @@ export class PostgresApiRestStore implements ApiRestStorePort {
       [SNAPSHOT_KEY]
     );
 
-    const [reportDefinitions, banks, balances, revenues, expenses, movements] = await Promise.all([
+    const [reportDefinitions, banks, balances, revenues, expenses, movements, cashCloses, cashCloseItems] = await Promise.all([
       this.loadPersistedReportDefinitions(),
       this.loadPersistedBanks(),
       this.loadPersistedBankBalances(),
       this.loadPersistedRevenueSchedules(),
       this.loadPersistedExpenseSchedules(),
-      this.loadPersistedBankMovements()
+      this.loadPersistedBankMovements(),
+      this.loadPersistedCashCloses(),
+      this.loadPersistedCashCloseItems()
     ]);
     const mergedSnapshot = mergeSnapshotWithPersistedData(
       result.rows[0]?.payload,
@@ -606,7 +694,9 @@ export class PostgresApiRestStore implements ApiRestStorePort {
       balances,
       revenues,
       expenses,
-      movements
+      movements,
+      cashCloses,
+      cashCloseItems
     );
 
     this.store.restoreSnapshot(mergedSnapshot);
@@ -669,6 +759,22 @@ export class PostgresApiRestStore implements ApiRestStorePort {
       )
     `);
     await queryable.query(`
+      create table if not exists finance_cash_closes (
+        id text primary key,
+        tenant_id text not null,
+        cash_close jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await queryable.query(`
+      create table if not exists finance_cash_close_items (
+        id text primary key,
+        tenant_id text not null,
+        cash_close_item jsonb not null,
+        updated_at timestamptz not null default now()
+      )
+    `);
+    await queryable.query(`
       create index if not exists report_definitions_tenant_idx
         on report_definitions (tenant_id)
     `);
@@ -691,6 +797,14 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     await queryable.query(`
       create index if not exists finance_bank_movements_tenant_idx
         on finance_bank_movements (tenant_id)
+    `);
+    await queryable.query(`
+      create index if not exists finance_cash_closes_tenant_idx
+        on finance_cash_closes (tenant_id)
+    `);
+    await queryable.query(`
+      create index if not exists finance_cash_close_items_tenant_idx
+        on finance_cash_close_items (tenant_id)
     `);
   }
 
@@ -738,6 +852,20 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return result.rows.map((row) => row.movement);
   }
 
+  private async loadPersistedCashCloses(queryable: PostgresQueryable = this.pool) {
+    const result = await queryable.query<PostgresCashCloseRow>(
+      "select cash_close from finance_cash_closes order by updated_at asc, id asc"
+    );
+    return result.rows.map((row) => row.cash_close);
+  }
+
+  private async loadPersistedCashCloseItems(queryable: PostgresQueryable = this.pool) {
+    const result = await queryable.query<PostgresCashCloseItemRow>(
+      "select cash_close_item from finance_cash_close_items order by updated_at asc, id asc"
+    );
+    return result.rows.map((row) => row.cash_close_item);
+  }
+
   private async persistSnapshot(): Promise<void> {
     const snapshot = this.store.exportSnapshot();
     const nextPersist = this.persistQueue.catch(() => undefined).then(async () => {
@@ -752,6 +880,8 @@ export class PostgresApiRestStore implements ApiRestStorePort {
         const revenues = snapshot.revenueSchedules ?? [];
         const expenses = snapshot.expenseSchedules ?? [];
         const movements = snapshot.bankMovements ?? [];
+        const cashCloses = snapshot.cashCloses ?? [];
+        const cashCloseItems = snapshot.cashCloseItems ?? [];
         for (const definition of definitions) {
           await client.query(
             `
@@ -836,6 +966,34 @@ export class PostgresApiRestStore implements ApiRestStorePort {
             [movement.id, movement.tenantId, JSON.stringify(movement)]
           );
         }
+        for (const cashClose of cashCloses) {
+          await client.query(
+            `
+              insert into finance_cash_closes (id, tenant_id, cash_close, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    cash_close = excluded.cash_close,
+                    updated_at = excluded.updated_at
+            `,
+            [cashClose.id, cashClose.tenantId, JSON.stringify(cashClose)]
+          );
+        }
+        for (const cashCloseItem of cashCloseItems) {
+          await client.query(
+            `
+              insert into finance_cash_close_items (id, tenant_id, cash_close_item, updated_at)
+              values ($1, $2, $3::jsonb, now())
+              on conflict (id)
+              do update
+                set tenant_id = excluded.tenant_id,
+                    cash_close_item = excluded.cash_close_item,
+                    updated_at = excluded.updated_at
+            `,
+            [cashCloseItem.id, cashCloseItem.tenantId, JSON.stringify(cashCloseItem)]
+          );
+        }
 
         if (definitions.length === 0) {
           await client.query("delete from report_definitions");
@@ -849,6 +1007,8 @@ export class PostgresApiRestStore implements ApiRestStorePort {
         await deleteMissingRows(client, "finance_revenue_schedules", revenues.map((entry) => entry.id));
         await deleteMissingRows(client, "finance_expense_schedules", expenses.map((entry) => entry.id));
         await deleteMissingRows(client, "finance_bank_movements", movements.map((entry) => entry.id));
+        await deleteMissingRows(client, "finance_cash_closes", cashCloses.map((entry) => entry.id));
+        await deleteMissingRows(client, "finance_cash_close_items", cashCloseItems.map((entry) => entry.id));
 
         await client.query(
           `
@@ -893,6 +1053,8 @@ function emptySnapshot(): ApiRestStoreSnapshot {
     reportDefinitions: [],
     banks: [],
     bankBalances: [],
+    cashCloses: [],
+    cashCloseItems: [],
     revenueSchedules: [],
     expenseSchedules: [],
     bankMovements: [],
@@ -907,7 +1069,9 @@ function mergeSnapshotWithPersistedData(
   balances: import("@agendaai/contracts").BankBalance[],
   revenues: import("@agendaai/contracts").RevenueSchedule[],
   expenses: import("@agendaai/contracts").ExpenseSchedule[],
-  movements: import("@agendaai/contracts").BankMovement[]
+  movements: import("@agendaai/contracts").BankMovement[],
+  cashCloses: import("@agendaai/contracts").CashClose[],
+  cashCloseItems: import("@agendaai/contracts").CashCloseItem[]
 ): ApiRestStoreSnapshot {
   const baseSnapshot = snapshot
     ? {
@@ -915,6 +1079,8 @@ function mergeSnapshotWithPersistedData(
         reportDefinitions: [...(snapshot.reportDefinitions ?? [])],
         banks: [...(snapshot.banks ?? [])],
         bankBalances: [...(snapshot.bankBalances ?? [])],
+        cashCloses: [...(snapshot.cashCloses ?? [])],
+        cashCloseItems: [...(snapshot.cashCloseItems ?? [])],
         revenueSchedules: [...(snapshot.revenueSchedules ?? [])],
         expenseSchedules: [...(snapshot.expenseSchedules ?? [])],
         bankMovements: [...(snapshot.bankMovements ?? [])]
@@ -927,6 +1093,8 @@ function mergeSnapshotWithPersistedData(
       reportDefinitions.length > 0 ? reportDefinitions : (baseSnapshot.reportDefinitions ?? []),
     banks: banks.length > 0 ? banks : (baseSnapshot.banks ?? []),
     bankBalances: balances.length > 0 ? balances : (baseSnapshot.bankBalances ?? []),
+    cashCloses: cashCloses.length > 0 ? cashCloses : (baseSnapshot.cashCloses ?? []),
+    cashCloseItems: cashCloseItems.length > 0 ? cashCloseItems : (baseSnapshot.cashCloseItems ?? []),
     revenueSchedules: revenues.length > 0 ? revenues : (baseSnapshot.revenueSchedules ?? []),
     expenseSchedules: expenses.length > 0 ? expenses : (baseSnapshot.expenseSchedules ?? []),
     bankMovements: movements.length > 0 ? movements : (baseSnapshot.bankMovements ?? [])

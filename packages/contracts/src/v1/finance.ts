@@ -63,10 +63,18 @@ export const financialScheduleTypeSchema = z.enum(financialScheduleTypeValues);
 export const financialRecurrencePatternValues = ["semanal", "mensal"] as const;
 export const financialRecurrencePatternSchema = z.enum(financialRecurrencePatternValues);
 
-export const revenueScheduleOriginValues = ["manual", "booking", "pagamento"] as const;
+export const automaticSettlementValues = ["sim", "nao"] as const;
+export const automaticSettlementSchema = z.enum(automaticSettlementValues);
+
+export const installmentCounterSchema = z.object({
+  current: z.number().int().positive(),
+  total: z.number().int().positive()
+});
+
+export const revenueScheduleOriginValues = ["manual", "booking", "pagamento", "fechamento_caixa"] as const;
 export const revenueScheduleOriginSchema = z.enum(revenueScheduleOriginValues);
 
-export const revenueScheduleStatusValues = ["aberta", "recebida", "cancelada"] as const;
+export const revenueScheduleStatusValues = ["aberta", "recebida", "cancelada", "estornada"] as const;
 export const revenueScheduleStatusSchema = z.enum(revenueScheduleStatusValues);
 
 export const revenueScheduleSchema = contractEnvelopeSchema.extend({
@@ -82,6 +90,8 @@ export const revenueScheduleSchema = contractEnvelopeSchema.extend({
   diaSemanaVencimento: weekdayIndexSchema.optional(),
   status: revenueScheduleStatusSchema,
   origem: revenueScheduleOriginSchema,
+  bankId: entityIdSchema.optional(),
+  baixaAutomatica: automaticSettlementSchema,
   bookingId: entityIdSchema.optional(),
   clientId: entityIdSchema.optional(),
   serviceId: entityIdSchema.optional(),
@@ -90,6 +100,9 @@ export const revenueScheduleSchema = contractEnvelopeSchema.extend({
   grupoRecorrenciaId: entityIdSchema.optional(),
   ocorrenciaIndice: z.number().int().positive().optional(),
   ocorrenciaTotal: z.number().int().positive().optional(),
+  baixaMovementId: entityIdSchema.optional(),
+  estornoMovementId: entityIdSchema.optional(),
+  settledAt: dateTimeStringSchema.optional(),
   createdAt: dateTimeStringSchema,
   updatedAt: dateTimeStringSchema
 });
@@ -104,16 +117,18 @@ export const createRevenueScheduleSchema = contractEnvelopeSchema.extend({
   recorrencia: financialRecurrencePatternSchema.optional(),
   quantidadeOcorrencias: z.number().int().positive().optional(),
   diaSemanaVencimento: weekdayIndexSchema.optional(),
+  bankId: entityIdSchema.optional(),
+  baixaAutomatica: automaticSettlementSchema,
   bookingId: entityIdSchema.optional(),
   clientId: entityIdSchema.optional(),
   serviceId: entityIdSchema.optional(),
   professionalId: entityIdSchema.optional()
 });
 
-export const expenseScheduleOriginValues = ["manual"] as const;
+export const expenseScheduleOriginValues = ["manual", "fechamento_caixa"] as const;
 export const expenseScheduleOriginSchema = z.enum(expenseScheduleOriginValues);
 
-export const expenseScheduleStatusValues = ["aberta", "paga", "cancelada"] as const;
+export const expenseScheduleStatusValues = ["aberta", "paga", "cancelada", "estornada"] as const;
 export const expenseScheduleStatusSchema = z.enum(expenseScheduleStatusValues);
 
 export const expenseScheduleSchema = contractEnvelopeSchema.extend({
@@ -130,9 +145,14 @@ export const expenseScheduleSchema = contractEnvelopeSchema.extend({
   status: expenseScheduleStatusSchema,
   origem: expenseScheduleOriginSchema,
   beneficiarioNome: optionalTrimmedStringSchema,
+  bankId: entityIdSchema.optional(),
+  baixaAutomatica: automaticSettlementSchema,
   grupoRecorrenciaId: entityIdSchema.optional(),
   ocorrenciaIndice: z.number().int().positive().optional(),
   ocorrenciaTotal: z.number().int().positive().optional(),
+  baixaMovementId: entityIdSchema.optional(),
+  estornoMovementId: entityIdSchema.optional(),
+  settledAt: dateTimeStringSchema.optional(),
   createdAt: dateTimeStringSchema,
   updatedAt: dateTimeStringSchema
 });
@@ -147,22 +167,29 @@ export const createExpenseScheduleSchema = contractEnvelopeSchema.extend({
   recorrencia: financialRecurrencePatternSchema.optional(),
   quantidadeOcorrencias: z.number().int().positive().optional(),
   diaSemanaVencimento: weekdayIndexSchema.optional(),
-  beneficiarioNome: optionalTrimmedStringSchema
+  beneficiarioNome: optionalTrimmedStringSchema,
+  bankId: entityIdSchema.optional(),
+  baixaAutomatica: automaticSettlementSchema
 });
 
-export const bankMovementTypeValues = ["entrada", "saida", "transferencia"] as const;
+export const bankMovementTypeValues = ["entrada", "saida", "transferencia", "ajuste", "taxa", "estorno"] as const;
 export const bankMovementTypeSchema = z.enum(bankMovementTypeValues);
 
-export const bankMovementStatusValues = ["lancado", "cancelado"] as const;
+export const bankMovementStatusValues = ["previsto", "lancado", "estornado", "cancelado"] as const;
 export const bankMovementStatusSchema = z.enum(bankMovementStatusValues);
 
 export const bankMovementSourceTypeValues = [
   "manual_receipt",
   "manual_payment",
+  "manual_adjustment",
+  "fee",
   "transfer",
   "revenue_schedule",
   "expense_schedule",
-  "cash_entry"
+  "cash_entry",
+  "booking",
+  "cash_close",
+  "reversal"
 ] as const;
 export const bankMovementSourceTypeSchema = z.enum(bankMovementSourceTypeValues);
 
@@ -180,6 +207,7 @@ export const bankMovementSchema = contractEnvelopeSchema.extend({
   status: bankMovementStatusSchema,
   sourceType: bankMovementSourceTypeSchema,
   sourceId: entityIdSchema.optional(),
+  reversedMovementId: entityIdSchema.optional(),
   createdAt: dateTimeStringSchema,
   updatedAt: dateTimeStringSchema
 });
@@ -191,7 +219,8 @@ export const createBankReceiptSchema = contractEnvelopeSchema.extend({
   historico: nonEmptyStringSchema,
   dataMovimento: dateTimeStringSchema.optional(),
   revenueId: entityIdSchema.optional(),
-  cashEntryId: entityIdSchema.optional()
+  cashEntryId: entityIdSchema.optional(),
+  bookingId: entityIdSchema.optional()
 });
 
 export const createBankPaymentSchema = contractEnvelopeSchema.extend({
@@ -211,6 +240,70 @@ export const createBankTransferSchema = contractEnvelopeSchema.extend({
   valor: moneyAmountSchema,
   historico: nonEmptyStringSchema,
   dataMovimento: dateTimeStringSchema.optional()
+});
+
+export const createBankMovementSchema = contractEnvelopeSchema.extend({
+  tenantId: tenantIdSchema,
+  tipo: bankMovementTypeSchema,
+  bankIdOrigem: entityIdSchema.optional(),
+  bankIdDestino: entityIdSchema.optional(),
+  valor: moneyAmountSchema,
+  historico: nonEmptyStringSchema,
+  beneficiarioNome: optionalTrimmedStringSchema,
+  dataMovimento: dateTimeStringSchema.optional(),
+  sourceType: bankMovementSourceTypeSchema.optional()
+});
+
+export const reverseBankMovementSchema = contractEnvelopeSchema.extend({
+  tenantId: tenantIdSchema,
+  movementId: entityIdSchema,
+  historico: optionalTrimmedStringSchema,
+  dataMovimento: dateTimeStringSchema.optional()
+});
+
+export const cashCloseStatusValues = ["fechado", "estornado"] as const;
+export const cashCloseStatusSchema = z.enum(cashCloseStatusValues);
+
+export const cashCloseSchema = contractEnvelopeSchema.extend({
+  id: entityIdSchema,
+  tenantId: tenantIdSchema,
+  codigo: nonEmptyStringSchema,
+  bankId: entityIdSchema,
+  dateFrom: dateStringSchema,
+  dateTo: dateStringSchema,
+  totalEntradas: moneyAmountSchema,
+  totalSaidas: moneyAmountSchema,
+  saldoFechado: moneyAmountSchema,
+  status: cashCloseStatusSchema,
+  createdAt: dateTimeStringSchema,
+  updatedAt: dateTimeStringSchema
+});
+
+export const cashCloseItemDirectionValues = ["entrada", "saida"] as const;
+export const cashCloseItemDirectionSchema = z.enum(cashCloseItemDirectionValues);
+
+export const cashCloseItemSourceValues = ["revenue_schedule", "expense_schedule", "cash_entry", "booking"] as const;
+export const cashCloseItemSourceSchema = z.enum(cashCloseItemSourceValues);
+
+export const cashCloseItemSchema = contractEnvelopeSchema.extend({
+  id: entityIdSchema,
+  tenantId: tenantIdSchema,
+  cashCloseId: entityIdSchema,
+  sourceType: cashCloseItemSourceSchema,
+  sourceId: entityIdSchema,
+  tipo: cashCloseItemDirectionSchema,
+  descricao: nonEmptyStringSchema,
+  valor: moneyAmountSchema,
+  movementId: entityIdSchema,
+  createdAt: dateTimeStringSchema,
+  updatedAt: dateTimeStringSchema
+});
+
+export const createCashCloseSchema = contractEnvelopeSchema.extend({
+  tenantId: tenantIdSchema,
+  bankId: entityIdSchema,
+  dateFrom: dateStringSchema,
+  dateTo: dateStringSchema
 });
 
 export const financialRangeValues = ["7d", "30d", "all"] as const;
@@ -252,7 +345,10 @@ export const schedulePreviewSchema = z.object({
   dataVencimento: dateStringSchema,
   status: nonEmptyStringSchema,
   origem: nonEmptyStringSchema,
-  pessoa: optionalTrimmedStringSchema
+  pessoa: optionalTrimmedStringSchema,
+  bankId: entityIdSchema.optional(),
+  bankLabel: optionalTrimmedStringSchema,
+  parcela: installmentCounterSchema.optional()
 });
 
 export const bankMovementPreviewSchema = z.object({
@@ -264,7 +360,21 @@ export const bankMovementPreviewSchema = z.object({
   dataMovimento: dateTimeStringSchema,
   contaOrigem: optionalTrimmedStringSchema,
   contaDestino: optionalTrimmedStringSchema,
-  status: bankMovementStatusSchema
+  status: bankMovementStatusSchema,
+  origem: nonEmptyStringSchema.optional()
+});
+
+export const cashClosePreviewSchema = z.object({
+  id: entityIdSchema,
+  codigo: nonEmptyStringSchema,
+  bankId: entityIdSchema,
+  bankLabel: nonEmptyStringSchema,
+  dateFrom: dateStringSchema,
+  dateTo: dateStringSchema,
+  totalEntradas: moneyAmountSchema,
+  totalSaidas: moneyAmountSchema,
+  saldoFechado: moneyAmountSchema,
+  status: cashCloseStatusSchema
 });
 
 export const adminFinancialReadModelSchema = contractEnvelopeSchema.extend({
@@ -273,7 +383,8 @@ export const adminFinancialReadModelSchema = contractEnvelopeSchema.extend({
   bankAccounts: z.array(bankBalanceSnapshotSchema),
   receivables: z.array(schedulePreviewSchema),
   payables: z.array(schedulePreviewSchema),
-  recentMovements: z.array(bankMovementPreviewSchema)
+  recentMovements: z.array(bankMovementPreviewSchema),
+  recentClosings: z.array(cashClosePreviewSchema).optional()
 });
 
 export type Bank = z.infer<typeof bankSchema>;
@@ -282,6 +393,7 @@ export type BankBalance = z.infer<typeof bankBalanceSchema>;
 export type CreateBankBalanceCommand = z.infer<typeof createBankBalanceSchema>;
 export type FinancialScheduleType = z.infer<typeof financialScheduleTypeSchema>;
 export type FinancialRecurrencePattern = z.infer<typeof financialRecurrencePatternSchema>;
+export type AutomaticSettlement = z.infer<typeof automaticSettlementSchema>;
 export type RevenueSchedule = z.infer<typeof revenueScheduleSchema>;
 export type CreateRevenueScheduleCommand = z.infer<typeof createRevenueScheduleSchema>;
 export type RevenueScheduleOrigin = z.infer<typeof revenueScheduleOriginSchema>;
@@ -297,6 +409,12 @@ export type BankMovementSourceType = z.infer<typeof bankMovementSourceTypeSchema
 export type CreateBankReceiptCommand = z.infer<typeof createBankReceiptSchema>;
 export type CreateBankPaymentCommand = z.infer<typeof createBankPaymentSchema>;
 export type CreateBankTransferCommand = z.infer<typeof createBankTransferSchema>;
+export type CreateBankMovementCommand = z.infer<typeof createBankMovementSchema>;
+export type ReverseBankMovementCommand = z.infer<typeof reverseBankMovementSchema>;
+export type CashClose = z.infer<typeof cashCloseSchema>;
+export type CashCloseItem = z.infer<typeof cashCloseItemSchema>;
+export type CreateCashCloseCommand = z.infer<typeof createCashCloseSchema>;
+export type CashCloseStatus = z.infer<typeof cashCloseStatusSchema>;
 export type FinancialRange = z.infer<typeof financialRangeSchema>;
 export type FinancialSituation = z.infer<typeof financialSituationSchema>;
 export type FinancialFilters = z.infer<typeof financialFiltersSchema>;
@@ -304,4 +422,5 @@ export type FinancialSummaryMetric = z.infer<typeof financialSummaryMetricSchema
 export type BankBalanceSnapshot = z.infer<typeof bankBalanceSnapshotSchema>;
 export type SchedulePreview = z.infer<typeof schedulePreviewSchema>;
 export type BankMovementPreview = z.infer<typeof bankMovementPreviewSchema>;
+export type CashClosePreview = z.infer<typeof cashClosePreviewSchema>;
 export type AdminFinancialReadModel = z.infer<typeof adminFinancialReadModelSchema>;

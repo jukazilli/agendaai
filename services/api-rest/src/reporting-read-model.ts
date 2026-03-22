@@ -13,7 +13,7 @@ import {
   type Service
 } from "@agendaai/contracts";
 
-interface BuildAdminReportsReadModelInput extends ReportingFilters {
+export interface BuildAdminReportsReadModelInput extends ReportingFilters {
   readonly clients: readonly Client[];
   readonly bookings: readonly Booking[];
   readonly services: readonly Service[];

@@ -4,6 +4,7 @@ import type {
   Bank,
   BankBalance,
   BankMovement,
+  CashClose,
   ReportBuilderCatalog,
   ReportDefinition,
   ReportExecutionResponse,
@@ -54,6 +55,7 @@ export interface AdminBootstrapPayload {
   readonly revenueSchedules: RevenueSchedule[];
   readonly expenseSchedules: ExpenseSchedule[];
   readonly bankMovements: BankMovement[];
+  readonly cashCloses: CashClose[];
   readonly financialReadModel: AdminFinancialReadModel;
 }
 
@@ -173,6 +175,7 @@ export async function fetchAdminBootstrap(
     revenueSchedules,
     expenseSchedules,
     bankMovements,
+    cashCloses,
     financialReadModel
   ] =
     await Promise.all([
@@ -220,6 +223,14 @@ export async function fetchAdminBootstrap(
     requestJson<{ items: BankMovement[] }>(apiBaseUrl, "/v1/admin/bank-movements", {
       token
     }),
+    requestJson<{ items: CashClose[] }>(apiBaseUrl, "/v1/admin/cash-closes", {
+      token
+    }).catch((error) => {
+      if (error instanceof AdminApiError && error.status === 404) {
+        return { items: [] };
+      }
+      throw error;
+    }),
     fetchAdminFinancialReadModel(apiBaseUrl, token, {
       range: "30d",
       situation: "all"
@@ -240,6 +251,7 @@ export async function fetchAdminBootstrap(
     revenueSchedules: revenueSchedules.items,
     expenseSchedules: expenseSchedules.items,
     bankMovements: bankMovements.items,
+    cashCloses: cashCloses.items,
     financialReadModel
   };
 }
@@ -384,6 +396,17 @@ export async function updateBank(
   });
 }
 
+export async function deleteBank(
+  apiBaseUrl: string,
+  token: string,
+  bankId: string
+): Promise<void> {
+  await requestJson<void>(apiBaseUrl, `/v1/admin/banks/${bankId}`, {
+    method: "DELETE",
+    token
+  });
+}
+
 export async function createBankBalance(
   apiBaseUrl: string,
   token: string,
@@ -415,6 +438,17 @@ export async function updateBankBalance(
   });
 }
 
+export async function deleteBankBalance(
+  apiBaseUrl: string,
+  token: string,
+  balanceId: string
+): Promise<void> {
+  await requestJson<void>(apiBaseUrl, `/v1/admin/bank-balances/${balanceId}`, {
+    method: "DELETE",
+    token
+  });
+}
+
 export async function createRevenueSchedule(
   apiBaseUrl: string,
   token: string,
@@ -427,6 +461,8 @@ export async function createRevenueSchedule(
     recorrencia?: "semanal" | "mensal";
     quantidadeOcorrencias?: number;
     diaSemanaVencimento?: number;
+    bankId?: string;
+    baixaAutomatica: "sim" | "nao";
     bookingId?: string;
     clientId?: string;
     serviceId?: string;
@@ -457,6 +493,8 @@ export async function updateRevenueSchedule(
       | "quantidadeOcorrencias"
       | "diaSemanaVencimento"
       | "status"
+      | "bankId"
+      | "baixaAutomatica"
       | "bookingId"
       | "clientId"
       | "serviceId"
@@ -468,6 +506,17 @@ export async function updateRevenueSchedule(
     method: "PATCH",
     token,
     body: payload
+  });
+}
+
+export async function deleteRevenueSchedule(
+  apiBaseUrl: string,
+  token: string,
+  revenueId: string
+): Promise<void> {
+  await requestJson<void>(apiBaseUrl, `/v1/admin/revenues/${revenueId}`, {
+    method: "DELETE",
+    token
   });
 }
 
@@ -484,6 +533,8 @@ export async function createExpenseSchedule(
     quantidadeOcorrencias?: number;
     diaSemanaVencimento?: number;
     beneficiarioNome?: string;
+    bankId?: string;
+    baixaAutomatica: "sim" | "nao";
   }
 ): Promise<ExpenseSchedule[]> {
   const response = await requestJson<{ items: ExpenseSchedule[] }>(apiBaseUrl, "/v1/admin/expenses", {
@@ -511,10 +562,62 @@ export async function updateExpenseSchedule(
       | "diaSemanaVencimento"
       | "status"
       | "beneficiarioNome"
+      | "bankId"
+      | "baixaAutomatica"
     >
   >
 ): Promise<ExpenseSchedule> {
   return await requestJson<ExpenseSchedule>(apiBaseUrl, `/v1/admin/expenses/${expenseId}`, {
+    method: "PATCH",
+    token,
+    body: payload
+  });
+}
+
+export async function deleteExpenseSchedule(
+  apiBaseUrl: string,
+  token: string,
+  expenseId: string
+): Promise<void> {
+  await requestJson<void>(apiBaseUrl, `/v1/admin/expenses/${expenseId}`, {
+    method: "DELETE",
+    token
+  });
+}
+
+export async function createBankMovement(
+  apiBaseUrl: string,
+  token: string,
+  payload: {
+    tipo: BankMovement["tipo"];
+    bankIdOrigem?: string;
+    bankIdDestino?: string;
+    valor: number;
+    historico: string;
+    beneficiarioNome?: string;
+    dataMovimento?: string;
+    sourceType?: BankMovement["sourceType"];
+  }
+): Promise<BankMovement> {
+  return await requestJson<BankMovement>(apiBaseUrl, "/v1/admin/bank-movements", {
+    method: "POST",
+    token,
+    body: payload
+  });
+}
+
+export async function updateBankMovementRecord(
+  apiBaseUrl: string,
+  token: string,
+  movementId: string,
+  payload: Partial<
+    Pick<
+      BankMovement,
+      "tipo" | "bankIdOrigem" | "bankIdDestino" | "valor" | "historico" | "beneficiarioNome" | "dataMovimento"
+    >
+  >
+): Promise<BankMovement> {
+  return await requestJson<BankMovement>(apiBaseUrl, `/v1/admin/bank-movements/${movementId}`, {
     method: "PATCH",
     token,
     body: payload
@@ -571,6 +674,42 @@ export async function transferBankMovement(
   }
 ): Promise<BankMovement> {
   return await requestJson<BankMovement>(apiBaseUrl, "/v1/admin/bank-movements/transfer", {
+    method: "POST",
+    token,
+    body: payload
+  });
+}
+
+export async function reverseBankMovement(
+  apiBaseUrl: string,
+  token: string,
+  movementId: string,
+  payload?: {
+    historico?: string;
+    dataMovimento?: string;
+  }
+): Promise<BankMovement> {
+  return await requestJson<BankMovement>(apiBaseUrl, `/v1/admin/bank-movements/${movementId}/reverse`, {
+    method: "POST",
+    token,
+    body: payload ?? {}
+  });
+}
+
+export async function createCashClose(
+  apiBaseUrl: string,
+  token: string,
+  payload: {
+    bankId: string;
+    dateFrom: string;
+    dateTo: string;
+  }
+): Promise<{
+  cashClose: CashClose;
+  items: Array<unknown>;
+  movements: BankMovement[];
+}> {
+  return await requestJson(apiBaseUrl, "/v1/admin/cash-closes", {
     method: "POST",
     token,
     body: payload
@@ -672,6 +811,7 @@ export async function createProfessional(
   payload: {
     nome: string;
     especialidades: string[];
+    bankId?: string;
   }
 ): Promise<Professional> {
   return await requestJson<Professional>(apiBaseUrl, "/v1/admin/professionals", {
@@ -689,6 +829,7 @@ export async function updateProfessional(
     nome: string;
     status: string;
     especialidades: string[];
+    bankId?: string;
   }
 ): Promise<Professional> {
   return await requestJson<Professional>(

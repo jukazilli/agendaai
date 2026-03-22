@@ -10,7 +10,7 @@ import {
   type RevenueSchedule
 } from "@agendaai/contracts";
 
-interface BuildAdminFinancialReadModelInput extends FinancialFilters {
+export interface BuildAdminFinancialReadModelInput extends FinancialFilters {
   readonly banks: readonly Bank[];
   readonly balances: readonly BankBalance[];
   readonly revenues: readonly RevenueSchedule[];

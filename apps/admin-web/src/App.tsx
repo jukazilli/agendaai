@@ -51,6 +51,7 @@ import {
   type BankBalance,
   type BankMovement,
   type Booking,
+  type CashClose,
   type CashEntry,
   type Client,
   type CreateTenantCommand,
@@ -77,6 +78,8 @@ import {
   createBooking,
   createBank,
   createBankBalance,
+  createBankMovement,
+  createCashClose,
   createClient,
   createExpenseSchedule,
   createProfessional,
@@ -92,6 +95,11 @@ import {
   fetchProfessionalAvailability,
   listReportDefinitions,
   loginAdmin,
+  deleteBank,
+  deleteBankBalance,
+  deleteExpenseSchedule,
+  deleteRevenueSchedule,
+  reverseBankMovement,
   resolveAdminApiBaseUrl,
   savePaymentSettings,
   saveProfessionalAvailability,
@@ -102,6 +110,7 @@ import {
   updateBooking,
   updateBank,
   updateBankBalance,
+  updateBankMovementRecord,
   updateExpenseSchedule,
   deleteService,
   updateProfessional,
@@ -153,7 +162,14 @@ type AgendaViewMode = "day" | "week" | "month";
 type AgendaWorkspaceTab = "list" | "calendar";
 type DashboardRange = "7d" | "30d" | "all";
 type DashboardWorkspaceTab = "cashflow" | "agenda" | "radar";
-type FinanceWorkspaceTab = "cashflow" | "banks" | "balances" | "revenues" | "expenses" | "movements";
+type FinanceWorkspaceTab =
+  | "cashflow"
+  | "banks"
+  | "balances"
+  | "revenues"
+  | "expenses"
+  | "movements"
+  | "close";
 type FinancialSituationFilter = "all" | "aberto" | "baixado";
 type OperationalWorkspaceTab = "overview" | "pending" | "confirmed" | "completed" | "noshow";
 type ServiceWorkspaceMode = "browse" | "view" | "edit" | "new";
@@ -220,6 +236,7 @@ interface ProfessionalFormState {
   readonly nome: string;
   readonly status: ProfessionalStatus;
   readonly especialidades: string[];
+  readonly bankId: string;
 }
 
 interface AvailabilityDayState {
@@ -270,6 +287,8 @@ interface RevenueFormState {
   readonly recorrencia: "semanal" | "mensal";
   readonly quantidadeOcorrencias: string;
   readonly diaSemanaVencimento: string;
+  readonly bankId: string;
+  readonly baixaAutomatica: "sim" | "nao";
 }
 
 interface ExpenseFormState {
@@ -282,6 +301,8 @@ interface ExpenseFormState {
   readonly quantidadeOcorrencias: string;
   readonly diaSemanaVencimento: string;
   readonly beneficiarioNome: string;
+  readonly bankId: string;
+  readonly baixaAutomatica: "sim" | "nao";
 }
 
 interface ReceiveMovementFormState {
@@ -305,6 +326,72 @@ interface TransferMovementFormState {
   readonly valor: string;
   readonly historico: string;
   readonly dataMovimento: string;
+}
+
+interface ManualMovementFormState {
+  readonly tipo: Exclude<BankMovement["tipo"], "estorno">;
+  readonly bankIdOrigem: string;
+  readonly bankIdDestino: string;
+  readonly valor: string;
+  readonly historico: string;
+  readonly beneficiarioNome: string;
+  readonly dataMovimento: string;
+}
+
+interface CashCloseFormState {
+  readonly bankId: string;
+  readonly dateFrom: string;
+  readonly dateTo: string;
+}
+
+interface ReverseMovementFormState {
+  readonly historico: string;
+  readonly dataMovimento: string;
+}
+
+type FinanceDialogMode = "create" | "view" | "edit";
+
+interface FinanceBrowseFiltersState {
+  readonly cashflow: {
+    readonly range: DashboardRange;
+    readonly bankId: string;
+    readonly situation: FinancialSituationFilter;
+  };
+  readonly banks: {
+    readonly query: string;
+    readonly status: "all" | "active" | "inactive";
+  };
+  readonly balances: {
+    readonly query: string;
+    readonly bankId: string;
+  };
+  readonly revenues: {
+    readonly query: string;
+    readonly bankId: string;
+    readonly status: "all" | RevenueSchedule["status"];
+    readonly dateFrom: string;
+    readonly dateTo: string;
+  };
+  readonly expenses: {
+    readonly query: string;
+    readonly bankId: string;
+    readonly status: "all" | ExpenseSchedule["status"];
+    readonly dateFrom: string;
+    readonly dateTo: string;
+  };
+  readonly movements: {
+    readonly query: string;
+    readonly bankId: string;
+    readonly status: "all" | BankMovement["status"];
+    readonly dateFrom: string;
+    readonly dateTo: string;
+  };
+  readonly close: {
+    readonly bankId: string;
+    readonly dateFrom: string;
+    readonly dateTo: string;
+    readonly status: "all" | CashClose["status"];
+  };
 }
 
 interface ReportsWorkspaceItem {
@@ -713,7 +800,9 @@ const defaultRevenueForm: RevenueFormState = {
   tipo: "unica",
   recorrencia: "semanal",
   quantidadeOcorrencias: "1",
-  diaSemanaVencimento: String(new Date().getDay())
+  diaSemanaVencimento: String(new Date().getDay()),
+  bankId: "",
+  baixaAutomatica: "nao"
 };
 
 const defaultExpenseForm: ExpenseFormState = {
@@ -725,7 +814,9 @@ const defaultExpenseForm: ExpenseFormState = {
   recorrencia: "semanal",
   quantidadeOcorrencias: "1",
   diaSemanaVencimento: String(new Date().getDay()),
-  beneficiarioNome: ""
+  beneficiarioNome: "",
+  bankId: "",
+  baixaAutomatica: "nao"
 };
 
 const defaultReceiveMovementForm: ReceiveMovementFormState = {
@@ -749,6 +840,70 @@ const defaultTransferMovementForm: TransferMovementFormState = {
   valor: "0",
   historico: "",
   dataMovimento: new Date().toISOString().slice(0, 16)
+};
+
+const defaultManualMovementForm: ManualMovementFormState = {
+  tipo: "ajuste",
+  bankIdOrigem: "",
+  bankIdDestino: "",
+  valor: "0",
+  historico: "",
+  beneficiarioNome: "",
+  dataMovimento: new Date().toISOString().slice(0, 16)
+};
+
+const defaultCashCloseForm: CashCloseFormState = {
+  bankId: "",
+  dateFrom: formatDateInputValue(new Date()),
+  dateTo: formatDateInputValue(new Date())
+};
+
+const defaultReverseMovementForm: ReverseMovementFormState = {
+  historico: "",
+  dataMovimento: new Date().toISOString().slice(0, 16)
+};
+
+const defaultFinanceBrowseFilters: FinanceBrowseFiltersState = {
+  cashflow: {
+    range: "30d",
+    bankId: "all",
+    situation: "all"
+  },
+  banks: {
+    query: "",
+    status: "all"
+  },
+  balances: {
+    query: "",
+    bankId: "all"
+  },
+  revenues: {
+    query: "",
+    bankId: "all",
+    status: "all",
+    dateFrom: "",
+    dateTo: ""
+  },
+  expenses: {
+    query: "",
+    bankId: "all",
+    status: "all",
+    dateFrom: "",
+    dateTo: ""
+  },
+  movements: {
+    query: "",
+    bankId: "all",
+    status: "all",
+    dateFrom: "",
+    dateTo: ""
+  },
+  close: {
+    bankId: "all",
+    dateFrom: formatDateInputValue(new Date()),
+    dateTo: formatDateInputValue(new Date()),
+    status: "all"
+  }
 };
 
 const defaultServiceForm: ServiceFormState = {
@@ -1213,18 +1368,26 @@ export function App() {
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
   const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("cashflow");
   const [dashboardProfessionalFilter, setDashboardProfessionalFilter] = useState("all");
-  const [financialRange, setFinancialRange] = useState<DashboardRange>("30d");
-  const [financialSituation, setFinancialSituation] = useState<FinancialSituationFilter>("all");
-  const [financialBankFilter, setFinancialBankFilter] = useState("all");
+  const [financeBrowseFilters, setFinanceBrowseFilters] = useState<FinanceBrowseFiltersState>(
+    defaultFinanceBrowseFilters
+  );
   const [financialReadModel, setFinancialReadModel] = useState<AdminFinancialReadModel | null>(null);
   const [financeWorkspaceTab, setFinanceWorkspaceTab] = useState<FinanceWorkspaceTab>("cashflow");
   const [financeModal, setFinanceModal] = useState<
-    null | "bank" | "balance" | "revenue" | "expense" | "receive" | "pay" | "transfer"
+    null | "bank" | "balance" | "revenue" | "expense" | "receive" | "pay" | "transfer" | "movement" | "close"
   >(null);
+  const [financeModalMode, setFinanceModalMode] = useState<FinanceDialogMode>("create");
   const [editingBankId, setEditingBankId] = useState("");
   const [editingBalanceId, setEditingBalanceId] = useState("");
   const [editingRevenueId, setEditingRevenueId] = useState("");
   const [editingExpenseId, setEditingExpenseId] = useState("");
+  const [editingMovementId, setEditingMovementId] = useState("");
+  const [selectedBankId, setSelectedBankId] = useState("");
+  const [selectedBalanceId, setSelectedBalanceId] = useState("");
+  const [selectedRevenueId, setSelectedRevenueId] = useState("");
+  const [selectedExpenseId, setSelectedExpenseId] = useState("");
+  const [selectedMovementId, setSelectedMovementId] = useState("");
+  const [selectedCashCloseId, setSelectedCashCloseId] = useState("");
   const [bankForm, setBankForm] = useState<BankFormState>(defaultBankForm);
   const [bankBalanceForm, setBankBalanceForm] = useState<BankBalanceFormState>(defaultBankBalanceForm);
   const [revenueForm, setRevenueForm] = useState<RevenueFormState>(defaultRevenueForm);
@@ -1234,6 +1397,21 @@ export function App() {
   const [transferMovementForm, setTransferMovementForm] = useState<TransferMovementFormState>(
     defaultTransferMovementForm
   );
+  const [manualMovementForm, setManualMovementForm] = useState<ManualMovementFormState>(defaultManualMovementForm);
+  const [cashCloseForm, setCashCloseForm] = useState<CashCloseFormState>(defaultCashCloseForm);
+  const [reverseMovementForm, setReverseMovementForm] = useState<ReverseMovementFormState>(
+    defaultReverseMovementForm
+  );
+  const [deleteTarget, setDeleteTarget] = useState<
+    null | { readonly kind: "bank" | "balance" | "revenue" | "expense"; readonly id: string; readonly label: string }
+  >(null);
+  const [reverseTarget, setReverseTarget] = useState<
+    null | { readonly kind: "movement" | "agenda"; readonly movementId: string; readonly label: string }
+  >(null);
+  const [agendaSettlementTarget, setAgendaSettlementTarget] = useState<Booking | null>(null);
+  const [receiveTarget, setReceiveTarget] = useState<null | { readonly revenueId?: string; readonly cashEntryId?: string }>(null);
+  const [payTarget, setPayTarget] = useState<null | { readonly expenseId?: string }>(null);
+  const [isProfessionalBankLookupOpen, setIsProfessionalBankLookupOpen] = useState(false);
   const [operationalWorkspaceTab, setOperationalWorkspaceTab] =
     useState<OperationalWorkspaceTab>("overview");
   const [isShellContextOpen, setIsShellContextOpen] = useState(false);
@@ -1290,7 +1468,8 @@ export function App() {
   const [professionalForm, setProfessionalForm] = useState<ProfessionalFormState>({
     nome: "",
     status: "active",
-    especialidades: []
+    especialidades: [],
+    bankId: ""
   });
   const [availabilityDays, setAvailabilityDays] = useState<AvailabilityDayState[]>(
     createDefaultAvailabilityDays()
@@ -1321,6 +1500,24 @@ export function App() {
   const [isReportsFilterModalOpen, setIsReportsFilterModalOpen] = useState(false);
   const [reportsLookupFieldId, setReportsLookupFieldId] = useState<string | null>(null);
   const [reportsLookupQuery, setReportsLookupQuery] = useState("");
+  const financialRange = financeBrowseFilters.cashflow.range;
+  const financialSituation = financeBrowseFilters.cashflow.situation;
+  const financialBankFilter = financeBrowseFilters.cashflow.bankId;
+  const setFinancialRange = (range: DashboardRange) =>
+    setFinanceBrowseFilters((current) => ({
+      ...current,
+      cashflow: { ...current.cashflow, range }
+    }));
+  const setFinancialSituation = (situation: FinancialSituationFilter) =>
+    setFinanceBrowseFilters((current) => ({
+      ...current,
+      cashflow: { ...current.cashflow, situation }
+    }));
+  const setFinancialBankFilter = (bankId: string) =>
+    setFinanceBrowseFilters((current) => ({
+      ...current,
+      cashflow: { ...current.cashflow, bankId }
+    }));
   const [reportsCatalog, setReportsCatalog] = useState<ReportBuilderCatalog | null>(null);
   const [savedReportDefinitions, setSavedReportDefinitions] = useState<ReportDefinition[]>([]);
   const [reportBuilderTabs, setReportBuilderTabs] = useState<ReportsBuilderTabState[]>([]);
@@ -1681,13 +1878,15 @@ export function App() {
       setProfessionalForm({
         nome: professional.nome,
         status: professional.status,
-        especialidades: [...professional.especialidades]
+        especialidades: [...professional.especialidades],
+        bankId: professional.bankId ?? ""
       });
     } else if (!isCreatingProfessional) {
       setProfessionalForm({
         nome: "",
         status: "active",
-        especialidades: []
+        especialidades: [],
+        bankId: ""
       });
     }
   }, [
@@ -1786,7 +1985,14 @@ export function App() {
   const revenueSchedules = bootstrap?.revenueSchedules ?? [];
   const expenseSchedules = bootstrap?.expenseSchedules ?? [];
   const bankMovements = bootstrap?.bankMovements ?? [];
+  const cashCloses = bootstrap?.cashCloses ?? [];
   const activeFinancialReadModel = financialReadModel ?? bootstrap?.financialReadModel ?? null;
+  const selectedBank = banks.find((entry) => entry.id === selectedBankId);
+  const selectedBalance = bankBalances.find((entry) => entry.id === selectedBalanceId);
+  const selectedRevenue = revenueSchedules.find((entry) => entry.id === selectedRevenueId);
+  const selectedExpense = expenseSchedules.find((entry) => entry.id === selectedExpenseId);
+  const selectedMovement = bankMovements.find((entry) => entry.id === selectedMovementId);
+  const selectedCashClose = cashCloses.find((entry) => entry.id === selectedCashCloseId);
   const bookableServices = services.filter((service) => service.status === "active");
   const activeProfessionals = professionals.filter((professional) => {
     const normalizedStatus = professional.status.trim().toLowerCase();
@@ -1953,6 +2159,25 @@ export function App() {
     bookings.find((booking) => booking.id === selectedAgendaBookingId);
   const selectedAgendaPaymentIntent =
     paymentIntents.find((intent) => intent.bookingId === selectedAgendaBooking?.id);
+  const selectedAgendaCashEntry =
+    selectedAgendaBooking ?
+      cashEntries.find(
+        (entry) =>
+          entry.bookingId === selectedAgendaBooking.id &&
+          entry.kind === "recognized_revenue"
+      )
+    : undefined;
+  const selectedAgendaBankMovement =
+    selectedAgendaCashEntry ?
+      bankMovements.find(
+        (movement) =>
+          movement.sourceType === "cash_entry" &&
+          movement.sourceId === selectedAgendaCashEntry.id &&
+          movement.status !== "estornado" &&
+          movement.status !== "cancelado" &&
+          !movement.reversedMovementId
+      )
+    : undefined;
   const selectedClientInsight =
     filteredClientInsights.find((entry) => entry.client.id === selectedClientId) ??
     filteredClientInsights[0];
@@ -2113,6 +2338,84 @@ export function App() {
       setIsAgendaBookingModalOpen(false);
     }
   }, [isAgendaBookingModalOpen, selectedAgendaBooking]);
+
+  useEffect(() => {
+    if (!banks.length) {
+      if (selectedBankId) {
+        setSelectedBankId("");
+      }
+      return;
+    }
+
+    if (!selectedBankId || !banks.some((bank) => bank.id === selectedBankId)) {
+      setSelectedBankId(banks[0].id);
+    }
+  }, [banks, selectedBankId]);
+
+  useEffect(() => {
+    if (!bankBalances.length) {
+      if (selectedBalanceId) {
+        setSelectedBalanceId("");
+      }
+      return;
+    }
+
+    if (!selectedBalanceId || !bankBalances.some((balance) => balance.id === selectedBalanceId)) {
+      setSelectedBalanceId(bankBalances[0].id);
+    }
+  }, [bankBalances, selectedBalanceId]);
+
+  useEffect(() => {
+    if (!revenueSchedules.length) {
+      if (selectedRevenueId) {
+        setSelectedRevenueId("");
+      }
+      return;
+    }
+
+    if (!selectedRevenueId || !revenueSchedules.some((entry) => entry.id === selectedRevenueId)) {
+      setSelectedRevenueId(revenueSchedules[0].id);
+    }
+  }, [revenueSchedules, selectedRevenueId]);
+
+  useEffect(() => {
+    if (!expenseSchedules.length) {
+      if (selectedExpenseId) {
+        setSelectedExpenseId("");
+      }
+      return;
+    }
+
+    if (!selectedExpenseId || !expenseSchedules.some((entry) => entry.id === selectedExpenseId)) {
+      setSelectedExpenseId(expenseSchedules[0].id);
+    }
+  }, [expenseSchedules, selectedExpenseId]);
+
+  useEffect(() => {
+    if (!bankMovements.length) {
+      if (selectedMovementId) {
+        setSelectedMovementId("");
+      }
+      return;
+    }
+
+    if (!selectedMovementId || !bankMovements.some((entry) => entry.id === selectedMovementId)) {
+      setSelectedMovementId(bankMovements[0].id);
+    }
+  }, [bankMovements, selectedMovementId]);
+
+  useEffect(() => {
+    if (!cashCloses.length) {
+      if (selectedCashCloseId) {
+        setSelectedCashCloseId("");
+      }
+      return;
+    }
+
+    if (!selectedCashCloseId || !cashCloses.some((entry) => entry.id === selectedCashCloseId)) {
+      setSelectedCashCloseId(cashCloses[0].id);
+    }
+  }, [cashCloses, selectedCashCloseId]);
 
   useEffect(() => {
     if (!selectedAgendaBooking || !sessionToken) {
@@ -2310,13 +2613,19 @@ export function App() {
 
   function closeFinanceModal(): void {
     setFinanceModal(null);
+    setFinanceModalMode("create");
     setEditingBankId("");
     setEditingBalanceId("");
     setEditingRevenueId("");
     setEditingExpenseId("");
+    setEditingMovementId("");
+    setAgendaSettlementTarget(null);
+    setReceiveTarget(null);
+    setPayTarget(null);
   }
 
-  function openBankModal(bank?: Bank): void {
+  function openBankModal(bank?: Bank, mode: FinanceDialogMode = bank ? "edit" : "create"): void {
+    setFinanceModalMode(mode);
     setEditingBankId(bank?.id ?? "");
     setBankForm(
       bank
@@ -2333,7 +2642,11 @@ export function App() {
     setFinanceModal("bank");
   }
 
-  function openBankBalanceModal(balance?: BankBalance): void {
+  function openBankBalanceModal(
+    balance?: BankBalance,
+    mode: FinanceDialogMode = balance ? "edit" : "create"
+  ): void {
+    setFinanceModalMode(mode);
     setEditingBalanceId(balance?.id ?? "");
     setBankBalanceForm(
       balance
@@ -2352,7 +2665,11 @@ export function App() {
     setFinanceModal("balance");
   }
 
-  function openRevenueModal(revenue?: RevenueSchedule): void {
+  function openRevenueModal(
+    revenue?: RevenueSchedule,
+    mode: FinanceDialogMode = revenue ? "edit" : "create"
+  ): void {
+    setFinanceModalMode(mode);
     setEditingRevenueId(revenue?.id ?? "");
     setRevenueForm(
       revenue
@@ -2364,14 +2681,20 @@ export function App() {
             tipo: revenue.tipo,
             recorrencia: revenue.recorrencia ?? "semanal",
             quantidadeOcorrencias: String(revenue.quantidadeOcorrencias ?? 1),
-            diaSemanaVencimento: String(revenue.diaSemanaVencimento ?? new Date().getDay())
+            diaSemanaVencimento: String(revenue.diaSemanaVencimento ?? new Date().getDay()),
+            bankId: revenue.bankId ?? "",
+            baixaAutomatica: revenue.baixaAutomatica ?? "nao"
           }
         : defaultRevenueForm
     );
     setFinanceModal("revenue");
   }
 
-  function openExpenseModal(expense?: ExpenseSchedule): void {
+  function openExpenseModal(
+    expense?: ExpenseSchedule,
+    mode: FinanceDialogMode = expense ? "edit" : "create"
+  ): void {
+    setFinanceModalMode(mode);
     setEditingExpenseId(expense?.id ?? "");
     setExpenseForm(
       expense
@@ -2384,7 +2707,9 @@ export function App() {
             recorrencia: expense.recorrencia ?? "semanal",
             quantidadeOcorrencias: String(expense.quantidadeOcorrencias ?? 1),
             diaSemanaVencimento: String(expense.diaSemanaVencimento ?? new Date().getDay()),
-            beneficiarioNome: expense.beneficiarioNome ?? ""
+            beneficiarioNome: expense.beneficiarioNome ?? "",
+            bankId: expense.bankId ?? "",
+            baixaAutomatica: expense.baixaAutomatica ?? "nao"
           }
         : defaultExpenseForm
     );
@@ -2392,6 +2717,9 @@ export function App() {
   }
 
   function openReceiveModal(): void {
+    setFinanceModalMode("create");
+    setReceiveTarget(null);
+    setAgendaSettlementTarget(null);
     setReceiveMovementForm({
       ...defaultReceiveMovementForm,
       bankIdDestino: banks[0]?.id ?? ""
@@ -2400,6 +2728,8 @@ export function App() {
   }
 
   function openPayModal(): void {
+    setFinanceModalMode("create");
+    setPayTarget(null);
     setPayMovementForm({
       ...defaultPayMovementForm,
       bankIdOrigem: banks[0]?.id ?? ""
@@ -2408,12 +2738,57 @@ export function App() {
   }
 
   function openTransferModal(): void {
+    setFinanceModalMode("create");
     setTransferMovementForm({
       ...defaultTransferMovementForm,
       bankIdOrigem: banks[0]?.id ?? "",
       bankIdDestino: banks[1]?.id ?? banks[0]?.id ?? ""
     });
     setFinanceModal("transfer");
+  }
+
+  function openManualMovementModal(
+    movement?: BankMovement,
+    mode: FinanceDialogMode = movement ? "edit" : "create"
+  ): void {
+    setFinanceModalMode(mode);
+    setReceiveTarget(null);
+    setPayTarget(null);
+    setAgendaSettlementTarget(null);
+    setEditingMovementId(movement?.id ?? "");
+    setManualMovementForm(
+      movement
+        ? {
+            tipo: movement.tipo === "estorno" ? "ajuste" : movement.tipo,
+            bankIdOrigem: movement.bankIdOrigem ?? "",
+            bankIdDestino: movement.bankIdDestino ?? "",
+            valor: String(movement.valor),
+            historico: movement.historico,
+            beneficiarioNome: movement.beneficiarioNome ?? "",
+            dataMovimento: movement.dataMovimento.slice(0, 16)
+          }
+        : {
+            ...defaultManualMovementForm,
+            bankIdOrigem: banks[0]?.id ?? "",
+            bankIdDestino: banks[1]?.id ?? banks[0]?.id ?? ""
+          }
+    );
+    setFinanceModal("movement");
+  }
+
+  function openCashCloseModal(
+    cashClose?: CashClose,
+    mode: FinanceDialogMode = cashClose ? "view" : "create"
+  ): void {
+    setFinanceModalMode(mode);
+    setCashCloseForm({
+      bankId:
+        cashClose?.bankId ??
+        (financeBrowseFilters.close.bankId !== "all" ? financeBrowseFilters.close.bankId : banks[0]?.id ?? ""),
+      dateFrom: cashClose?.dateFrom ?? financeBrowseFilters.close.dateFrom,
+      dateTo: cashClose?.dateTo ?? financeBrowseFilters.close.dateTo
+    });
+    setFinanceModal("close");
   }
 
   async function handleSaveBank(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -2482,7 +2857,9 @@ export function App() {
         quantidadeOcorrencias:
           revenueForm.tipo === "recorrente" ? Number(revenueForm.quantidadeOcorrencias) : undefined,
         diaSemanaVencimento:
-          revenueForm.tipo === "recorrente" ? Number(revenueForm.diaSemanaVencimento) : undefined
+          revenueForm.tipo === "recorrente" ? Number(revenueForm.diaSemanaVencimento) : undefined,
+        bankId: revenueForm.bankId || undefined,
+        baixaAutomatica: revenueForm.baixaAutomatica
       };
       if (editingRevenueId) {
         await updateRevenueSchedule(apiBaseUrl, sessionToken, editingRevenueId, payload);
@@ -2509,7 +2886,9 @@ export function App() {
           expenseForm.tipo === "recorrente" ? Number(expenseForm.quantidadeOcorrencias) : undefined,
         diaSemanaVencimento:
           expenseForm.tipo === "recorrente" ? Number(expenseForm.diaSemanaVencimento) : undefined,
-        beneficiarioNome: expenseForm.beneficiarioNome || undefined
+        beneficiarioNome: expenseForm.beneficiarioNome || undefined,
+        bankId: expenseForm.bankId || undefined,
+        baixaAutomatica: expenseForm.baixaAutomatica
       };
       if (editingExpenseId) {
         await updateExpenseSchedule(apiBaseUrl, sessionToken, editingExpenseId, payload);
@@ -2529,7 +2908,9 @@ export function App() {
         bankIdDestino: receiveMovementForm.bankIdDestino,
         valor: Number(receiveMovementForm.valor),
         historico: receiveMovementForm.historico,
-        dataMovimento: new Date(receiveMovementForm.dataMovimento).toISOString()
+        dataMovimento: new Date(receiveMovementForm.dataMovimento).toISOString(),
+        revenueId: receiveTarget?.revenueId,
+        cashEntryId: receiveTarget?.cashEntryId
       });
       await refreshAdminState();
       closeFinanceModal();
@@ -2545,7 +2926,8 @@ export function App() {
         valor: Number(payMovementForm.valor),
         historico: payMovementForm.historico,
         dataMovimento: new Date(payMovementForm.dataMovimento).toISOString(),
-        beneficiarioNome: payMovementForm.beneficiarioNome || undefined
+        beneficiarioNome: payMovementForm.beneficiarioNome || undefined,
+        expenseId: payTarget?.expenseId
       });
       await refreshAdminState();
       closeFinanceModal();
@@ -2566,6 +2948,94 @@ export function App() {
       await refreshAdminState();
       closeFinanceModal();
       setFeedback({ tone: "success", message: "Transferencia lancada." });
+    });
+  }
+
+  async function handleSaveManualMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      const payload = {
+        tipo: manualMovementForm.tipo,
+        bankIdOrigem: manualMovementForm.bankIdOrigem || undefined,
+        bankIdDestino: manualMovementForm.bankIdDestino || undefined,
+        valor: Number(manualMovementForm.valor),
+        historico: manualMovementForm.historico,
+        beneficiarioNome: manualMovementForm.beneficiarioNome || undefined,
+        dataMovimento: new Date(manualMovementForm.dataMovimento).toISOString()
+      };
+
+      if (editingMovementId) {
+        await updateBankMovementRecord(apiBaseUrl, sessionToken, editingMovementId, payload);
+      } else {
+        await createBankMovement(apiBaseUrl, sessionToken, payload);
+      }
+
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({
+        tone: "success",
+        message: editingMovementId ? "Movimento atualizado." : "Movimento incluido."
+      });
+    });
+  }
+
+  async function handleReverseMovement(): Promise<void> {
+    if (!reverseTarget) {
+      return;
+    }
+
+    await runAction(async () => {
+      await reverseBankMovement(apiBaseUrl, sessionToken, reverseTarget.movementId, {
+        historico: reverseMovementForm.historico || undefined,
+        dataMovimento: reverseMovementForm.dataMovimento
+          ? new Date(reverseMovementForm.dataMovimento).toISOString()
+          : undefined
+      });
+      await refreshAdminState();
+      setReverseTarget(null);
+      setReverseMovementForm(defaultReverseMovementForm);
+      setFeedback({ tone: "success", message: "Estorno registrado com movimento inverso." });
+    });
+  }
+
+  async function handleDeleteFinanceRecord(): Promise<void> {
+    if (!deleteTarget) {
+      return;
+    }
+
+    await runAction(async () => {
+      switch (deleteTarget.kind) {
+        case "bank":
+          await deleteBank(apiBaseUrl, sessionToken, deleteTarget.id);
+          setSelectedBankId("");
+          break;
+        case "balance":
+          await deleteBankBalance(apiBaseUrl, sessionToken, deleteTarget.id);
+          setSelectedBalanceId("");
+          break;
+        case "revenue":
+          await deleteRevenueSchedule(apiBaseUrl, sessionToken, deleteTarget.id);
+          setSelectedRevenueId("");
+          break;
+        case "expense":
+          await deleteExpenseSchedule(apiBaseUrl, sessionToken, deleteTarget.id);
+          setSelectedExpenseId("");
+          break;
+      }
+
+      await refreshAdminState();
+      setDeleteTarget(null);
+      setFeedback({ tone: "success", message: "Registro removido." });
+    });
+  }
+
+  async function handleCreateCashClose(event: FormEvent<HTMLFormElement>): Promise<void> {
+    event.preventDefault();
+    await runAction(async () => {
+      await createCashClose(apiBaseUrl, sessionToken, cashCloseForm);
+      await refreshAdminState();
+      closeFinanceModal();
+      setFeedback({ tone: "success", message: "Fechamento de caixa concluido." });
     });
   }
 
@@ -2678,11 +3148,13 @@ export function App() {
           await updateProfessional(apiBaseUrl, sessionToken, selectedProfessionalId, {
             nome: professionalForm.nome.trim(),
             status: professionalForm.status,
-            especialidades: [...professionalForm.especialidades]
+            especialidades: [...professionalForm.especialidades],
+            bankId: professionalForm.bankId || undefined
           })
         : await createProfessional(apiBaseUrl, sessionToken, {
             nome: professionalForm.nome.trim(),
-            especialidades: [...professionalForm.especialidades]
+            especialidades: [...professionalForm.especialidades],
+            bankId: professionalForm.bankId || undefined
           });
       setIsCreatingProfessional(false);
       setSelectedProfessionalId(professional.id);
@@ -3323,7 +3795,8 @@ export function App() {
       setProfessionalForm({
         nome: "",
         status: "active",
-        especialidades: []
+        especialidades: [],
+        bankId: ""
       });
       setAvailabilityDays(createDefaultAvailabilityDays());
     }
@@ -4218,168 +4691,236 @@ export function App() {
     const linkedServicesPreview = linkedServiceNames.length ?
       linkedServiceNames.slice(0, 2).join(" | ")
     : "Sem especialidades ainda";
+    const selectedProfessionalBank =
+      banks.find((bank) => bank.id === professionalForm.bankId || bank.id === selectedProfessional?.bankId) ?? null;
 
     return (
-      <div className="professionals-detail-stack">
-        <DocumentHeader
-          fields={[
-            {
-              id: "professional-code",
-              label: "Codigo",
-              value: selectedProfessional?.codigo ?? "Novo cadastro"
-            },
-            {
-              id: "professional-name",
-              label: "Nome",
-              value: professionalForm.nome || selectedProfessional?.nome || "Novo profissional"
-            },
-            {
-              id: "professional-status",
-              label: "Status",
-              value: formatProfessionalStatus(professionalForm.status)
-            },
-            {
-              id: "professional-services",
-              label: "Servicos vinculados",
-              value: `${linkedServiceNames.length}`
-            },
-            {
-              id: "professional-availability",
-              label: "Disponibilidade",
-              value: availabilitySummary
-            }
-          ]}
-        />
+      <>
+        <div className="professionals-detail-stack">
+          <DocumentHeader
+            fields={[
+              {
+                id: "professional-code",
+                label: "Codigo",
+                value: selectedProfessional?.codigo ?? "Novo cadastro"
+              },
+              {
+                id: "professional-name",
+                label: "Nome",
+                value: professionalForm.nome || selectedProfessional?.nome || "Novo profissional"
+              },
+              {
+                id: "professional-status",
+                label: "Status",
+                value: formatProfessionalStatus(professionalForm.status)
+              },
+              {
+                id: "professional-services",
+                label: "Servicos vinculados",
+                value: `${linkedServiceNames.length}`
+              },
+              {
+                id: "professional-bank",
+                label: "Banco padrao",
+                value: selectedProfessionalBank?.nomeBanco ?? "Nao definido"
+              },
+              {
+                id: "professional-availability",
+                label: "Disponibilidade",
+                value: availabilitySummary
+              }
+            ]}
+          />
 
-        <div aria-label="Detalhe do profissional" className="dashboard-tabbar professional-detail-tabbar" role="tablist">
-          <button
-            aria-selected={professionalWorkspaceMode === "profile"}
-            className={professionalWorkspaceMode === "profile" ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
-            onClick={() => setProfessionalWorkspaceMode("profile")}
-            role="tab"
-            type="button"
-          >
-            Cadastro e servicos
-          </button>
-          <button
-            aria-selected={false}
-            className="dashboard-tab-button"
-            disabled={!selectedProfessionalId}
-            onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
-            role="tab"
-            type="button"
-          >
-            Horarios
-          </button>
+          <div aria-label="Detalhe do profissional" className="dashboard-tabbar professional-detail-tabbar" role="tablist">
+            <button
+              aria-selected={professionalWorkspaceMode === "profile"}
+              className={professionalWorkspaceMode === "profile" ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+              onClick={() => setProfessionalWorkspaceMode("profile")}
+              role="tab"
+              type="button"
+            >
+              Cadastro e servicos
+            </button>
+            <button
+              aria-selected={false}
+              className="dashboard-tab-button"
+              disabled={!selectedProfessionalId}
+              onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
+              role="tab"
+              type="button"
+            >
+              Horarios
+            </button>
+          </div>
+
+          <form className="professional-editor-form professional-master-detail-form" id={formId} onSubmit={handleSaveProfessional}>
+            <EntitySection
+              title="Cadastro base"
+              description="Dados principais do profissional selecionado."
+            >
+              <div className="professional-editor-grid">
+                <label className="field">
+                  <span>Nome</span>
+                  <input
+                    required
+                    type="text"
+                    value={professionalForm.nome}
+                    onChange={(event) =>
+                      setProfessionalForm({ ...professionalForm, nome: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Status</span>
+                  <select
+                    value={professionalForm.status}
+                    onChange={(event) =>
+                      setProfessionalForm({
+                        ...professionalForm,
+                        status: event.target.value as ProfessionalStatus
+                      })
+                    }
+                  >
+                    {professionalStatusValues.map((status) => (
+                      <option key={status} value={status}>
+                        {formatProfessionalStatus(status)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field field-wide">
+                  <span>Banco padrao</span>
+                  <div className="lookup-inline-field">
+                    <input
+                      readOnly
+                      type="text"
+                      value={
+                        selectedProfessionalBank
+                          ? `${selectedProfessionalBank.codigo} | ${selectedProfessionalBank.nomeBanco} ${selectedProfessionalBank.agencia}/${selectedProfessionalBank.conta}`
+                          : "Sem banco vinculado"
+                      }
+                    />
+                    <button className="secondary-button" onClick={() => setIsProfessionalBankLookupOpen(true)} type="button">
+                      Buscar
+                    </button>
+                    <button
+                      className="secondary-button"
+                      disabled={!professionalForm.bankId}
+                      onClick={() => setProfessionalForm((current) => ({ ...current, bankId: "" }))}
+                      type="button"
+                    >
+                      Limpar
+                    </button>
+                  </div>
+                </label>
+              </div>
+            </EntitySection>
+
+            <EntitySection
+              title="Servicos vinculados"
+              description="Relacione os servicos que esse profissional pode atender."
+            >
+              <fieldset className="professional-services-fieldset">
+                <legend>Servicos vinculados</legend>
+                {services.length ? (
+                  <div className="professional-services-grid">
+                    {services.map((service) => (
+                      <label className="professional-service-option" key={service.id}>
+                        <input
+                          checked={professionalForm.especialidades.includes(service.id)}
+                          type="checkbox"
+                          onChange={() =>
+                            setProfessionalForm({
+                              ...professionalForm,
+                              especialidades: toggleArrayValue(
+                                professionalForm.especialidades,
+                                service.id
+                              )
+                            })
+                          }
+                        />
+                        <div>
+                          <strong>{service.codigo} | {service.nome}</strong>
+                          <span>
+                            {formatMinutesAsHours(service.duracaoMin)} | {formatCurrency(service.precoBase)}
+                          </span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
+                )}
+              </fieldset>
+            </EntitySection>
+
+            <div className="professional-editor-footer">
+              <div className="professional-editor-summary">
+                <span>{linkedServiceNames.length} servico(s) vinculado(s)</span>
+                <span>{linkedServicesPreview}</span>
+              </div>
+              <div className="button-row">
+                {!isCreatingProfessional && selectedProfessionalId ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                    type="button"
+                  >
+                    Ver agenda
+                  </button>
+                ) : null}
+                {!isCreatingProfessional && selectedProfessionalId ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
+                    type="button"
+                  >
+                    Horarios
+                  </button>
+                ) : null}
+                <button className="primary-button" disabled={isBusy} form={formId} type="submit">
+                  {isCreatingProfessional ? "Criar profissional" : "Salvar profissional"}
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
 
-        <form className="professional-editor-form professional-master-detail-form" id={formId} onSubmit={handleSaveProfessional}>
-          <EntitySection
-            title="Cadastro base"
-            description="Dados principais do profissional selecionado."
+        {isProfessionalBankLookupOpen ? (
+          <WorkspaceRecordModal
+            subtitle="Selecione o banco padrao do profissional."
+            title="Banco padrao"
+            onClose={() => setIsProfessionalBankLookupOpen(false)}
           >
-            <div className="professional-editor-grid">
-              <label className="field">
-                <span>Nome</span>
-                <input
-                  required
-                  type="text"
-                  value={professionalForm.nome}
-                  onChange={(event) =>
-                    setProfessionalForm({ ...professionalForm, nome: event.target.value })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Status</span>
-                <select
-                  value={professionalForm.status}
-                  onChange={(event) =>
-                    setProfessionalForm({
-                      ...professionalForm,
-                      status: event.target.value as ProfessionalStatus
-                    })
-                  }
-                >
-                  {professionalStatusValues.map((status) => (
-                    <option key={status} value={status}>
-                      {formatProfessionalStatus(status)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          </EntitySection>
-
-          <EntitySection
-            title="Servicos vinculados"
-            description="Relacione os servicos que esse profissional pode atender."
-          >
-            <fieldset className="professional-services-fieldset">
-              <legend>Servicos vinculados</legend>
-              {services.length ? (
-                <div className="professional-services-grid">
-                  {services.map((service) => (
-                    <label className="professional-service-option" key={service.id}>
-                      <input
-                        checked={professionalForm.especialidades.includes(service.id)}
-                        type="checkbox"
-                        onChange={() =>
-                          setProfessionalForm({
-                            ...professionalForm,
-                            especialidades: toggleArrayValue(
-                              professionalForm.especialidades,
-                              service.id
-                            )
-                          })
-                        }
-                      />
-                      <div>
-                        <strong>{service.codigo} | {service.nome}</strong>
-                        <span>
-                          {formatMinutesAsHours(service.duracaoMin)} | {formatCurrency(service.precoBase)}
-                        </span>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              ) : (
-                <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
+            <div className="stack-form">
+              {renderFinanceBrowseTable(
+                [
+                  { key: "codigo", label: "Codigo" },
+                  { key: "banco", label: "Banco" },
+                  { key: "bacen", label: "BACEN" },
+                  { key: "conta", label: "Agencia / Conta" }
+                ],
+                banks.map((bank) => ({
+                  id: bank.id,
+                  selected: bank.id === professionalForm.bankId,
+                  onClick: () => {
+                    setProfessionalForm((current) => ({ ...current, bankId: bank.id }));
+                    setIsProfessionalBankLookupOpen(false);
+                  },
+                  cells: [
+                    { key: "codigo", value: bank.codigo },
+                    { key: "banco", value: bank.nomeBanco },
+                    { key: "bacen", value: bank.bacenCode },
+                    { key: "conta", value: `${bank.agencia}/${bank.conta}` }
+                  ]
+                })),
+                "Nenhum banco disponivel."
               )}
-            </fieldset>
-          </EntitySection>
-
-          <div className="professional-editor-footer">
-            <div className="professional-editor-summary">
-              <span>{linkedServiceNames.length} servico(s) vinculado(s)</span>
-              <span>{linkedServicesPreview}</span>
             </div>
-            <div className="button-row">
-              {!isCreatingProfessional && selectedProfessionalId ? (
-                <button
-                  className="secondary-button"
-                  onClick={() => openProfessionalAgenda(selectedProfessionalId)}
-                  type="button"
-                >
-                  Ver agenda
-                </button>
-              ) : null}
-              {!isCreatingProfessional && selectedProfessionalId ? (
-                <button
-                  className="secondary-button"
-                  onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
-                  type="button"
-                >
-                  Horarios
-                </button>
-              ) : null}
-              <button className="primary-button" disabled={isBusy} form={formId} type="submit">
-                {isCreatingProfessional ? "Criar profissional" : "Salvar profissional"}
-              </button>
-            </div>
-          </div>
-        </form>
-      </div>
+          </WorkspaceRecordModal>
+        ) : null}
+      </>
     );
 
   }
@@ -4673,6 +5214,14 @@ export function App() {
       { id: "completed", label: "Concluidos", icon: Check, count: completedDayBookings.length },
       { id: "noshow", label: "No-show", icon: XCircle, count: noShowDayBookings.length }
     ];
+    const selectedOperationalProfessional = selectedAgendaBooking ?
+      professionals.find((professional) => professional.id === selectedAgendaBooking.professionalId)
+    : undefined;
+    const selectedOperationalService = selectedAgendaBooking ?
+      services.find((service) => service.id === selectedAgendaBooking.serviceId)
+    : undefined;
+    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry);
+    const canReverseSelectedBooking = Boolean(selectedAgendaBankMovement);
 
     const renderOperationalStatusBadge = (booking: Booking): JSX.Element => {
       if (booking.status === "concluido") {
@@ -4736,12 +5285,17 @@ export function App() {
                 className={[
                   "record-card",
                   "operational-record-card",
+                  booking.id === selectedAgendaBookingId ? "is-selected" : "",
                   booking.status === "concluido" ? "is-muted" : "",
                   booking.status === "faltou" ? "is-danger" : ""
                 ]
                   .filter(Boolean)
                   .join(" ")}
                 key={booking.id}
+                onClick={() => {
+                  setSelectedAgendaBookingId(booking.id);
+                  setRescheduleDate(extractDatePart(booking.startAt));
+                }}
               >
                 <div className="record-card-header operational-record-heading">
                   <div className="record-stack operational-record-copy">
@@ -4852,6 +5406,55 @@ export function App() {
               </select>
             </label>
 
+            <button
+              className="secondary-button"
+              disabled={!selectedAgendaBooking}
+              onClick={() => selectedAgendaBooking ? handleOpenAgendaBooking(selectedAgendaBooking) : undefined}
+              type="button"
+            >
+              Visualizar
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!canReceiveSelectedBooking}
+              onClick={() => {
+                if (!selectedAgendaBooking || !selectedAgendaCashEntry) {
+                  return;
+                }
+
+                setAgendaSettlementTarget(selectedAgendaBooking);
+                setReceiveTarget({ cashEntryId: selectedAgendaCashEntry.id });
+                setFinanceModalMode("create");
+                setReceiveMovementForm({
+                  bankIdDestino: selectedOperationalProfessional?.bankId ?? "",
+                  valor: String(resolveRecognizedRevenueAmount(selectedAgendaBooking, services, cashEntries)),
+                  historico: `Recebimento ${selectedAgendaBooking.id.slice(-8).toUpperCase()} | ${selectedOperationalService?.nome ?? "Atendimento"}`,
+                  dataMovimento: new Date().toISOString().slice(0, 16)
+                });
+                setFinanceModal("receive");
+              }}
+              type="button"
+            >
+              Receber
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!canReverseSelectedBooking}
+              onClick={() => {
+                if (!selectedAgendaBooking || !selectedAgendaBankMovement) {
+                  return;
+                }
+
+                setReverseTarget({
+                  kind: "agenda",
+                  movementId: selectedAgendaBankMovement.id,
+                  label: `${selectedAgendaBooking.id.slice(-8).toUpperCase()} | ${resolveClientName(selectedAgendaBooking.clientId, clients)}`
+                });
+              }}
+              type="button"
+            >
+              Estornar
+            </button>
             <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
               Atualizar
             </button>
@@ -5047,6 +5650,19 @@ export function App() {
         aside={null}
       />
     );
+  }
+
+  function updateFinanceBrowseFilter<TTab extends keyof FinanceBrowseFiltersState>(
+    tab: TTab,
+    patch: Partial<FinanceBrowseFiltersState[TTab]>
+  ): void {
+    setFinanceBrowseFilters((current) => ({
+      ...current,
+      [tab]: {
+        ...current[tab],
+        ...patch
+      }
+    }));
   }
 
   function renderDashboardView(): JSX.Element {
@@ -5265,7 +5881,8 @@ export function App() {
       { id: "balances", label: "Saldos iniciais" },
       { id: "revenues", label: "Receitas" },
       { id: "expenses", label: "Despesas" },
-      { id: "movements", label: "Movimentos" }
+      { id: "movements", label: "Movimentos bancarios" },
+      { id: "close", label: "Fechar caixa" }
     ];
 
     return (
@@ -5801,6 +6418,9 @@ export function App() {
             <button className="secondary-button" onClick={openTransferModal} type="button">
               Transferir
             </button>
+            <button className="secondary-button" onClick={() => openCashCloseModal()} type="button">
+              Fechar caixa
+            </button>
             {input.showOpenFinanceButton ? (
               <button className="primary-button" onClick={() => navigateTo("financeiro")} type="button">
                 Abrir financeiro
@@ -5918,149 +6538,514 @@ export function App() {
             )}
           </div>
         </EntitySection>
+
+        <EntitySection title="Fechamentos recentes">
+          <div className="records-column">
+            {(cashCloses ?? []).length ? (
+              cashCloses
+                .slice()
+                .sort((left, right) => right.dateTo.localeCompare(left.dateTo))
+                .slice(0, 6)
+                .map((entry) => {
+                  const bank = banks.find((item) => item.id === entry.bankId);
+                  return (
+                    <article className="record-card" key={entry.id}>
+                      <div className="record-card-header">
+                        <div className="record-stack">
+                          <strong>{entry.codigo}</strong>
+                          <span>{bank?.nomeBanco ?? "Banco"} {bank?.agencia}/{bank?.conta}</span>
+                        </div>
+                        <strong>{formatCurrency(entry.saldoFechado)}</strong>
+                      </div>
+                      <div className="record-meta">
+                        <span>{formatDateShort(entry.dateFrom)} ate {formatDateShort(entry.dateTo)}</span>
+                        <span>{entry.status}</span>
+                      </div>
+                    </article>
+                  );
+                })
+            ) : (
+              <p className="empty-state">Nenhum fechamento registrado.</p>
+            )}
+          </div>
+        </EntitySection>
+      </div>
+    );
+  }
+
+  function renderFinanceBrowseTable(
+    columns: readonly { readonly key: string; readonly label: string; readonly className?: string }[],
+    rows: readonly {
+      readonly id: string;
+      readonly selected?: boolean;
+      readonly cells: readonly { readonly key: string; readonly value: JSX.Element | string; readonly className?: string }[];
+      readonly onClick: () => void;
+    }[],
+    emptyMessage: string
+  ): JSX.Element {
+    const browseStyle = {
+      "--finance-browse-columns": String(columns.length)
+    } as CSSProperties;
+
+    return (
+      <div className="finance-browse-shell" style={browseStyle}>
+        <div className="finance-browse-row finance-browse-header" role="row">
+          {columns.map((column) => (
+            <span className={column.className ?? "finance-browse-cell"} key={column.key} role="columnheader">
+              {column.label}
+            </span>
+          ))}
+        </div>
+        {rows.length ? (
+          rows.map((row) => (
+            <button
+              className={row.selected ? "finance-browse-row is-selected" : "finance-browse-row"}
+              key={row.id}
+              onClick={row.onClick}
+              type="button"
+            >
+              {row.cells.map((cell) => (
+                <span className={cell.className ?? "finance-browse-cell"} key={cell.key}>
+                  {cell.value}
+                </span>
+              ))}
+            </button>
+          ))
+        ) : (
+          <div className="empty-state finance-browse-empty">{emptyMessage}</div>
+        )}
       </div>
     );
   }
 
   function renderFinanceRegistryPanels(): JSX.Element {
+    const bankQuery = financeBrowseFilters.banks.query.trim().toLowerCase();
+    const filteredBanks = banks.filter((bank) => {
+      const matchesQuery =
+        bankQuery.length === 0 ||
+        `${bank.codigo} ${bank.nomeBanco} ${bank.bacenCode} ${bank.agencia} ${bank.conta}`.toLowerCase().includes(bankQuery);
+      const matchesStatus =
+        financeBrowseFilters.banks.status === "all" ||
+        (financeBrowseFilters.banks.status === "active" ? bank.ativo : !bank.ativo);
+      return matchesQuery && matchesStatus;
+    });
+    const filteredBalances = bankBalances.filter((balance) => {
+      const bank = banks.find((entry) => entry.id === balance.bankId);
+      const matchesBank =
+        financeBrowseFilters.balances.bankId === "all" || balance.bankId === financeBrowseFilters.balances.bankId;
+      const query = financeBrowseFilters.balances.query.trim().toLowerCase();
+      const matchesQuery =
+        query.length === 0 ||
+        `${balance.codigo} ${bank?.nomeBanco ?? ""} ${bank?.agencia ?? ""} ${bank?.conta ?? ""}`.toLowerCase().includes(query);
+      return matchesBank && matchesQuery;
+    });
+    const filteredRevenues = revenueSchedules.filter((entry) => {
+      const query = financeBrowseFilters.revenues.query.trim().toLowerCase();
+      const matchesQuery =
+        query.length === 0 ||
+        `${entry.codigo} ${entry.descricao}`.toLowerCase().includes(query);
+      const matchesBank =
+        financeBrowseFilters.revenues.bankId === "all" || entry.bankId === financeBrowseFilters.revenues.bankId;
+      const matchesStatus =
+        financeBrowseFilters.revenues.status === "all" || entry.status === financeBrowseFilters.revenues.status;
+      const matchesFrom =
+        !financeBrowseFilters.revenues.dateFrom || entry.dataVencimento >= financeBrowseFilters.revenues.dateFrom;
+      const matchesTo =
+        !financeBrowseFilters.revenues.dateTo || entry.dataVencimento <= financeBrowseFilters.revenues.dateTo;
+      return matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo;
+    });
+    const filteredExpenses = expenseSchedules.filter((entry) => {
+      const query = financeBrowseFilters.expenses.query.trim().toLowerCase();
+      const matchesQuery =
+        query.length === 0 ||
+        `${entry.codigo} ${entry.descricao} ${entry.beneficiarioNome ?? ""}`.toLowerCase().includes(query);
+      const matchesBank =
+        financeBrowseFilters.expenses.bankId === "all" || entry.bankId === financeBrowseFilters.expenses.bankId;
+      const matchesStatus =
+        financeBrowseFilters.expenses.status === "all" || entry.status === financeBrowseFilters.expenses.status;
+      const matchesFrom =
+        !financeBrowseFilters.expenses.dateFrom || entry.dataVencimento >= financeBrowseFilters.expenses.dateFrom;
+      const matchesTo =
+        !financeBrowseFilters.expenses.dateTo || entry.dataVencimento <= financeBrowseFilters.expenses.dateTo;
+      return matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo;
+    });
+    const filteredMovements = bankMovements.filter((entry) => {
+      const query = financeBrowseFilters.movements.query.trim().toLowerCase();
+      const matchesQuery =
+        query.length === 0 ||
+        `${entry.codigo} ${entry.historico} ${entry.beneficiarioNome ?? ""}`.toLowerCase().includes(query);
+      const matchesBank =
+        financeBrowseFilters.movements.bankId === "all" ||
+        entry.bankIdOrigem === financeBrowseFilters.movements.bankId ||
+        entry.bankIdDestino === financeBrowseFilters.movements.bankId;
+      const matchesStatus =
+        financeBrowseFilters.movements.status === "all" || entry.status === financeBrowseFilters.movements.status;
+      const movementDate = entry.dataMovimento.slice(0, 10);
+      const matchesFrom =
+        !financeBrowseFilters.movements.dateFrom || movementDate >= financeBrowseFilters.movements.dateFrom;
+      const matchesTo =
+        !financeBrowseFilters.movements.dateTo || movementDate <= financeBrowseFilters.movements.dateTo;
+      return matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo;
+    });
+    const filteredCashCloses = cashCloses.filter((entry) => {
+      const matchesBank =
+        financeBrowseFilters.close.bankId === "all" || entry.bankId === financeBrowseFilters.close.bankId;
+      const matchesStatus =
+        financeBrowseFilters.close.status === "all" || entry.status === financeBrowseFilters.close.status;
+      const matchesFrom = entry.dateFrom >= financeBrowseFilters.close.dateFrom;
+      const matchesTo = entry.dateTo <= financeBrowseFilters.close.dateTo;
+      return matchesBank && matchesStatus && matchesFrom && matchesTo;
+    });
+
     if (financeWorkspaceTab === "banks") {
       return (
-        <EntitySection title="Bancos" actions={<button className="primary-button" onClick={() => openBankModal()} type="button">Incluir</button>}>
-          <div className="records-column">
-            {banks.map((bank) => (
-              <article className="record-card" key={bank.id}>
-                <div className="record-card-header">
-                  <div className="record-stack">
-                    <strong>{bank.codigo}</strong>
-                    <span>{bank.nomeBanco}</span>
-                  </div>
-                  <div className="record-card-actions">
-                    <button className="secondary-button" onClick={() => openBankModal(bank)} type="button">Alterar</button>
-                  </div>
-                </div>
-                <div className="record-meta">
-                  <span>BACEN {bank.bacenCode}</span>
-                  <span>{bank.agencia}/{bank.conta}</span>
-                </div>
-              </article>
-            ))}
+        <div className="finance-document-stack">
+          <div className="finance-toolbar-row">
+            <div className="finance-toolbar-actions">
+              <button className="primary-button" onClick={() => openBankModal(undefined, "create")} type="button">Incluir</button>
+              <button className="secondary-button" disabled={!selectedBank} onClick={() => selectedBank ? openBankModal(selectedBank, "view") : undefined} type="button">Visualizar</button>
+              <button className="secondary-button" disabled={!selectedBank} onClick={() => selectedBank ? openBankModal(selectedBank, "edit") : undefined} type="button">Alterar</button>
+              <button className="secondary-button" disabled={!selectedBank} onClick={() => selectedBank ? setDeleteTarget({ kind: "bank", id: selectedBank.id, label: `${selectedBank.codigo} | ${selectedBank.nomeBanco}` }) : undefined} type="button">Excluir</button>
+            </div>
+            <div className="finance-filter-row">
+              <label className="dashboard-select">
+                <span>Buscar</span>
+                <input value={financeBrowseFilters.banks.query} onChange={(event) => updateFinanceBrowseFilter("banks", { query: event.target.value })} />
+              </label>
+              <label className="dashboard-select">
+                <span>Situacao</span>
+                <select value={financeBrowseFilters.banks.status} onChange={(event) => updateFinanceBrowseFilter("banks", { status: event.target.value as FinanceBrowseFiltersState["banks"]["status"] })}>
+                  <option value="all">Todos</option>
+                  <option value="active">Ativos</option>
+                  <option value="inactive">Inativos</option>
+                </select>
+              </label>
+            </div>
           </div>
-        </EntitySection>
+          <EntitySection title="Bancos">
+            {renderFinanceBrowseTable(
+              [
+                { key: "codigo", label: "Codigo" },
+                { key: "nome", label: "Banco" },
+                { key: "bacen", label: "BACEN" },
+                { key: "conta", label: "Agencia / Conta" },
+                { key: "situacao", label: "Situacao" }
+              ],
+              filteredBanks.map((bank) => ({
+                id: bank.id,
+                selected: bank.id === selectedBankId,
+                onClick: () => setSelectedBankId(bank.id),
+                cells: [
+                  { key: "codigo", value: bank.codigo },
+                  { key: "nome", value: bank.nomeBanco },
+                  { key: "bacen", value: bank.bacenCode },
+                  { key: "conta", value: `${bank.agencia}/${bank.conta}` },
+                  { key: "situacao", value: bank.ativo ? "Ativo" : "Inativo" }
+                ]
+              })),
+              "Nenhum banco encontrado."
+            )}
+          </EntitySection>
+        </div>
       );
     }
 
     if (financeWorkspaceTab === "balances") {
       return (
-        <EntitySection title="Saldos iniciais" actions={<button className="primary-button" onClick={() => openBankBalanceModal()} type="button">Incluir</button>}>
-          <div className="records-column">
-            {bankBalances.map((balance) => {
-              const bank = banks.find((item) => item.id === balance.bankId);
-              return (
-                <article className="record-card" key={balance.id}>
-                  <div className="record-card-header">
-                    <div className="record-stack">
-                      <strong>{balance.codigo}</strong>
-                      <span>{bank?.nomeBanco ?? "Banco"} {bank?.agencia}/{bank?.conta}</span>
-                    </div>
-                    <div className="record-card-actions">
-                      <button className="secondary-button" onClick={() => openBankBalanceModal(balance)} type="button">Alterar</button>
-                    </div>
-                  </div>
-                  <div className="record-meta">
-                    <span>Saldo inicial {formatCurrency(balance.saldoInicial)}</span>
-                    <span>Saldo atual {formatCurrency(balance.saldoAtual)}</span>
-                  </div>
-                </article>
-              );
-            })}
+        <div className="finance-document-stack">
+          <div className="finance-toolbar-row">
+            <div className="finance-toolbar-actions">
+              <button className="primary-button" onClick={() => openBankBalanceModal(undefined, "create")} type="button">Incluir</button>
+              <button className="secondary-button" disabled={!selectedBalance} onClick={() => selectedBalance ? openBankBalanceModal(selectedBalance, "view") : undefined} type="button">Visualizar</button>
+              <button className="secondary-button" disabled={!selectedBalance} onClick={() => selectedBalance ? openBankBalanceModal(selectedBalance, "edit") : undefined} type="button">Alterar</button>
+              <button className="secondary-button" disabled={!selectedBalance} onClick={() => selectedBalance ? setDeleteTarget({ kind: "balance", id: selectedBalance.id, label: `${selectedBalance.codigo} | ${formatCurrency(selectedBalance.saldoInicial)}` }) : undefined} type="button">Excluir</button>
+            </div>
+            <div className="finance-filter-row">
+              <label className="dashboard-select">
+                <span>Buscar</span>
+                <input value={financeBrowseFilters.balances.query} onChange={(event) => updateFinanceBrowseFilter("balances", { query: event.target.value })} />
+              </label>
+              <label className="dashboard-select">
+                <span>Banco</span>
+                <select value={financeBrowseFilters.balances.bankId} onChange={(event) => updateFinanceBrowseFilter("balances", { bankId: event.target.value })}>
+                  <option value="all">Todos</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
-        </EntitySection>
+          <EntitySection title="Saldos iniciais">
+            {renderFinanceBrowseTable(
+              [
+                { key: "codigo", label: "Codigo" },
+                { key: "banco", label: "Banco" },
+                { key: "saldoInicial", label: "Saldo inicial" },
+                { key: "saldoAtual", label: "Saldo atual" },
+                { key: "data", label: "Data" }
+              ],
+              filteredBalances.map((balance) => {
+                const bank = banks.find((item) => item.id === balance.bankId);
+                return {
+                  id: balance.id,
+                  selected: balance.id === selectedBalanceId,
+                  onClick: () => setSelectedBalanceId(balance.id),
+                  cells: [
+                    { key: "codigo", value: balance.codigo },
+                    { key: "banco", value: `${bank?.nomeBanco ?? "Banco"} ${bank?.agencia ?? ""}/${bank?.conta ?? ""}` },
+                    { key: "saldoInicial", value: formatCurrency(balance.saldoInicial) },
+                    { key: "saldoAtual", value: formatCurrency(balance.saldoAtual) },
+                    { key: "data", value: formatDateShort(balance.dataSaldoInicial) }
+                  ]
+                };
+              }),
+              "Nenhum saldo inicial encontrado."
+            )}
+          </EntitySection>
+        </div>
       );
     }
 
     if (financeWorkspaceTab === "revenues") {
       return (
-        <EntitySection title="Receitas" actions={<button className="primary-button" onClick={() => openRevenueModal()} type="button">Incluir</button>}>
-          <div className="records-column">
-            {revenueSchedules.map((entry) => (
-              <article className="record-card" key={entry.id}>
-                <div className="record-card-header">
-                  <div className="record-stack">
-                    <strong>{entry.codigo}</strong>
-                    <span>{entry.descricao}</span>
-                  </div>
-                  <div className="record-card-actions">
-                    <button className="secondary-button" onClick={() => openRevenueModal(entry)} type="button">Alterar</button>
-                  </div>
-                </div>
-                <div className="record-meta">
-                  <span>{formatCurrency(entry.valor)}</span>
-                  <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
-                  <span>{entry.tipo}</span>
-                </div>
-              </article>
-            ))}
+        <div className="finance-document-stack">
+          <div className="finance-toolbar-row">
+            <div className="finance-toolbar-actions">
+              <button className="primary-button" onClick={() => openRevenueModal(undefined, "create")} type="button">Incluir</button>
+              <button className="secondary-button" disabled={!selectedRevenue} onClick={() => selectedRevenue ? openRevenueModal(selectedRevenue, "view") : undefined} type="button">Visualizar</button>
+              <button className="secondary-button" disabled={!selectedRevenue} onClick={() => selectedRevenue ? openRevenueModal(selectedRevenue, "edit") : undefined} type="button">Alterar</button>
+              <button className="secondary-button" disabled={!selectedRevenue || selectedRevenue.status !== "aberta"} onClick={() => {
+                if (!selectedRevenue) return;
+                setReceiveTarget({ revenueId: selectedRevenue.id });
+                setAgendaSettlementTarget(null);
+                setReceiveMovementForm({
+                  bankIdDestino: selectedRevenue.bankId ?? banks[0]?.id ?? "",
+                  valor: String(selectedRevenue.valor),
+                  historico: selectedRevenue.descricao,
+                  dataMovimento: new Date().toISOString().slice(0, 16)
+                });
+                setFinanceModalMode("create");
+                setFinanceModal("receive");
+              }} type="button">Receber</button>
+              <button className="secondary-button" disabled={!selectedRevenue?.baixaMovementId} onClick={() => {
+                if (!selectedRevenue?.baixaMovementId) return;
+                setReverseTarget({ kind: "movement", movementId: selectedRevenue.baixaMovementId, label: `${selectedRevenue.codigo} | ${selectedRevenue.descricao}` });
+              }} type="button">Estornar</button>
+              <button className="secondary-button" disabled={!selectedRevenue || selectedRevenue.status !== "aberta"} onClick={() => selectedRevenue ? setDeleteTarget({ kind: "revenue", id: selectedRevenue.id, label: `${selectedRevenue.codigo} | ${selectedRevenue.descricao}` }) : undefined} type="button">Excluir</button>
+            </div>
+            <div className="finance-filter-row">
+              <label className="dashboard-select"><span>Buscar</span><input value={financeBrowseFilters.revenues.query} onChange={(event) => updateFinanceBrowseFilter("revenues", { query: event.target.value })} /></label>
+              <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.revenues.bankId} onChange={(event) => updateFinanceBrowseFilter("revenues", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
+              <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.revenues.status} onChange={(event) => updateFinanceBrowseFilter("revenues", { status: event.target.value as FinanceBrowseFiltersState["revenues"]["status"] })}><option value="all">Todas</option><option value="aberta">Aberta</option><option value="recebida">Recebida</option><option value="estornada">Estornada</option><option value="cancelada">Cancelada</option></select></label>
+              <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.revenues.dateFrom} onChange={(event) => updateFinanceBrowseFilter("revenues", { dateFrom: event.target.value })} /></label>
+              <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.revenues.dateTo} onChange={(event) => updateFinanceBrowseFilter("revenues", { dateTo: event.target.value })} /></label>
+            </div>
           </div>
-        </EntitySection>
+          <EntitySection title="Receitas">
+            {renderFinanceBrowseTable(
+              [
+                { key: "codigo", label: "Codigo" },
+                { key: "descricao", label: "Historico" },
+                { key: "valor", label: "Valor" },
+                { key: "vencimento", label: "Vencimento" },
+                { key: "parcelas", label: "Parcelas" },
+                { key: "banco", label: "Banco" },
+                { key: "situacao", label: "Situacao" }
+              ],
+              filteredRevenues.map((entry) => ({
+                id: entry.id,
+                selected: entry.id === selectedRevenueId,
+                onClick: () => setSelectedRevenueId(entry.id),
+                cells: [
+                  { key: "codigo", value: entry.codigo },
+                  { key: "descricao", value: entry.descricao },
+                  { key: "valor", value: formatCurrency(entry.valor) },
+                  { key: "vencimento", value: formatDateShort(entry.dataVencimento) },
+                  { key: "parcelas", value: `${entry.ocorrenciaIndice ?? 1}/${entry.ocorrenciaTotal ?? 1}` },
+                  { key: "banco", value: banks.find((bank) => bank.id === entry.bankId)?.codigo ?? "-" },
+                  { key: "situacao", value: entry.status }
+                ]
+              })),
+              "Nenhuma receita encontrada."
+            )}
+          </EntitySection>
+        </div>
       );
     }
 
     if (financeWorkspaceTab === "expenses") {
       return (
-        <EntitySection title="Despesas" actions={<button className="primary-button" onClick={() => openExpenseModal()} type="button">Incluir</button>}>
-          <div className="records-column">
-            {expenseSchedules.map((entry) => (
-              <article className="record-card" key={entry.id}>
-                <div className="record-card-header">
-                  <div className="record-stack">
-                    <strong>{entry.codigo}</strong>
-                    <span>{entry.descricao}</span>
-                  </div>
-                  <div className="record-card-actions">
-                    <button className="secondary-button" onClick={() => openExpenseModal(entry)} type="button">Alterar</button>
-                  </div>
-                </div>
-                <div className="record-meta">
-                  <span>{formatCurrency(entry.valor)}</span>
-                  <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
-                  <span>{entry.beneficiarioNome ?? "Sem beneficiario"}</span>
-                </div>
-              </article>
-            ))}
+        <div className="finance-document-stack">
+          <div className="finance-toolbar-row">
+            <div className="finance-toolbar-actions">
+              <button className="primary-button" onClick={() => openExpenseModal(undefined, "create")} type="button">Incluir</button>
+              <button className="secondary-button" disabled={!selectedExpense} onClick={() => selectedExpense ? openExpenseModal(selectedExpense, "view") : undefined} type="button">Visualizar</button>
+              <button className="secondary-button" disabled={!selectedExpense} onClick={() => selectedExpense ? openExpenseModal(selectedExpense, "edit") : undefined} type="button">Alterar</button>
+              <button className="secondary-button" disabled={!selectedExpense || selectedExpense.status !== "aberta"} onClick={() => {
+                if (!selectedExpense) return;
+                setPayTarget({ expenseId: selectedExpense.id });
+                setPayMovementForm({
+                  bankIdOrigem: selectedExpense.bankId ?? banks[0]?.id ?? "",
+                  valor: String(selectedExpense.valor),
+                  historico: selectedExpense.descricao,
+                  dataMovimento: new Date().toISOString().slice(0, 16),
+                  beneficiarioNome: selectedExpense.beneficiarioNome ?? ""
+                });
+                setFinanceModalMode("create");
+                setFinanceModal("pay");
+              }} type="button">Pagar</button>
+              <button className="secondary-button" disabled={!selectedExpense?.baixaMovementId} onClick={() => {
+                if (!selectedExpense?.baixaMovementId) return;
+                setReverseTarget({ kind: "movement", movementId: selectedExpense.baixaMovementId, label: `${selectedExpense.codigo} | ${selectedExpense.descricao}` });
+              }} type="button">Estornar</button>
+              <button className="secondary-button" disabled={!selectedExpense || selectedExpense.status !== "aberta"} onClick={() => selectedExpense ? setDeleteTarget({ kind: "expense", id: selectedExpense.id, label: `${selectedExpense.codigo} | ${selectedExpense.descricao}` }) : undefined} type="button">Excluir</button>
+            </div>
+            <div className="finance-filter-row">
+              <label className="dashboard-select"><span>Buscar</span><input value={financeBrowseFilters.expenses.query} onChange={(event) => updateFinanceBrowseFilter("expenses", { query: event.target.value })} /></label>
+              <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.expenses.bankId} onChange={(event) => updateFinanceBrowseFilter("expenses", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
+              <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.expenses.status} onChange={(event) => updateFinanceBrowseFilter("expenses", { status: event.target.value as FinanceBrowseFiltersState["expenses"]["status"] })}><option value="all">Todas</option><option value="aberta">Aberta</option><option value="paga">Paga</option><option value="estornada">Estornada</option><option value="cancelada">Cancelada</option></select></label>
+              <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.expenses.dateFrom} onChange={(event) => updateFinanceBrowseFilter("expenses", { dateFrom: event.target.value })} /></label>
+              <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.expenses.dateTo} onChange={(event) => updateFinanceBrowseFilter("expenses", { dateTo: event.target.value })} /></label>
+            </div>
           </div>
-        </EntitySection>
+          <EntitySection title="Despesas">
+            {renderFinanceBrowseTable(
+              [
+                { key: "codigo", label: "Codigo" },
+                { key: "descricao", label: "Historico" },
+                { key: "valor", label: "Valor" },
+                { key: "vencimento", label: "Vencimento" },
+                { key: "parcelas", label: "Parcelas" },
+                { key: "banco", label: "Banco" },
+                { key: "situacao", label: "Situacao" }
+              ],
+              filteredExpenses.map((entry) => ({
+                id: entry.id,
+                selected: entry.id === selectedExpenseId,
+                onClick: () => setSelectedExpenseId(entry.id),
+                cells: [
+                  { key: "codigo", value: entry.codigo },
+                  { key: "descricao", value: entry.descricao },
+                  { key: "valor", value: formatCurrency(entry.valor) },
+                  { key: "vencimento", value: formatDateShort(entry.dataVencimento) },
+                  { key: "parcelas", value: `${entry.ocorrenciaIndice ?? 1}/${entry.ocorrenciaTotal ?? 1}` },
+                  { key: "banco", value: banks.find((bank) => bank.id === entry.bankId)?.codigo ?? "-" },
+                  { key: "situacao", value: entry.status }
+                ]
+              })),
+              "Nenhuma despesa encontrada."
+            )}
+          </EntitySection>
+        </div>
+      );
+    }
+
+    if (financeWorkspaceTab === "close") {
+      return (
+        <div className="finance-document-stack">
+          <div className="finance-toolbar-row">
+            <div className="finance-toolbar-actions">
+              <button className="primary-button" onClick={() => openCashCloseModal()} type="button">Fechar caixa</button>
+              <button className="secondary-button" disabled={!selectedCashClose} onClick={() => selectedCashClose ? openCashCloseModal(selectedCashClose, "view") : undefined} type="button">Visualizar</button>
+            </div>
+            <div className="finance-filter-row">
+              <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.close.bankId} onChange={(event) => updateFinanceBrowseFilter("close", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
+              <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.close.dateFrom} onChange={(event) => updateFinanceBrowseFilter("close", { dateFrom: event.target.value })} /></label>
+              <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.close.dateTo} onChange={(event) => updateFinanceBrowseFilter("close", { dateTo: event.target.value })} /></label>
+              <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.close.status} onChange={(event) => updateFinanceBrowseFilter("close", { status: event.target.value as FinanceBrowseFiltersState["close"]["status"] })}><option value="all">Todas</option><option value="fechado">Fechado</option><option value="estornado">Estornado</option></select></label>
+            </div>
+          </div>
+          <EntitySection title="Fechamentos do caixa">
+            {renderFinanceBrowseTable(
+              [
+                { key: "codigo", label: "Codigo" },
+                { key: "banco", label: "Banco" },
+                { key: "periodo", label: "Periodo" },
+                { key: "recebido", label: "Recebido" },
+                { key: "pago", label: "Pago" },
+                { key: "saldo", label: "Saldo" },
+                { key: "situacao", label: "Situacao" }
+              ],
+              filteredCashCloses.map((entry) => {
+                const bank = banks.find((item) => item.id === entry.bankId);
+                return {
+                  id: entry.id,
+                  selected: entry.id === selectedCashCloseId,
+                  onClick: () => setSelectedCashCloseId(entry.id),
+                  cells: [
+                    { key: "codigo", value: entry.codigo },
+                    { key: "banco", value: bank ? `${bank.codigo} | ${bank.nomeBanco}` : "Banco nao encontrado" },
+                    { key: "periodo", value: `${formatDateShort(entry.dateFrom)} ate ${formatDateShort(entry.dateTo)}` },
+                    { key: "recebido", value: formatCurrency(entry.totalEntradas) },
+                    { key: "pago", value: formatCurrency(entry.totalSaidas) },
+                    { key: "saldo", value: formatCurrency(entry.saldoFechado) },
+                    { key: "situacao", value: entry.status }
+                  ]
+                };
+              }),
+              "Nenhum fechamento encontrado."
+            )}
+          </EntitySection>
+        </div>
       );
     }
 
     return (
-      <EntitySection
-        title="Movimentos"
-        actions={
-          <div className="dashboard-document-actions">
-            <button className="secondary-button" onClick={openReceiveModal} type="button">Receber</button>
-            <button className="secondary-button" onClick={openPayModal} type="button">Pagar</button>
-            <button className="primary-button" onClick={openTransferModal} type="button">Transferir</button>
+      <div className="finance-document-stack">
+        <div className="finance-toolbar-row">
+          <div className="finance-toolbar-actions">
+            <button className="primary-button" onClick={() => openManualMovementModal(undefined, "create")} type="button">Incluir</button>
+            <button className="secondary-button" disabled={!selectedMovement} onClick={() => selectedMovement ? openManualMovementModal(selectedMovement, "view") : undefined} type="button">Visualizar</button>
+            <button className="secondary-button" disabled={!selectedMovement} onClick={() => selectedMovement ? openManualMovementModal(selectedMovement, "edit") : undefined} type="button">Alterar</button>
+            <button className="secondary-button" disabled={!selectedMovement || selectedMovement.status === "estornado" || Boolean(selectedMovement.reversedMovementId)} onClick={() => selectedMovement ? setReverseTarget({ kind: "movement", movementId: selectedMovement.id, label: `${selectedMovement.codigo} | ${selectedMovement.historico}` }) : undefined} type="button">Estornar</button>
           </div>
-        }
-      >
-        <div className="records-column">
-          {bankMovements.map((entry) => (
-            <article className="record-card" key={entry.id}>
-              <div className="record-card-header">
-                <div className="record-stack">
-                  <strong>{entry.codigo}</strong>
-                  <span>{entry.historico}</span>
-                </div>
-                <strong>{formatCurrency(entry.valor)}</strong>
-              </div>
-              <div className="record-meta">
-                <span>{entry.tipo}</span>
-                <span>{formatDateTime(entry.dataMovimento)}</span>
-              </div>
-            </article>
-          ))}
+          <div className="finance-filter-row">
+            <label className="dashboard-select"><span>Buscar</span><input value={financeBrowseFilters.movements.query} onChange={(event) => updateFinanceBrowseFilter("movements", { query: event.target.value })} /></label>
+            <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.movements.bankId} onChange={(event) => updateFinanceBrowseFilter("movements", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
+            <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.movements.status} onChange={(event) => updateFinanceBrowseFilter("movements", { status: event.target.value as FinanceBrowseFiltersState["movements"]["status"] })}><option value="all">Todas</option><option value="previsto">Previsto</option><option value="lancado">Lancado</option><option value="estornado">Estornado</option><option value="cancelado">Cancelado</option></select></label>
+            <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.movements.dateFrom} onChange={(event) => updateFinanceBrowseFilter("movements", { dateFrom: event.target.value })} /></label>
+            <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.movements.dateTo} onChange={(event) => updateFinanceBrowseFilter("movements", { dateTo: event.target.value })} /></label>
+          </div>
         </div>
-      </EntitySection>
+        <EntitySection title="Movimentos bancarios">
+          {renderFinanceBrowseTable(
+            [
+              { key: "codigo", label: "Codigo" },
+              { key: "data", label: "Data" },
+              { key: "tipo", label: "Tipo" },
+              { key: "historico", label: "Historico" },
+              { key: "origem", label: "Banco origem" },
+              { key: "destino", label: "Banco destino" },
+              { key: "valor", label: "Valor" },
+              { key: "situacao", label: "Situacao" },
+              { key: "source", label: "Origem" }
+            ],
+            filteredMovements.map((entry) => {
+              const originBank = banks.find((item) => item.id === entry.bankIdOrigem);
+              const destinationBank = banks.find((item) => item.id === entry.bankIdDestino);
+
+              return {
+                id: entry.id,
+                selected: entry.id === selectedMovementId,
+                onClick: () => setSelectedMovementId(entry.id),
+                cells: [
+                  { key: "codigo", value: entry.codigo },
+                  { key: "data", value: formatDateTime(entry.dataMovimento) },
+                  { key: "tipo", value: formatBankMovementType(entry.tipo) },
+                  { key: "historico", value: entry.historico },
+                  { key: "origem", value: originBank ? `${originBank.codigo} | ${originBank.nomeBanco}` : "-" },
+                  { key: "destino", value: destinationBank ? `${destinationBank.codigo} | ${destinationBank.nomeBanco}` : "-" },
+                  { key: "valor", value: formatCurrency(entry.valor) },
+                  { key: "situacao", value: formatBankMovementStatus(entry.status) },
+                  { key: "source", value: formatBankMovementSource(entry.sourceType) }
+                ]
+              };
+            }),
+            "Nenhum movimento encontrado."
+          )}
+        </EntitySection>
+      </div>
     );
   }
 
@@ -6728,39 +7713,85 @@ export function App() {
       return null;
     }
 
+    const isReadOnly = financeModalMode === "view";
+
     if (financeModal === "bank") {
       return (
         <WorkspaceRecordModal
           onClose={closeFinanceModal}
           subtitle="Codigo, BACEN, agencia e conta."
-          title={editingBankId ? "Alterar banco" : "Incluir banco"}
+          title={
+            financeModalMode === "view"
+              ? "Visualizar banco"
+              : editingBankId
+                ? "Alterar banco"
+                : "Incluir banco"
+          }
         >
           <form className="stack-form" onSubmit={(event) => void handleSaveBank(event)}>
             <div className="form-grid">
               <label className="field">
                 <span>Codigo</span>
-                <input value={bankForm.codigo} onChange={(event) => setBankForm({ ...bankForm, codigo: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  value={bankForm.codigo}
+                  onChange={(event) =>
+                    setBankForm((current) => ({ ...current, codigo: event.target.value }))
+                  }
+                />
               </label>
               <label className="field">
                 <span>BACEN</span>
-                <input required value={bankForm.bacenCode} onChange={(event) => setBankForm({ ...bankForm, bacenCode: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  value={bankForm.bacenCode}
+                  onChange={(event) =>
+                    setBankForm((current) => ({ ...current, bacenCode: event.target.value }))
+                  }
+                />
               </label>
               <label className="field field-wide">
                 <span>Nome do banco</span>
-                <input required value={bankForm.nomeBanco} onChange={(event) => setBankForm({ ...bankForm, nomeBanco: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  value={bankForm.nomeBanco}
+                  onChange={(event) =>
+                    setBankForm((current) => ({ ...current, nomeBanco: event.target.value }))
+                  }
+                />
               </label>
               <label className="field">
                 <span>Agencia</span>
-                <input required value={bankForm.agencia} onChange={(event) => setBankForm({ ...bankForm, agencia: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  value={bankForm.agencia}
+                  onChange={(event) =>
+                    setBankForm((current) => ({ ...current, agencia: event.target.value }))
+                  }
+                />
               </label>
               <label className="field">
                 <span>Conta</span>
-                <input required value={bankForm.conta} onChange={(event) => setBankForm({ ...bankForm, conta: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  value={bankForm.conta}
+                  onChange={(event) =>
+                    setBankForm((current) => ({ ...current, conta: event.target.value }))
+                  }
+                />
               </label>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
-              <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">
+                {isReadOnly ? "Fechar" : "Cancelar"}
+              </button>
+              {!isReadOnly ? (
+                <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+              ) : null}
             </div>
           </form>
         </WorkspaceRecordModal>
@@ -6772,17 +7803,36 @@ export function App() {
         <WorkspaceRecordModal
           onClose={closeFinanceModal}
           subtitle="Selecione o banco e informe o saldo inicial."
-          title={editingBalanceId ? "Alterar saldo inicial" : "Saldo inicial"}
+          title={
+            financeModalMode === "view"
+              ? "Visualizar saldo inicial"
+              : editingBalanceId
+                ? "Alterar saldo inicial"
+                : "Saldo inicial"
+          }
         >
           <form className="stack-form" onSubmit={(event) => void handleSaveBankBalance(event)}>
             <div className="form-grid">
               <label className="field">
                 <span>Codigo</span>
-                <input value={bankBalanceForm.codigo} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, codigo: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  value={bankBalanceForm.codigo}
+                  onChange={(event) =>
+                    setBankBalanceForm((current) => ({ ...current, codigo: event.target.value }))
+                  }
+                />
               </label>
               <label className="field">
                 <span>Banco</span>
-                <select required value={bankBalanceForm.bankId} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, bankId: event.target.value })}>
+                <select
+                  disabled={isReadOnly}
+                  required
+                  value={bankBalanceForm.bankId}
+                  onChange={(event) =>
+                    setBankBalanceForm((current) => ({ ...current, bankId: event.target.value }))
+                  }
+                >
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
@@ -6791,16 +7841,41 @@ export function App() {
               </label>
               <label className="field">
                 <span>Saldo inicial</span>
-                <input required min="0" step="0.01" type="number" value={bankBalanceForm.saldoInicial} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, saldoInicial: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  min="0"
+                  step="0.01"
+                  type="number"
+                  value={bankBalanceForm.saldoInicial}
+                  onChange={(event) =>
+                    setBankBalanceForm((current) => ({ ...current, saldoInicial: event.target.value }))
+                  }
+                />
               </label>
               <label className="field">
                 <span>Data</span>
-                <input required type="date" value={bankBalanceForm.dataSaldoInicial} onChange={(event) => setBankBalanceForm({ ...bankBalanceForm, dataSaldoInicial: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  type="date"
+                  value={bankBalanceForm.dataSaldoInicial}
+                  onChange={(event) =>
+                    setBankBalanceForm((current) => ({
+                      ...current,
+                      dataSaldoInicial: event.target.value
+                    }))
+                  }
+                />
               </label>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
-              <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">
+                {isReadOnly ? "Fechar" : "Cancelar"}
+              </button>
+              {!isReadOnly ? (
+                <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+              ) : null}
             </div>
           </form>
         </WorkspaceRecordModal>
@@ -6813,59 +7888,218 @@ export function App() {
       return (
         <WorkspaceRecordModal
           onClose={closeFinanceModal}
-          subtitle={isRevenue ? "Descricao, vencimento, valor e recorrencia." : "Descricao, vencimento, valor e beneficiario."}
-          title={isRevenue ? (editingRevenueId ? "Alterar receita" : "Incluir receita") : (editingExpenseId ? "Alterar despesa" : "Incluir despesa")}
+          subtitle={isRevenue ? "Descricao, vencimento, valor, banco e baixa automatica." : "Descricao, vencimento, valor, banco e baixa automatica."}
+          title={
+            isRevenue
+              ? financeModalMode === "view"
+                ? "Visualizar receita"
+                : editingRevenueId
+                  ? "Alterar receita"
+                  : "Incluir receita"
+              : financeModalMode === "view"
+                ? "Visualizar despesa"
+                : editingExpenseId
+                  ? "Alterar despesa"
+                  : "Incluir despesa"
+          }
         >
           <form className="stack-form" onSubmit={(event) => void (isRevenue ? handleSaveRevenue(event) : handleSaveExpense(event))}>
             <div className="form-grid">
               <label className="field">
                 <span>Codigo</span>
-                <input value={form.codigo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, codigo: event.target.value }) : setExpenseForm({ ...expenseForm, codigo: event.target.value })} />
+                <input disabled={isReadOnly} value={form.codigo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, codigo: event.target.value }) : setExpenseForm({ ...expenseForm, codigo: event.target.value })} />
               </label>
               <label className="field field-wide">
                 <span>Descricao</span>
-                <input required value={form.descricao} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, descricao: event.target.value }) : setExpenseForm({ ...expenseForm, descricao: event.target.value })} />
+                <input disabled={isReadOnly} required value={form.descricao} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, descricao: event.target.value }) : setExpenseForm({ ...expenseForm, descricao: event.target.value })} />
               </label>
               <label className="field">
                 <span>Valor</span>
-                <input required min="0" step="0.01" type="number" value={form.valor} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, valor: event.target.value }) : setExpenseForm({ ...expenseForm, valor: event.target.value })} />
+                <input disabled={isReadOnly} required min="0" step="0.01" type="number" value={form.valor} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, valor: event.target.value }) : setExpenseForm({ ...expenseForm, valor: event.target.value })} />
               </label>
               <label className="field">
                 <span>Vencimento</span>
-                <input required type="date" value={form.dataVencimento} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, dataVencimento: event.target.value }) : setExpenseForm({ ...expenseForm, dataVencimento: event.target.value })} />
+                <input disabled={isReadOnly} required type="date" value={form.dataVencimento} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, dataVencimento: event.target.value }) : setExpenseForm({ ...expenseForm, dataVencimento: event.target.value })} />
               </label>
               <label className="field">
                 <span>Tipo</span>
-                <select value={form.tipo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, tipo: event.target.value as RevenueFormState["tipo"] }) : setExpenseForm({ ...expenseForm, tipo: event.target.value as ExpenseFormState["tipo"] })}>
+                <select disabled={isReadOnly} value={form.tipo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, tipo: event.target.value as RevenueFormState["tipo"] }) : setExpenseForm({ ...expenseForm, tipo: event.target.value as ExpenseFormState["tipo"] })}>
                   <option value="unica">Unica</option>
                   <option value="recorrente">Recorrente</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Banco</span>
+                <select disabled={isReadOnly} value={form.bankId} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, bankId: event.target.value }) : setExpenseForm({ ...expenseForm, bankId: event.target.value })}>
+                  <option value="">Sem banco definido</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Baixa automatica</span>
+                <select disabled={isReadOnly} value={form.baixaAutomatica} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, baixaAutomatica: event.target.value as RevenueFormState["baixaAutomatica"] }) : setExpenseForm({ ...expenseForm, baixaAutomatica: event.target.value as ExpenseFormState["baixaAutomatica"] })}>
+                  <option value="nao">Nao</option>
+                  <option value="sim">Sim</option>
                 </select>
               </label>
               {form.tipo === "recorrente" ? (
                 <>
                   <label className="field">
                     <span>Recorrencia</span>
-                    <select value={form.recorrencia} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, recorrencia: event.target.value as RevenueFormState["recorrencia"] }) : setExpenseForm({ ...expenseForm, recorrencia: event.target.value as ExpenseFormState["recorrencia"] })}>
+                    <select disabled={isReadOnly} value={form.recorrencia} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, recorrencia: event.target.value as RevenueFormState["recorrencia"] }) : setExpenseForm({ ...expenseForm, recorrencia: event.target.value as ExpenseFormState["recorrencia"] })}>
                       <option value="semanal">Semanal</option>
                       <option value="mensal">Mensal</option>
                     </select>
                   </label>
                   <label className="field">
                     <span>Ocorrencias</span>
-                    <input min="1" type="number" value={form.quantidadeOcorrencias} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, quantidadeOcorrencias: event.target.value }) : setExpenseForm({ ...expenseForm, quantidadeOcorrencias: event.target.value })} />
+                    <input disabled={isReadOnly} min="1" type="number" value={form.quantidadeOcorrencias} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, quantidadeOcorrencias: event.target.value }) : setExpenseForm({ ...expenseForm, quantidadeOcorrencias: event.target.value })} />
                   </label>
                 </>
               ) : null}
               {!isRevenue ? (
                 <label className="field field-wide">
                   <span>Beneficiario</span>
-                  <input value={expenseForm.beneficiarioNome} onChange={(event) => setExpenseForm({ ...expenseForm, beneficiarioNome: event.target.value })} />
+                  <input disabled={isReadOnly} value={expenseForm.beneficiarioNome} onChange={(event) => setExpenseForm({ ...expenseForm, beneficiarioNome: event.target.value })} />
                 </label>
               ) : null}
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
-              <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">{isReadOnly ? "Fechar" : "Cancelar"}</button>
+              {!isReadOnly ? <button className="primary-button" disabled={isBusy} type="submit">Salvar</button> : null}
+            </div>
+          </form>
+        </WorkspaceRecordModal>
+      );
+    }
+
+    if (financeModal === "movement") {
+      return (
+        <WorkspaceRecordModal
+          onClose={closeFinanceModal}
+          subtitle="Movimento de caixa ja ocorrido ou programado por data."
+          title={
+            financeModalMode === "view"
+              ? "Visualizar movimento"
+              : editingMovementId
+                ? "Alterar movimento"
+                : "Incluir movimento"
+          }
+        >
+          <form className="stack-form" onSubmit={(event) => void handleSaveManualMovement(event)}>
+            <div className="form-grid">
+              <label className="field">
+                <span>Tipo</span>
+                <select disabled={isReadOnly} value={manualMovementForm.tipo} onChange={(event) => setManualMovementForm((current) => ({ ...current, tipo: event.target.value as ManualMovementFormState["tipo"] }))}>
+                  <option value="entrada">Entrada</option>
+                  <option value="saida">Saida</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="ajuste">Ajuste</option>
+                  <option value="taxa">Taxa</option>
+                </select>
+              </label>
+              <label className="field">
+                <span>Banco origem</span>
+                <select disabled={isReadOnly} value={manualMovementForm.bankIdOrigem} onChange={(event) => setManualMovementForm((current) => ({ ...current, bankIdOrigem: event.target.value }))}>
+                  <option value="">Nao se aplica</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Banco destino</span>
+                <select disabled={isReadOnly} value={manualMovementForm.bankIdDestino} onChange={(event) => setManualMovementForm((current) => ({ ...current, bankIdDestino: event.target.value }))}>
+                  <option value="">Nao se aplica</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Valor</span>
+                <input disabled={isReadOnly} min="0" required step="0.01" type="number" value={manualMovementForm.valor} onChange={(event) => setManualMovementForm((current) => ({ ...current, valor: event.target.value }))} />
+              </label>
+              <label className="field field-wide">
+                <span>Historico</span>
+                <input disabled={isReadOnly} required value={manualMovementForm.historico} onChange={(event) => setManualMovementForm((current) => ({ ...current, historico: event.target.value }))} />
+              </label>
+              <label className="field field-wide">
+                <span>Beneficiario</span>
+                <input disabled={isReadOnly} value={manualMovementForm.beneficiarioNome} onChange={(event) => setManualMovementForm((current) => ({ ...current, beneficiarioNome: event.target.value }))} />
+              </label>
+              <label className="field">
+                <span>Data do movimento</span>
+                <input disabled={isReadOnly} required type="datetime-local" value={manualMovementForm.dataMovimento} onChange={(event) => setManualMovementForm((current) => ({ ...current, dataMovimento: event.target.value }))} />
+              </label>
+            </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">{isReadOnly ? "Fechar" : "Cancelar"}</button>
+              {!isReadOnly ? <button className="primary-button" disabled={isBusy} type="submit">Salvar</button> : null}
+            </div>
+          </form>
+        </WorkspaceRecordModal>
+      );
+    }
+
+    if (financeModal === "close") {
+      return (
+        <WorkspaceRecordModal
+          onClose={closeFinanceModal}
+          subtitle={
+            financeModalMode === "view"
+              ? "Leitura do fechamento ja realizado."
+              : "Selecione banco e periodo para fechar o caixa."
+          }
+          title={financeModalMode === "view" ? "Visualizar fechamento" : "Fechar caixa"}
+        >
+          <form className="stack-form" onSubmit={(event) => void handleCreateCashClose(event)}>
+            {financeModalMode === "view" && selectedCashClose ? (
+              <div className="dashboard-mini-grid">
+                <div className="dashboard-mini-card">
+                  <strong>{selectedCashClose.codigo}</strong>
+                  <span>Codigo</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{formatCurrency(selectedCashClose.totalEntradas)}</strong>
+                  <span>Total recebido</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{formatCurrency(selectedCashClose.totalSaidas)}</strong>
+                  <span>Total pago</span>
+                </div>
+                <div className="dashboard-mini-card">
+                  <strong>{formatCurrency(selectedCashClose.saldoFechado)}</strong>
+                  <span>Saldo fechado</span>
+                </div>
+              </div>
+            ) : null}
+            <div className="form-grid">
+              <label className="field field-wide">
+                <span>Banco</span>
+                <select disabled={financeModalMode === "view"} required value={cashCloseForm.bankId} onChange={(event) => setCashCloseForm((current) => ({ ...current, bankId: event.target.value }))}>
+                  <option value="">Selecione</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>Data de</span>
+                <input disabled={financeModalMode === "view"} required type="date" value={cashCloseForm.dateFrom} onChange={(event) => setCashCloseForm((current) => ({ ...current, dateFrom: event.target.value }))} />
+              </label>
+              <label className="field">
+                <span>Data ate</span>
+                <input disabled={financeModalMode === "view"} required type="date" value={cashCloseForm.dateTo} onChange={(event) => setCashCloseForm((current) => ({ ...current, dateTo: event.target.value }))} />
+              </label>
+            </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">{financeModalMode === "view" ? "Fechar" : "Cancelar"}</button>
+              {financeModalMode !== "view" ? (
+                <button className="primary-button" disabled={isBusy} type="submit">Fechar caixa</button>
+              ) : null}
             </div>
           </form>
         </WorkspaceRecordModal>
@@ -6891,7 +8125,7 @@ export function App() {
             {financeModal === "receive" ? (
               <label className="field">
                 <span>Banco</span>
-                <select required value={receiveMovementForm.bankIdDestino} onChange={(event) => setReceiveMovementForm({ ...receiveMovementForm, bankIdDestino: event.target.value })}>
+                <select required value={receiveMovementForm.bankIdDestino} onChange={(event) => setReceiveMovementForm((current) => ({ ...current, bankIdDestino: event.target.value }))}>
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
@@ -6901,7 +8135,7 @@ export function App() {
             ) : (
               <label className="field">
                 <span>Banco origem</span>
-                <select required value={financeModal === "pay" ? payMovementForm.bankIdOrigem : transferMovementForm.bankIdOrigem} onChange={(event) => financeModal === "pay" ? setPayMovementForm({ ...payMovementForm, bankIdOrigem: event.target.value }) : setTransferMovementForm({ ...transferMovementForm, bankIdOrigem: event.target.value })}>
+                <select required value={financeModal === "pay" ? payMovementForm.bankIdOrigem : transferMovementForm.bankIdOrigem} onChange={(event) => financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, bankIdOrigem: event.target.value })) : setTransferMovementForm((current) => ({ ...current, bankIdOrigem: event.target.value }))}>
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
@@ -6912,7 +8146,7 @@ export function App() {
             {financeModal === "transfer" ? (
               <label className="field">
                 <span>Banco destino</span>
-                <select required value={transferMovementForm.bankIdDestino} onChange={(event) => setTransferMovementForm({ ...transferMovementForm, bankIdDestino: event.target.value })}>
+                <select required value={transferMovementForm.bankIdDestino} onChange={(event) => setTransferMovementForm((current) => ({ ...current, bankIdDestino: event.target.value }))}>
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
@@ -6922,18 +8156,22 @@ export function App() {
             ) : null}
             <label className="field">
               <span>Valor</span>
-              <input required min="0" step="0.01" type="number" value={financeModal === "receive" ? receiveMovementForm.valor : financeModal === "pay" ? payMovementForm.valor : transferMovementForm.valor} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm({ ...receiveMovementForm, valor: event.target.value }) : financeModal === "pay" ? setPayMovementForm({ ...payMovementForm, valor: event.target.value }) : setTransferMovementForm({ ...transferMovementForm, valor: event.target.value })} />
+              <input required min="0" step="0.01" type="number" value={financeModal === "receive" ? receiveMovementForm.valor : financeModal === "pay" ? payMovementForm.valor : transferMovementForm.valor} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm((current) => ({ ...current, valor: event.target.value })) : financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, valor: event.target.value })) : setTransferMovementForm((current) => ({ ...current, valor: event.target.value }))} />
             </label>
             <label className="field field-wide">
               <span>Historico</span>
-              <input required value={financeModal === "receive" ? receiveMovementForm.historico : financeModal === "pay" ? payMovementForm.historico : transferMovementForm.historico} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm({ ...receiveMovementForm, historico: event.target.value }) : financeModal === "pay" ? setPayMovementForm({ ...payMovementForm, historico: event.target.value }) : setTransferMovementForm({ ...transferMovementForm, historico: event.target.value })} />
+              <input required value={financeModal === "receive" ? receiveMovementForm.historico : financeModal === "pay" ? payMovementForm.historico : transferMovementForm.historico} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm((current) => ({ ...current, historico: event.target.value })) : financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, historico: event.target.value })) : setTransferMovementForm((current) => ({ ...current, historico: event.target.value }))} />
             </label>
             {financeModal === "pay" ? (
               <label className="field field-wide">
                 <span>Beneficiario</span>
-                <input value={payMovementForm.beneficiarioNome} onChange={(event) => setPayMovementForm({ ...payMovementForm, beneficiarioNome: event.target.value })} />
+                <input value={payMovementForm.beneficiarioNome} onChange={(event) => setPayMovementForm((current) => ({ ...current, beneficiarioNome: event.target.value }))} />
               </label>
             ) : null}
+            <label className="field">
+              <span>Data do movimento</span>
+              <input required type="datetime-local" value={financeModal === "receive" ? receiveMovementForm.dataMovimento : financeModal === "pay" ? payMovementForm.dataMovimento : transferMovementForm.dataMovimento} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm((current) => ({ ...current, dataMovimento: event.target.value })) : financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, dataMovimento: event.target.value })) : setTransferMovementForm((current) => ({ ...current, dataMovimento: event.target.value }))} />
+            </label>
           </div>
           <div className="button-row">
             <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
@@ -6942,6 +8180,84 @@ export function App() {
         </form>
       </WorkspaceRecordModal>
     );
+  }
+
+  function renderFinanceActionDialogs(): JSX.Element | null {
+    if (deleteTarget) {
+      return (
+        <WorkspaceRecordModal
+          onClose={() => setDeleteTarget(null)}
+          subtitle="A exclusao so vale para registros ainda nao liquidados nem consolidados."
+          title="Excluir registro"
+        >
+          <div className="stack-form">
+            <div className="workspace-record-delete-copy">
+              <strong>{deleteTarget.label}</strong>
+              <p>Se houver reflexo financeiro consolidado, a acao correta passa a ser estornar.</p>
+            </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => setDeleteTarget(null)} type="button">
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={isBusy} onClick={() => void handleDeleteFinanceRecord()} type="button">
+                Confirmar exclusao
+              </button>
+            </div>
+          </div>
+        </WorkspaceRecordModal>
+      );
+    }
+
+    if (reverseTarget) {
+      return (
+        <WorkspaceRecordModal
+          onClose={() => setReverseTarget(null)}
+          subtitle="O estorno gera um movimento inverso e preserva o historico original."
+          title="Estornar movimento"
+        >
+          <form className="stack-form" onSubmit={(event) => {
+            event.preventDefault();
+            void handleReverseMovement();
+          }}>
+            <div className="workspace-record-delete-copy">
+              <strong>{reverseTarget.label}</strong>
+            </div>
+            <div className="form-grid">
+              <label className="field field-wide">
+                <span>Historico do estorno</span>
+                <input
+                  value={reverseMovementForm.historico}
+                  onChange={(event) =>
+                    setReverseMovementForm((current) => ({ ...current, historico: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Data do estorno</span>
+                <input
+                  required
+                  type="datetime-local"
+                  value={reverseMovementForm.dataMovimento}
+                  onChange={(event) =>
+                    setReverseMovementForm((current) => ({ ...current, dataMovimento: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="button-row">
+              <button className="secondary-button" onClick={() => setReverseTarget(null)} type="button">
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={isBusy} type="submit">
+                Confirmar estorno
+              </button>
+            </div>
+          </form>
+        </WorkspaceRecordModal>
+      );
+    }
+
+    return null;
   }
 
   function renderAgendaBookingDocument(): JSX.Element | null {
@@ -8484,6 +9800,7 @@ export function App() {
       {renderCounterBookingModal()}
       {renderAgendaBookingModal()}
       {renderFinanceModal()}
+      {renderFinanceActionDialogs()}
     </Fragment>
   );
 }
@@ -9441,6 +10758,69 @@ function formatCashEntryKind(kind: CashEntry["kind"]): string {
 
 function formatCashEntryStatus(status: CashEntry["status"]): string {
   return status === "open" ? "Ativo" : "Revertido";
+}
+
+function formatBankMovementType(type: BankMovement["tipo"]): string {
+  switch (type) {
+    case "entrada":
+      return "Entrada";
+    case "saida":
+      return "Saida";
+    case "transferencia":
+      return "Transferencia";
+    case "ajuste":
+      return "Ajuste";
+    case "taxa":
+      return "Taxa";
+    case "estorno":
+      return "Estorno";
+    default:
+      return type;
+  }
+}
+
+function formatBankMovementStatus(status: BankMovement["status"]): string {
+  switch (status) {
+    case "previsto":
+      return "Previsto";
+    case "lancado":
+      return "Lancado";
+    case "estornado":
+      return "Estornado";
+    case "cancelado":
+      return "Cancelado";
+    default:
+      return status;
+  }
+}
+
+function formatBankMovementSource(sourceType: BankMovement["sourceType"]): string {
+  switch (sourceType) {
+    case "revenue_schedule":
+      return "Receita";
+    case "expense_schedule":
+      return "Despesa";
+    case "cash_entry":
+      return "Agenda";
+    case "transfer":
+      return "Transferencia";
+    case "manual_receipt":
+      return "Recebimento manual";
+    case "manual_payment":
+      return "Pagamento manual";
+    case "manual_adjustment":
+      return "Ajuste manual";
+    case "fee":
+      return "Taxa";
+    case "cash_close":
+      return "Fechar caixa";
+    case "reversal":
+      return "Estorno";
+    case "booking":
+      return "Booking";
+    default:
+      return sourceType;
+  }
 }
 
 function isOpenBookingStatus(status: Booking["status"]): boolean {

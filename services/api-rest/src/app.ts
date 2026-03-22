@@ -7,10 +7,12 @@ import {
   bankMovementTypeValues,
   bookingStatusValues,
   createBankBalanceSchema,
+  createBankMovementSchema,
   createBankPaymentSchema,
   createBankReceiptSchema,
   createBankSchema,
   createBankTransferSchema,
+  createCashCloseSchema,
   createExpenseScheduleSchema,
   createRevenueScheduleSchema,
   clientContactInputSchema,
@@ -24,6 +26,8 @@ import {
   createProfessionalSchema,
   reportDefinitionSchema,
   reportExecutionRequestSchema,
+  revenueScheduleStatusValues,
+  reverseBankMovementSchema,
   createServiceSchema,
   createTenantSchema,
   paymentWebhookNotificationSchema,
@@ -161,7 +165,8 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       runtimeError.message === "bank_not_found" ||
       runtimeError.message === "revenue_not_found" ||
       runtimeError.message === "expense_not_found" ||
-      runtimeError.message === "cash_entry_not_found"
+      runtimeError.message === "cash_entry_not_found" ||
+      runtimeError.message === "bank_movement_not_found"
     ) {
       reply.status(404).send({
         error: runtimeError.message,
@@ -175,7 +180,10 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       runtimeError.message === "booking_time_invalid" ||
       runtimeError.message === "bank_destination_required" ||
       runtimeError.message === "bank_origin_required" ||
-      runtimeError.message === "distinct_banks_required"
+      runtimeError.message === "distinct_banks_required" ||
+      runtimeError.message === "bank_transfer_invalid" ||
+      runtimeError.message === "bank_reversal_invalid" ||
+      runtimeError.message === "bank_movement_already_reversed"
     ) {
       reply.status(400).send({
         error: runtimeError.message,
@@ -188,6 +196,18 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       reply.status(409).send({
         error: "bank_account_already_exists",
         message: "Bank account already exists for this tenant."
+      });
+      return;
+    }
+
+    if (
+      runtimeError.message === "bank_in_use" ||
+      runtimeError.message === "bank_balance_in_use" ||
+      runtimeError.message === "schedule_in_use"
+    ) {
+      reply.status(409).send({
+        error: runtimeError.message,
+        message: "The selected financial record is already linked to operational movements."
       });
       return;
     }
@@ -910,6 +930,16 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         return bank;
       });
 
+      adminRoutes.delete("/banks/:bankId", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const bankId = readRequiredString((request.params as Record<string, unknown>).bankId, "bankId");
+        const deleted = await store.deleteBank(claims.tenantId, bankId);
+        if (!deleted) {
+          throw new ApiHttpError(404, "bank_not_found", "Bank was not found for this tenant.");
+        }
+        reply.status(204);
+      });
+
       adminRoutes.post("/bank-balances", async (request, reply) => {
         const claims = requireAdminSession(request).claims;
         const command = createBankBalanceSchema.parse({
@@ -944,6 +974,19 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
           throw new ApiHttpError(404, "bank_not_found", "Bank balance was not found for this tenant.");
         }
         return balance;
+      });
+
+      adminRoutes.delete("/bank-balances/:balanceId", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const balanceId = readRequiredString(
+          (request.params as Record<string, unknown>).balanceId,
+          "balanceId"
+        );
+        const deleted = await store.deleteBankBalance(claims.tenantId, balanceId);
+        if (!deleted) {
+          throw new ApiHttpError(404, "bank_not_found", "Bank balance was not found for this tenant.");
+        }
+        reply.status(204);
       });
 
       adminRoutes.post("/revenues", async (request, reply) => {
@@ -982,6 +1025,19 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         return revenue;
       });
 
+      adminRoutes.delete("/revenues/:revenueId", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const revenueId = readRequiredString(
+          (request.params as Record<string, unknown>).revenueId,
+          "revenueId"
+        );
+        const deleted = await store.deleteRevenueSchedule(claims.tenantId, revenueId);
+        if (!deleted) {
+          throw new ApiHttpError(404, "revenue_not_found", "Revenue was not found for this tenant.");
+        }
+        reply.status(204);
+      });
+
       adminRoutes.post("/expenses", async (request, reply) => {
         const claims = requireAdminSession(request).claims;
         const command = createExpenseScheduleSchema.parse({
@@ -1018,11 +1074,53 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         return expense;
       });
 
+      adminRoutes.delete("/expenses/:expenseId", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const expenseId = readRequiredString(
+          (request.params as Record<string, unknown>).expenseId,
+          "expenseId"
+        );
+        const deleted = await store.deleteExpenseSchedule(claims.tenantId, expenseId);
+        if (!deleted) {
+          throw new ApiHttpError(404, "expense_not_found", "Expense was not found for this tenant.");
+        }
+        reply.status(204);
+      });
+
       adminRoutes.get("/bank-movements", async (request) => {
         const claims = requireAdminSession(request).claims;
         return {
           items: await store.listBankMovements(claims.tenantId)
         };
+      });
+
+      adminRoutes.post("/bank-movements", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createBankMovementSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const movement = await store.createBankMovement(command);
+        reply.status(201);
+        return movement;
+      });
+
+      adminRoutes.patch("/bank-movements/:movementId", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const movementId = readRequiredString(
+          (request.params as Record<string, unknown>).movementId,
+          "movementId"
+        );
+        const movement = await store.updateBankMovement(
+          claims.tenantId,
+          movementId,
+          parseBankMovementPatch(requireRecord(request.body))
+        );
+        if (!movement) {
+          throw new ApiHttpError(404, "bank_movement_not_found", "Bank movement was not found for this tenant.");
+        }
+        return movement;
       });
 
       adminRoutes.post("/bank-movements/receive", async (request, reply) => {
@@ -1059,6 +1157,54 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         const movement = await store.transferBetweenBanks(command);
         reply.status(201);
         return movement;
+      });
+
+      adminRoutes.post("/bank-movements/:movementId/reverse", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const movementId = readRequiredString(
+          (request.params as Record<string, unknown>).movementId,
+          "movementId"
+        );
+        const body = requireRecord(request.body);
+        const command = reverseBankMovementSchema.parse({
+          ...body,
+          version: contractVersion,
+          tenantId: claims.tenantId,
+          movementId
+        });
+        const movement = await store.reverseBankMovement(command);
+        reply.status(201);
+        return movement;
+      });
+
+      adminRoutes.get("/cash-closes", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        return {
+          items: await store.listCashCloses(claims.tenantId)
+        };
+      });
+
+      adminRoutes.get("/cash-closes/:cashCloseId/items", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const cashCloseId = readRequiredString(
+          (request.params as Record<string, unknown>).cashCloseId,
+          "cashCloseId"
+        );
+        return {
+          items: await store.listCashCloseItems(claims.tenantId, cashCloseId)
+        };
+      });
+
+      adminRoutes.post("/cash-closes", async (request, reply) => {
+        const claims = requireAdminSession(request).claims;
+        const command = createCashCloseSchema.parse({
+          ...requireRecord(request.body),
+          version: contractVersion,
+          tenantId: claims.tenantId
+        });
+        const result = await store.createCashClose(command);
+        reply.status(201);
+        return result;
       });
 
       adminRoutes.get("/read-models/financial", async (request) => {
@@ -1384,6 +1530,9 @@ function parseProfessionalPatch(payload: Record<string, unknown>): ProfessionalP
   if ("especialidades" in payload) {
     patch.especialidades = readStringArray(payload.especialidades, "especialidades");
   }
+  if ("bankId" in payload) {
+    patch.bankId = readOptionalId(payload.bankId, "bankId");
+  }
 
   return requireNonEmptyPatch(patch, "professional");
 }
@@ -1499,7 +1648,9 @@ function parseRevenuePatch(payload: Record<string, unknown>) {
     recorrencia?: "semanal" | "mensal" | undefined;
     quantidadeOcorrencias?: number | undefined;
     diaSemanaVencimento?: number | undefined;
-    status?: "aberta" | "recebida" | "cancelada";
+    status?: (typeof revenueScheduleStatusValues)[number];
+    bankId?: string | undefined;
+    baixaAutomatica?: "sim" | "nao";
     clientId?: string | undefined;
     serviceId?: string | undefined;
     professionalId?: string | undefined;
@@ -1541,7 +1692,13 @@ function parseRevenuePatch(payload: Record<string, unknown>) {
         : readWeekday(payload.diaSemanaVencimento, "diaSemanaVencimento");
   }
   if ("status" in payload) {
-    patch.status = readStringEnum(payload.status, ["aberta", "recebida", "cancelada"] as const, "status");
+    patch.status = readStringEnum(payload.status, revenueScheduleStatusValues, "status");
+  }
+  if ("bankId" in payload) {
+    patch.bankId = readOptionalId(payload.bankId, "bankId");
+  }
+  if ("baixaAutomatica" in payload) {
+    patch.baixaAutomatica = readStringEnum(payload.baixaAutomatica, ["sim", "nao"] as const, "baixaAutomatica");
   }
   if ("clientId" in payload) {
     patch.clientId = readOptionalId(payload.clientId, "clientId");
@@ -1571,6 +1728,8 @@ function parseExpensePatch(payload: Record<string, unknown>) {
     diaSemanaVencimento?: number | undefined;
     status?: (typeof expenseScheduleStatusValues)[number];
     beneficiarioNome?: string | undefined;
+    bankId?: string | undefined;
+    baixaAutomatica?: "sim" | "nao";
   } = {};
 
   if ("codigo" in payload) {
@@ -1613,8 +1772,50 @@ function parseExpensePatch(payload: Record<string, unknown>) {
   if ("beneficiarioNome" in payload) {
     patch.beneficiarioNome = readOptionalString(payload.beneficiarioNome, "beneficiarioNome");
   }
+  if ("bankId" in payload) {
+    patch.bankId = readOptionalId(payload.bankId, "bankId");
+  }
+  if ("baixaAutomatica" in payload) {
+    patch.baixaAutomatica = readStringEnum(payload.baixaAutomatica, ["sim", "nao"] as const, "baixaAutomatica");
+  }
 
   return requireNonEmptyPatch(patch, "expense");
+}
+
+function parseBankMovementPatch(payload: Record<string, unknown>) {
+  const patch: {
+    tipo?: BankMovementType;
+    bankIdOrigem?: string | undefined;
+    bankIdDestino?: string | undefined;
+    valor?: number;
+    historico?: string;
+    beneficiarioNome?: string | undefined;
+    dataMovimento?: string;
+  } = {};
+
+  if ("tipo" in payload) {
+    patch.tipo = readStringEnum(payload.tipo, bankMovementTypeValues, "tipo");
+  }
+  if ("bankIdOrigem" in payload) {
+    patch.bankIdOrigem = readOptionalId(payload.bankIdOrigem, "bankIdOrigem");
+  }
+  if ("bankIdDestino" in payload) {
+    patch.bankIdDestino = readOptionalId(payload.bankIdDestino, "bankIdDestino");
+  }
+  if ("valor" in payload) {
+    patch.valor = readNonNegativeNumber(payload.valor, "valor");
+  }
+  if ("historico" in payload) {
+    patch.historico = readRequiredString(payload.historico, "historico");
+  }
+  if ("beneficiarioNome" in payload) {
+    patch.beneficiarioNome = readOptionalString(payload.beneficiarioNome, "beneficiarioNome");
+  }
+  if ("dataMovimento" in payload) {
+    patch.dataMovimento = readRequiredString(payload.dataMovimento, "dataMovimento");
+  }
+
+  return requireNonEmptyPatch(patch, "bank movement");
 }
 
 function requireRecord(value: unknown): Record<string, unknown> {
