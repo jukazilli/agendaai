@@ -103,6 +103,27 @@ export interface ExecuteReportDefinitionPayload {
   readonly definition: ReportDefinition;
 }
 
+export interface CashClosePreviewItemPayload {
+  readonly sourceType: "revenue_schedule" | "expense_schedule" | "cash_entry";
+  readonly sourceId: string;
+  readonly tipo: "entrada" | "saida";
+  readonly descricao: string;
+  readonly valor: number;
+  readonly dataReferencia: string;
+  readonly bankId?: string;
+  readonly bankLabel?: string;
+  readonly movementId?: string;
+  readonly status: "pendente" | "baixado";
+}
+
+export interface CashClosePreviewPayload {
+  readonly bankId: string;
+  readonly dateFrom: string;
+  readonly dateTo: string;
+  readonly pending: CashClosePreviewItemPayload[];
+  readonly settled: CashClosePreviewItemPayload[];
+}
+
 interface ApiErrorPayload {
   readonly error?: string;
   readonly message?: string;
@@ -703,6 +724,10 @@ export async function createCashClose(
     bankId: string;
     dateFrom: string;
     dateTo: string;
+    items?: Array<{
+      readonly sourceType: "revenue_schedule" | "expense_schedule" | "cash_entry";
+      readonly sourceId: string;
+    }>;
   }
 ): Promise<{
   cashClose: CashClose;
@@ -713,6 +738,25 @@ export async function createCashClose(
     method: "POST",
     token,
     body: payload
+  });
+}
+
+export async function fetchCashClosePreview(
+  apiBaseUrl: string,
+  token: string,
+  query: {
+    bankId: string;
+    dateFrom: string;
+    dateTo: string;
+  }
+): Promise<CashClosePreviewPayload> {
+  const url = new URL("/v1/admin/cash-closes/preview", `${resolveAdminApiBaseUrl(apiBaseUrl)}/`);
+  url.searchParams.set("bankId", query.bankId);
+  url.searchParams.set("dateFrom", query.dateFrom);
+  url.searchParams.set("dateTo", query.dateTo);
+
+  return await requestJson<CashClosePreviewPayload>(apiBaseUrl, url.pathname + url.search, {
+    token
   });
 }
 

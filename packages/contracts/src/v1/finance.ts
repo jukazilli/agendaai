@@ -299,11 +299,17 @@ export const cashCloseItemSchema = contractEnvelopeSchema.extend({
   updatedAt: dateTimeStringSchema
 });
 
+export const cashCloseSelectionItemSchema = z.object({
+  sourceType: cashCloseItemSourceSchema,
+  sourceId: entityIdSchema
+});
+
 export const createCashCloseSchema = contractEnvelopeSchema.extend({
   tenantId: tenantIdSchema,
   bankId: entityIdSchema,
   dateFrom: dateStringSchema,
-  dateTo: dateStringSchema
+  dateTo: dateStringSchema,
+  items: z.array(cashCloseSelectionItemSchema).optional()
 });
 
 export const financialRangeValues = ["7d", "30d", "all"] as const;
@@ -364,7 +370,7 @@ export const bankMovementPreviewSchema = z.object({
   origem: nonEmptyStringSchema.optional()
 });
 
-export const cashClosePreviewSchema = z.object({
+export const cashCloseSummaryPreviewSchema = z.object({
   id: entityIdSchema,
   codigo: nonEmptyStringSchema,
   bankId: entityIdSchema,
@@ -377,6 +383,30 @@ export const cashClosePreviewSchema = z.object({
   status: cashCloseStatusSchema
 });
 
+export const cashClosePreviewItemStatusValues = ["pendente", "baixado"] as const;
+export const cashClosePreviewItemStatusSchema = z.enum(cashClosePreviewItemStatusValues);
+
+export const cashClosePreviewItemSchema = z.object({
+  sourceType: cashCloseItemSourceSchema,
+  sourceId: entityIdSchema,
+  tipo: cashCloseItemDirectionSchema,
+  descricao: nonEmptyStringSchema,
+  valor: moneyAmountSchema,
+  dataReferencia: dateStringSchema,
+  movementId: entityIdSchema.optional(),
+  bankId: entityIdSchema.optional(),
+  bankLabel: optionalTrimmedStringSchema,
+  status: cashClosePreviewItemStatusSchema
+});
+
+export const cashCloseWorkspacePreviewSchema = z.object({
+  bankId: entityIdSchema,
+  dateFrom: dateStringSchema,
+  dateTo: dateStringSchema,
+  pending: z.array(cashClosePreviewItemSchema),
+  settled: z.array(cashClosePreviewItemSchema)
+});
+
 export const adminFinancialReadModelSchema = contractEnvelopeSchema.extend({
   filters: financialFiltersSchema,
   summary: z.array(financialSummaryMetricSchema),
@@ -384,7 +414,7 @@ export const adminFinancialReadModelSchema = contractEnvelopeSchema.extend({
   receivables: z.array(schedulePreviewSchema),
   payables: z.array(schedulePreviewSchema),
   recentMovements: z.array(bankMovementPreviewSchema),
-  recentClosings: z.array(cashClosePreviewSchema).optional()
+  recentClosings: z.array(cashCloseSummaryPreviewSchema).optional()
 });
 
 export type Bank = z.infer<typeof bankSchema>;
@@ -413,8 +443,10 @@ export type CreateBankMovementCommand = z.infer<typeof createBankMovementSchema>
 export type ReverseBankMovementCommand = z.infer<typeof reverseBankMovementSchema>;
 export type CashClose = z.infer<typeof cashCloseSchema>;
 export type CashCloseItem = z.infer<typeof cashCloseItemSchema>;
+export type CashCloseSelectionItem = z.infer<typeof cashCloseSelectionItemSchema>;
 export type CreateCashCloseCommand = z.infer<typeof createCashCloseSchema>;
 export type CashCloseStatus = z.infer<typeof cashCloseStatusSchema>;
+export type CashClosePreviewItemStatus = z.infer<typeof cashClosePreviewItemStatusSchema>;
 export type FinancialRange = z.infer<typeof financialRangeSchema>;
 export type FinancialSituation = z.infer<typeof financialSituationSchema>;
 export type FinancialFilters = z.infer<typeof financialFiltersSchema>;
@@ -422,5 +454,7 @@ export type FinancialSummaryMetric = z.infer<typeof financialSummaryMetricSchema
 export type BankBalanceSnapshot = z.infer<typeof bankBalanceSnapshotSchema>;
 export type SchedulePreview = z.infer<typeof schedulePreviewSchema>;
 export type BankMovementPreview = z.infer<typeof bankMovementPreviewSchema>;
-export type CashClosePreview = z.infer<typeof cashClosePreviewSchema>;
+export type CashCloseSummaryPreview = z.infer<typeof cashCloseSummaryPreviewSchema>;
+export type CashClosePreviewItem = z.infer<typeof cashClosePreviewItemSchema>;
+export type CashClosePreview = z.infer<typeof cashCloseWorkspacePreviewSchema>;
 export type AdminFinancialReadModel = z.infer<typeof adminFinancialReadModelSchema>;

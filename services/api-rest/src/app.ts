@@ -178,12 +178,14 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     if (
       runtimeError.message === "availability_rule_invalid" ||
       runtimeError.message === "booking_time_invalid" ||
+      runtimeError.message === "booking_time_in_past" ||
       runtimeError.message === "bank_destination_required" ||
       runtimeError.message === "bank_origin_required" ||
       runtimeError.message === "distinct_banks_required" ||
       runtimeError.message === "bank_transfer_invalid" ||
       runtimeError.message === "bank_reversal_invalid" ||
-      runtimeError.message === "bank_movement_already_reversed"
+      runtimeError.message === "bank_movement_already_reversed" ||
+      runtimeError.message === "cash_close_item_not_available"
     ) {
       reply.status(400).send({
         error: runtimeError.message,
@@ -1182,6 +1184,16 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         return {
           items: await store.listCashCloses(claims.tenantId)
         };
+      });
+
+      adminRoutes.get("/cash-closes/preview", async (request) => {
+        const claims = requireAdminSession(request).claims;
+        const query = (request.query ?? {}) as Record<string, unknown>;
+        const bankId = readRequiredString(query.bankId, "bankId");
+        const dateFrom = readRequiredString(query.dateFrom, "dateFrom");
+        const dateTo = readRequiredString(query.dateTo, "dateTo");
+
+        return await store.previewCashClose(claims.tenantId, bankId, dateFrom, dateTo);
       });
 
       adminRoutes.get("/cash-closes/:cashCloseId/items", async (request) => {

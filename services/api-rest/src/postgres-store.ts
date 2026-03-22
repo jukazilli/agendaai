@@ -420,6 +420,11 @@ export class PostgresApiRestStore implements ApiRestStorePort {
     return this.store.listCashCloseItems(tenantId, cashCloseId);
   }
 
+  async previewCashClose(tenantId: string, bankId: string, dateFrom: string, dateTo: string) {
+    await this.ensureReady();
+    return this.store.previewCashClose(tenantId, bankId, dateFrom, dateTo);
+  }
+
   async createCashClose(command: CreateCashCloseCommand) {
     await this.ensureReady();
     const result = this.store.createCashClose(command);

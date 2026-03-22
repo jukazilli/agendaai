@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent, type JSX } from "react";
+import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent, type JSX, type ReactNode } from "react";
 import { format as formatDateFns, getDay, parse as parseDateFns, startOfWeek } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
@@ -72,6 +72,8 @@ import {
 import {
   type AvailabilitySlot,
   AdminApiError,
+  type CashClosePreviewItemPayload,
+  type CashClosePreviewPayload,
   DEFAULT_ADMIN_API_BASE_URL,
   type AdminBootstrapPayload,
   createReportDefinition,
@@ -92,6 +94,7 @@ import {
   fetchAdminReportsReadModel,
   fetchAvailabilitySlots,
   fetchAdminBootstrap,
+  fetchCashClosePreview,
   fetchProfessionalAvailability,
   listReportDefinitions,
   loginAdmin,
@@ -159,7 +162,6 @@ type AdminRoute =
   | "clientes"
   | "configuracoes";
 type AgendaViewMode = "day" | "week" | "month";
-type AgendaWorkspaceTab = "list" | "calendar";
 type DashboardRange = "7d" | "30d" | "all";
 type DashboardWorkspaceTab = "cashflow" | "agenda" | "radar";
 type FinanceWorkspaceTab =
@@ -629,7 +631,7 @@ const professionalAvatarVariants = [
   "is-slate",
   "is-teal"
 ] as const;
-const defaultAdminRoute: AdminRoute = "operacional";
+const defaultAdminRoute: AdminRoute = "agenda";
 const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
   dashboard: {
     label: "Dashboard",
@@ -738,7 +740,7 @@ const adminNavigationSections: ReadonlyArray<{
   },
   {
     label: "Dia a dia",
-    routes: ["operacional", "agenda"]
+    routes: ["agenda"]
   },
   {
     label: "Administracao",
@@ -931,6 +933,105 @@ function groupReportsWorkspaceItems(
   });
 
   return Array.from(grouped.entries());
+}
+
+interface WorkspaceRecordModalProps {
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly children: ReactNode;
+  readonly footer?: ReactNode;
+  readonly onClose: () => void;
+}
+
+function WorkspaceRecordModal({
+  title,
+  subtitle,
+  children,
+  footer,
+  onClose
+}: WorkspaceRecordModalProps): JSX.Element {
+  return (
+    <div className="workspace-record-overlay" role="presentation" onClick={onClose}>
+      <section
+        aria-label={title}
+        className="workspace-record-modal"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="workspace-record-modal-header">
+          <div>
+            <h2>{title}</h2>
+            {subtitle ? <p>{subtitle}</p> : null}
+          </div>
+          <button className="icon-button" onClick={onClose} type="button">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="workspace-record-modal-body">{children}</div>
+        {footer ? <div className="workspace-record-modal-footer">{footer}</div> : null}
+      </section>
+    </div>
+  );
+}
+
+const brlCurrencyFormatter = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL"
+});
+
+function normalizeCurrencyInputValue(input: string): string {
+  const digits = input.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  return (Number(digits) / 100).toFixed(2);
+}
+
+function formatCurrencyInputValue(value: string): string {
+  if (!value.trim()) {
+    return "";
+  }
+
+  const amount = Number(value);
+  if (Number.isNaN(amount)) {
+    return "";
+  }
+  return brlCurrencyFormatter.format(amount);
+}
+
+function buildCashClosePreviewSelectionKey(sourceType: string, sourceId: string): string {
+  return `${sourceType}:${sourceId}`;
+}
+
+function resolveNextSlotSuggestion(
+  slots: readonly AvailabilitySlot[],
+  referenceStartAt: string
+): AvailabilitySlot | null {
+  const orderedSlots = [...slots].sort((left, right) => left.startAt.localeCompare(right.startAt));
+  return orderedSlots.find((slot) => slot.startAt >= referenceStartAt) ?? orderedSlots[0] ?? null;
+}
+
+function CurrencyInput({
+  disabled,
+  required,
+  value,
+  onValueChange
+}: {
+  readonly disabled?: boolean;
+  readonly required?: boolean;
+  readonly value: string;
+  readonly onValueChange: (value: string) => void;
+}): JSX.Element {
+  return (
+    <input
+      disabled={disabled}
+      inputMode="numeric"
+      required={required}
+      type="text"
+      value={formatCurrencyInputValue(value)}
+      onChange={(event) => onValueChange(normalizeCurrencyInputValue(event.target.value))}
+    />
+  );
 }
 
 function buildReportsBuilderMenuItems(
@@ -1340,13 +1441,17 @@ function isAdminRoute(value: string): value is AdminRoute {
   return Object.prototype.hasOwnProperty.call(adminRouteDefinitions, value);
 }
 
+function normalizeAdminRoute(route: AdminRoute): AdminRoute {
+  return route === "operacional" ? "agenda" : route;
+}
+
 function readAdminRouteFromHash(): AdminRoute {
   if (typeof window === "undefined") {
     return defaultAdminRoute;
   }
 
   const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
-  return isAdminRoute(hash) ? hash : defaultAdminRoute;
+  return isAdminRoute(hash) ? normalizeAdminRoute(hash) : defaultAdminRoute;
 }
 
 export function App() {
@@ -1399,6 +1504,9 @@ export function App() {
   );
   const [manualMovementForm, setManualMovementForm] = useState<ManualMovementFormState>(defaultManualMovementForm);
   const [cashCloseForm, setCashCloseForm] = useState<CashCloseFormState>(defaultCashCloseForm);
+  const [cashClosePreview, setCashClosePreview] = useState<CashClosePreviewPayload | null>(null);
+  const [selectedCashClosePreviewKeys, setSelectedCashClosePreviewKeys] = useState<string[]>([]);
+  const [isLoadingCashClosePreview, setIsLoadingCashClosePreview] = useState(false);
   const [reverseMovementForm, setReverseMovementForm] = useState<ReverseMovementFormState>(
     defaultReverseMovementForm
   );
@@ -1423,12 +1531,17 @@ export function App() {
   const [counterBookingProfessionalId, setCounterBookingProfessionalId] = useState("");
   const [counterBookingDate, setCounterBookingDate] = useState(() => formatDateInputValue(new Date()));
   const [counterBookingSlots, setCounterBookingSlots] = useState<AvailabilitySlot[]>([]);
+  const [counterBookingPreferredSlotStartAt, setCounterBookingPreferredSlotStartAt] = useState("");
   const [counterBookingSlotStartAt, setCounterBookingSlotStartAt] = useState("");
   const [isLoadingCounterBookingSlots, setIsLoadingCounterBookingSlots] = useState(false);
   const [counterBookingForm, setCounterBookingForm] = useState<CounterBookingFormState>(
     defaultCounterBookingForm
   );
   const [counterBookingError, setCounterBookingError] = useState<string | null>(null);
+  const [counterBookingConflictSuggestion, setCounterBookingConflictSuggestion] = useState<null | {
+    readonly slot: AvailabilitySlot;
+    readonly message: string;
+  }>(null);
   const [isSubmittingCounterBooking, setIsSubmittingCounterBooking] = useState(false);
   const [counterBookingReceipt, setCounterBookingReceipt] = useState<CounterBookingReceipt | null>(null);
   const [reportsRange, setReportsRange] = useState<DashboardRange>("30d");
@@ -1474,8 +1587,8 @@ export function App() {
   const [availabilityDays, setAvailabilityDays] = useState<AvailabilityDayState[]>(
     createDefaultAvailabilityDays()
   );
-  const [agendaWorkspaceTab, setAgendaWorkspaceTab] = useState<AgendaWorkspaceTab>("list");
   const [agendaViewMode, setAgendaViewMode] = useState<AgendaViewMode>("day");
+  const [isAgendaDrawerOpen, setIsAgendaDrawerOpen] = useState(true);
   const [agendaDate, setAgendaDate] = useState(() => formatDateInputValue(new Date()));
   const [agendaProfessionalFilter, setAgendaProfessionalFilter] = useState("all");
   const [selectedAgendaBookingId, setSelectedAgendaBookingId] = useState("");
@@ -1573,6 +1686,7 @@ export function App() {
     setIsCompactShell(isCompactShell);
     if (isCompactShell) {
       setIsSidebarOpen(false);
+      setIsAgendaDrawerOpen(false);
     }
 
     const syncShellMode = () => {
@@ -1584,6 +1698,7 @@ export function App() {
       isCompactShell = nextCompactShell;
       setIsCompactShell(nextCompactShell);
       setIsSidebarOpen(false);
+      setIsAgendaDrawerOpen(!nextCompactShell);
     };
 
     window.addEventListener("resize", syncShellMode);
@@ -2553,6 +2668,13 @@ export function App() {
             return current;
           }
 
+          if (counterBookingPreferredSlotStartAt) {
+            const suggestedSlot = resolveNextSlotSuggestion(slots, counterBookingPreferredSlotStartAt);
+            if (suggestedSlot) {
+              return suggestedSlot.startAt;
+            }
+          }
+
           return slots[0]?.startAt ?? "";
         });
       } catch (error) {
@@ -2575,9 +2697,72 @@ export function App() {
   }, [
     apiBaseUrl,
     counterBookingDate,
+    counterBookingPreferredSlotStartAt,
     counterBookingProfessionalId,
     counterBookingServiceId,
     isCounterBookingModalOpen,
+    sessionToken
+  ]);
+
+  useEffect(() => {
+    if (
+      financeModal !== "close" ||
+      financeModalMode === "view" ||
+      !sessionToken ||
+      !cashCloseForm.bankId ||
+      !cashCloseForm.dateFrom ||
+      !cashCloseForm.dateTo
+    ) {
+      setCashClosePreview(null);
+      setSelectedCashClosePreviewKeys([]);
+      setIsLoadingCashClosePreview(false);
+      return;
+    }
+
+    let ignore = false;
+    setIsLoadingCashClosePreview(true);
+
+    void fetchCashClosePreview(apiBaseUrl, sessionToken, {
+      bankId: cashCloseForm.bankId,
+      dateFrom: cashCloseForm.dateFrom,
+      dateTo: cashCloseForm.dateTo
+    })
+      .then((preview) => {
+        if (ignore) {
+          return;
+        }
+        setCashClosePreview(preview);
+        setSelectedCashClosePreviewKeys(
+          preview.pending.map((entry) => buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId))
+        );
+      })
+      .catch((error) => {
+        if (ignore) {
+          return;
+        }
+        setCashClosePreview(null);
+        setSelectedCashClosePreviewKeys([]);
+        setFeedback({
+          tone: "error",
+          message: toErrorMessage(error)
+        });
+      })
+      .finally(() => {
+        if (!ignore) {
+          setIsLoadingCashClosePreview(false);
+        }
+      });
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    apiBaseUrl,
+    cashCloseForm.bankId,
+    cashCloseForm.dateFrom,
+    cashCloseForm.dateTo,
+    financeModal,
+    financeModalMode,
     sessionToken
   ]);
 
@@ -2614,6 +2799,9 @@ export function App() {
   function closeFinanceModal(): void {
     setFinanceModal(null);
     setFinanceModalMode("create");
+    setCashClosePreview(null);
+    setSelectedCashClosePreviewKeys([]);
+    setIsLoadingCashClosePreview(false);
     setEditingBankId("");
     setEditingBalanceId("");
     setEditingRevenueId("");
@@ -3031,8 +3219,34 @@ export function App() {
 
   async function handleCreateCashClose(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
+    if (!selectedCashClosePreviewKeys.length) {
+      setFeedback({
+        tone: "error",
+        message: "Selecione pelo menos um item pendente para fechar o caixa."
+      });
+      return;
+    }
+
     await runAction(async () => {
-      await createCashClose(apiBaseUrl, sessionToken, cashCloseForm);
+      const selectedItems: Array<{
+        readonly sourceType: "revenue_schedule" | "expense_schedule" | "cash_entry";
+        readonly sourceId: string;
+      }> =
+        cashClosePreview?.pending
+          .filter((entry) =>
+            selectedCashClosePreviewKeys.includes(
+              buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId)
+            )
+          )
+          .map((entry) => ({
+            sourceType: entry.sourceType,
+            sourceId: entry.sourceId
+          })) ?? [];
+
+      await createCashClose(apiBaseUrl, sessionToken, {
+        ...cashCloseForm,
+        items: selectedItems
+      });
       await refreshAdminState();
       closeFinanceModal();
       setFeedback({ tone: "success", message: "Fechamento de caixa concluido." });
@@ -3244,15 +3458,21 @@ export function App() {
     });
   }
 
-  function openCounterBookingModal(): void {
+  function openCounterBookingModal(prefill?: {
+    readonly date?: string;
+    readonly professionalId?: string;
+    readonly slotStartAt?: string;
+  }): void {
     setCounterBookingStep("service");
     setCounterBookingServiceId(bookableServices[0]?.id ?? "");
-    setCounterBookingProfessionalId("");
-    setCounterBookingDate(formatDateInputValue(new Date()));
+    setCounterBookingProfessionalId(prefill?.professionalId ?? "");
+    setCounterBookingDate(prefill?.date ?? formatDateInputValue(new Date()));
     setCounterBookingSlots([]);
+    setCounterBookingPreferredSlotStartAt(prefill?.slotStartAt ?? "");
     setCounterBookingSlotStartAt("");
     setCounterBookingForm(defaultCounterBookingForm);
     setCounterBookingError(null);
+    setCounterBookingConflictSuggestion(null);
     setCounterBookingReceipt(null);
     setIsShellContextOpen(false);
     setIsCounterBookingModalOpen(true);
@@ -3261,6 +3481,7 @@ export function App() {
   function closeCounterBookingModal(): void {
     setIsCounterBookingModalOpen(false);
     setCounterBookingError(null);
+    setCounterBookingConflictSuggestion(null);
   }
 
   function handleCounterBookingGoToStep(step: CounterBookingStep): void {
@@ -3353,6 +3574,33 @@ export function App() {
         message: `Agendamento criado para ${client.nome} em ${formatDateTime(counterBookingSelectedSlot.startAt)}.`
       });
     } catch (error) {
+      if (
+        error instanceof AdminApiError &&
+        (error.code === "slot_unavailable" || error.code === "booking_conflict") &&
+        counterBookingSelectedService &&
+        counterBookingSelectedProfessional
+      ) {
+        try {
+          const nextSlots = await fetchAvailabilitySlots(apiBaseUrl, sessionToken, {
+            serviceId: counterBookingSelectedService.id,
+            professionalId: counterBookingSelectedProfessional.id,
+            date: counterBookingDate
+          });
+          setCounterBookingSlots(nextSlots);
+          const suggestedSlot = resolveNextSlotSuggestion(nextSlots, counterBookingSelectedSlot.startAt);
+          if (suggestedSlot) {
+            setCounterBookingConflictSuggestion({
+              slot: suggestedSlot,
+              message: "Esse horario esta ocupado. Ajustar para a proxima janela disponivel?"
+            });
+            setCounterBookingError("O horario escolhido ficou indisponivel enquanto voce montava o agendamento.");
+            return;
+          }
+        } catch {
+          // fallback para a mensagem original do backend
+        }
+      }
+
       setCounterBookingError(toErrorMessage(error));
     } finally {
       setIsSubmittingCounterBooking(false);
@@ -3399,11 +3647,12 @@ export function App() {
   }
 
   function navigateTo(route: AdminRoute): void {
-    const nextHash = `#${route}`;
+    const normalizedRoute = normalizeAdminRoute(route);
+    const nextHash = `#${normalizedRoute}`;
     if (typeof window !== "undefined" && window.location.hash !== nextHash) {
       window.location.hash = nextHash;
     }
-    setCurrentRoute(route);
+    setCurrentRoute(normalizedRoute);
     setIsShellContextOpen(false);
     setIsShellPulseOpen(false);
     setIsReportsMenuOpen(false);
@@ -3844,7 +4093,6 @@ export function App() {
   function openProfessionalAgenda(professionalId: string): void {
     setIsCreatingProfessional(false);
     setSelectedProfessionalId(professionalId);
-    setAgendaWorkspaceTab("list");
     setAgendaViewMode("day");
     setAgendaProfessionalFilter(professionalId);
     navigateTo("agenda");
@@ -3859,11 +4107,11 @@ export function App() {
 
   function handleAgendaDateShift(step: number): void {
     setAgendaDate((current) => {
-      if (agendaWorkspaceTab === "calendar" && agendaViewMode === "week") {
+      if (agendaViewMode === "week") {
         return addDaysToDateValue(current, step * 7);
       }
 
-      if (agendaWorkspaceTab === "calendar" && agendaViewMode === "month") {
+      if (agendaViewMode === "month") {
         return addMonthsToDateValue(current, step);
       }
 
@@ -3889,9 +4137,27 @@ export function App() {
 
   function handleOpenAgendaBooking(booking: Booking): void {
     handleAgendaBookingSelection(booking);
-    setAgendaWorkspaceTab("list");
     setAgendaViewMode("day");
     navigateTo("agenda");
+  }
+
+  function handleAgendaCalendarSlotSelection(start: Date): void {
+    const now = new Date();
+    if (start.getTime() < now.getTime()) {
+      setFeedback({
+        tone: "error",
+        message: "Nao e possivel criar agendamento em horario passado."
+      });
+      return;
+    }
+
+    const nextDate = formatDateInputValue(start);
+    setAgendaDate(nextDate);
+    openCounterBookingModal({
+      date: nextDate,
+      professionalId: agendaProfessionalFilter !== "all" ? agendaProfessionalFilter : undefined,
+      slotStartAt: agendaViewMode === "month" ? undefined : formatLocalDateTimeOffsetValue(start)
+    });
   }
 
   function renderClientRecords(entries: readonly ClientInsight[]): JSX.Element {
@@ -4285,43 +4551,6 @@ export function App() {
           </button>
         </form>
       </EntitySection>
-    );
-  }
-
-  function WorkspaceRecordModal({
-    title,
-    subtitle,
-    children,
-    footer,
-    onClose
-  }: {
-    readonly title: string;
-    readonly subtitle?: string;
-    readonly children: JSX.Element;
-    readonly footer?: JSX.Element;
-    readonly onClose: () => void;
-  }): JSX.Element {
-    return (
-      <div className="workspace-record-overlay" role="presentation" onClick={onClose}>
-        <section
-          aria-label={title}
-          className="workspace-record-modal"
-          onClick={(event) => event.stopPropagation()}
-          role="dialog"
-        >
-          <div className="workspace-record-modal-header">
-            <div>
-              <h2>{title}</h2>
-              {subtitle ? <p>{subtitle}</p> : null}
-            </div>
-            <button className="icon-button" onClick={onClose} type="button">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="workspace-record-modal-body">{children}</div>
-          {footer ? <div className="workspace-record-modal-footer">{footer}</div> : null}
-        </section>
-      </div>
     );
   }
 
@@ -6596,24 +6825,26 @@ export function App() {
             </span>
           ))}
         </div>
-        {rows.length ? (
-          rows.map((row) => (
-            <button
-              className={row.selected ? "finance-browse-row is-selected" : "finance-browse-row"}
-              key={row.id}
-              onClick={row.onClick}
-              type="button"
-            >
-              {row.cells.map((cell) => (
-                <span className={cell.className ?? "finance-browse-cell"} key={cell.key}>
-                  {cell.value}
-                </span>
-              ))}
-            </button>
-          ))
-        ) : (
-          <div className="empty-state finance-browse-empty">{emptyMessage}</div>
-        )}
+        <div className="finance-browse-body">
+          {rows.length ? (
+            rows.map((row) => (
+              <button
+                className={row.selected ? "finance-browse-row is-selected" : "finance-browse-row"}
+                key={row.id}
+                onClick={row.onClick}
+                type="button"
+              >
+                {row.cells.map((cell) => (
+                  <span className={cell.className ?? "finance-browse-cell"} key={cell.key}>
+                    {cell.value}
+                  </span>
+                ))}
+              </button>
+            ))
+          ) : (
+            <div className="empty-state finance-browse-empty">{emptyMessage}</div>
+          )}
+        </div>
       </div>
     );
   }
@@ -7338,7 +7569,7 @@ export function App() {
                 ]}
               />
               <div className="counter-booking-footer">
-                <button className="secondary-button" onClick={openCounterBookingModal} type="button">
+                <button className="secondary-button" onClick={() => openCounterBookingModal()} type="button">
                   Novo agendamento
                 </button>
                 <button className="admin-primary-action" onClick={handleOpenCounterBookingInAgenda} type="button">
@@ -7481,6 +7712,7 @@ export function App() {
                     <label className="field">
                       <span>Data</span>
                       <input
+                        min={formatDateInputValue(new Date())}
                         type="date"
                         value={counterBookingDate}
                         onChange={(event) => setCounterBookingDate(event.target.value)}
@@ -7596,6 +7828,36 @@ export function App() {
                 ) : null}
 
                 {counterBookingError ? <div className="feedback-banner is-error">{counterBookingError}</div> : null}
+                {counterBookingConflictSuggestion ? (
+                  <div className="feedback-banner is-warning counter-booking-conflict-banner">
+                    <span>{counterBookingConflictSuggestion.message}</span>
+                    <div className="button-row">
+                      <button
+                        className="secondary-button"
+                        onClick={() => {
+                          setCounterBookingSlotStartAt(counterBookingConflictSuggestion.slot.startAt);
+                          setCounterBookingConflictSuggestion(null);
+                          setCounterBookingError(
+                            `Horario ajustado para ${formatTimeRange(
+                              counterBookingConflictSuggestion.slot.startAt,
+                              counterBookingConflictSuggestion.slot.endAt
+                            )}.`
+                          );
+                        }}
+                        type="button"
+                      >
+                        Sim
+                      </button>
+                      <button
+                        className="secondary-button"
+                        onClick={() => setCounterBookingConflictSuggestion(null)}
+                        type="button"
+                      >
+                        Nao
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="counter-booking-footer">
                   <button className="secondary-button" onClick={closeCounterBookingModal} type="button">
@@ -7841,15 +8103,12 @@ export function App() {
               </label>
               <label className="field">
                 <span>Saldo inicial</span>
-                <input
+                <CurrencyInput
                   disabled={isReadOnly}
                   required
-                  min="0"
-                  step="0.01"
-                  type="number"
                   value={bankBalanceForm.saldoInicial}
-                  onChange={(event) =>
-                    setBankBalanceForm((current) => ({ ...current, saldoInicial: event.target.value }))
+                  onValueChange={(value) =>
+                    setBankBalanceForm((current) => ({ ...current, saldoInicial: value }))
                   }
                 />
               </label>
@@ -7915,7 +8174,16 @@ export function App() {
               </label>
               <label className="field">
                 <span>Valor</span>
-                <input disabled={isReadOnly} required min="0" step="0.01" type="number" value={form.valor} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, valor: event.target.value }) : setExpenseForm({ ...expenseForm, valor: event.target.value })} />
+                <CurrencyInput
+                  disabled={isReadOnly}
+                  required
+                  value={form.valor}
+                  onValueChange={(value) =>
+                    isRevenue
+                      ? setRevenueForm({ ...revenueForm, valor: value })
+                      : setExpenseForm({ ...expenseForm, valor: value })
+                  }
+                />
               </label>
               <label className="field">
                 <span>Vencimento</span>
@@ -8020,7 +8288,14 @@ export function App() {
               </label>
               <label className="field">
                 <span>Valor</span>
-                <input disabled={isReadOnly} min="0" required step="0.01" type="number" value={manualMovementForm.valor} onChange={(event) => setManualMovementForm((current) => ({ ...current, valor: event.target.value }))} />
+                <CurrencyInput
+                  disabled={isReadOnly}
+                  required
+                  value={manualMovementForm.valor}
+                  onValueChange={(value) =>
+                    setManualMovementForm((current) => ({ ...current, valor: value }))
+                  }
+                />
               </label>
               <label className="field field-wide">
                 <span>Historico</span>
@@ -8045,6 +8320,9 @@ export function App() {
     }
 
     if (financeModal === "close") {
+      const pendingPreviewItems = cashClosePreview?.pending ?? [];
+      const settledPreviewItems = cashClosePreview?.settled ?? [];
+
       return (
         <WorkspaceRecordModal
           onClose={closeFinanceModal}
@@ -8095,10 +8373,90 @@ export function App() {
                 <input disabled={financeModalMode === "view"} required type="date" value={cashCloseForm.dateTo} onChange={(event) => setCashCloseForm((current) => ({ ...current, dateTo: event.target.value }))} />
               </label>
             </div>
+            {financeModalMode !== "view" ? (
+              isLoadingCashClosePreview ? (
+                <div className="dashboard-mini-card">
+                  <strong>Carregando conferencia</strong>
+                  <span>Aguarde enquanto os pendentes e os itens ja baixados sao consolidados.</span>
+                </div>
+              ) : (
+                <div className="cash-close-preview-grid">
+                  <section className="cash-close-preview-panel">
+                    <div className="cash-close-preview-header">
+                      <div>
+                        <strong>Pendentes</strong>
+                        <span>{selectedCashClosePreviewKeys.length} marcado(s)</span>
+                      </div>
+                    </div>
+                    {pendingPreviewItems.length ? (
+                      <div className="cash-close-preview-list">
+                        {pendingPreviewItems.map((entry) => {
+                          const key = buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId);
+                          const isChecked = selectedCashClosePreviewKeys.includes(key);
+                          return (
+                            <label className="cash-close-preview-item is-pending" key={key}>
+                              <input
+                                checked={isChecked}
+                                type="checkbox"
+                                onChange={() =>
+                                  setSelectedCashClosePreviewKeys((current) =>
+                                    current.includes(key)
+                                      ? current.filter((item) => item !== key)
+                                      : [...current, key]
+                                  )
+                                }
+                              />
+                              <div className="cash-close-preview-copy">
+                                <strong>{entry.descricao}</strong>
+                                <span>
+                                  {entry.tipo === "entrada" ? "Receita" : "Despesa"} · {formatDateShort(entry.dataReferencia)}
+                                </span>
+                              </div>
+                              <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="empty-state">Nenhum item pendente para este banco e periodo.</p>
+                    )}
+                  </section>
+
+                  <section className="cash-close-preview-panel">
+                    <div className="cash-close-preview-header">
+                      <div>
+                        <strong>Ja baixados</strong>
+                        <span>{settledPreviewItems.length} item(ns)</span>
+                      </div>
+                    </div>
+                    {settledPreviewItems.length ? (
+                      <div className="cash-close-preview-list">
+                        {settledPreviewItems.map((entry) => (
+                          <div
+                            className="cash-close-preview-item is-settled"
+                            key={`${entry.sourceType}:${entry.sourceId}:${entry.movementId ?? "settled"}`}
+                          >
+                            <div className="cash-close-preview-copy">
+                              <strong>{entry.descricao}</strong>
+                              <span>
+                                {entry.tipo === "entrada" ? "Recebido" : "Pago"} · {formatDateShort(entry.dataReferencia)}
+                              </span>
+                            </div>
+                            <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="empty-state">Nenhum item baixado neste periodo.</p>
+                    )}
+                  </section>
+                </div>
+              )
+            ) : null}
             <div className="button-row">
               <button className="secondary-button" onClick={closeFinanceModal} type="button">{financeModalMode === "view" ? "Fechar" : "Cancelar"}</button>
               {financeModalMode !== "view" ? (
-                <button className="primary-button" disabled={isBusy} type="submit">Fechar caixa</button>
+                <button className="primary-button" disabled={isBusy || !selectedCashClosePreviewKeys.length} type="submit">Fechar caixa</button>
               ) : null}
             </div>
           </form>
@@ -8156,7 +8514,23 @@ export function App() {
             ) : null}
             <label className="field">
               <span>Valor</span>
-              <input required min="0" step="0.01" type="number" value={financeModal === "receive" ? receiveMovementForm.valor : financeModal === "pay" ? payMovementForm.valor : transferMovementForm.valor} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm((current) => ({ ...current, valor: event.target.value })) : financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, valor: event.target.value })) : setTransferMovementForm((current) => ({ ...current, valor: event.target.value }))} />
+              <CurrencyInput
+                required
+                value={
+                  financeModal === "receive"
+                    ? receiveMovementForm.valor
+                    : financeModal === "pay"
+                      ? payMovementForm.valor
+                      : transferMovementForm.valor
+                }
+                onValueChange={(value) =>
+                  financeModal === "receive"
+                    ? setReceiveMovementForm((current) => ({ ...current, valor: value }))
+                    : financeModal === "pay"
+                      ? setPayMovementForm((current) => ({ ...current, valor: value }))
+                      : setTransferMovementForm((current) => ({ ...current, valor: value }))
+                }
+              />
             </label>
             <label className="field field-wide">
               <span>Historico</span>
@@ -8469,11 +8843,7 @@ export function App() {
       <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-workspace-panel-full">
           <div className="agenda-panel-header">
             <div>
-              <p className="eyebrow">Formato lista</p>
               <h3>{formatAgendaDayLabel(agendaDate)}</h3>
-              <p className="helper">
-                Selecione um atendimento da fila do dia para abrir o detalhe completo e reagendar por slot real.
-              </p>
             </div>
             <ViewBadge tone="info">{filteredDayAgendaBookings.length} booking(s)</ViewBadge>
           </div>
@@ -8494,7 +8864,7 @@ export function App() {
                         : "entity-card timeline-card"
                       }
                       key={booking.id}
-                      onClick={() => openAgendaBookingModal(booking)}
+                      onClick={() => handleAgendaBookingSelection(booking)}
                       type="button"
                     >
                       <div className="timeline-card-header">
@@ -8544,11 +8914,7 @@ export function App() {
       <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-calendar-panel agenda-workspace-panel-full">
           <div className="agenda-panel-header">
             <div>
-              <p className="eyebrow">Formato agenda</p>
               <h3>{visibleCalendarLabel}</h3>
-              <p className="helper">
-                Grade interativa em React para navegar por dia, semana e mes sem perder o detalhe da booking.
-              </p>
             </div>
             <ViewBadge tone="success">{agendaCalendarEvents.length} evento(s)</ViewBadge>
           </div>
@@ -8568,12 +8934,14 @@ export function App() {
               min={new Date(1970, 0, 1, 6, 0, 0)}
               onNavigate={(nextDate) => setAgendaDate(formatDateFns(nextDate, "yyyy-MM-dd"))}
               onSelectEvent={(event) => openAgendaBookingModal(event.resource)}
+              onSelectSlot={(slotInfo) => handleAgendaCalendarSlotSelection(slotInfo.start)}
               onView={(view) => {
                 if (view === "day" || view === "week" || view === "month") {
                   setAgendaViewMode(view);
                 }
               }}
               popup
+              selectable
               selected={selectedAgendaCalendarEvent ?? undefined}
               startAccessor="start"
               toolbar={false}
@@ -8586,15 +8954,6 @@ export function App() {
   }
 
   function renderAgendaViewV2(): JSX.Element {
-    const agendaWorkspaceTabs: ReadonlyArray<{
-      readonly id: AgendaWorkspaceTab;
-      readonly label: string;
-      readonly icon: LucideIcon;
-      readonly helper: string;
-    }> = [
-      { id: "list", label: "Lista", icon: ListTodo, helper: `${filteredDayAgendaBookings.length} do dia` },
-      { id: "calendar", label: "Agenda", icon: CalendarDays, helper: `${agendaCalendarEvents.length} carregados` }
-    ];
     const agendaViewTabs: ReadonlyArray<{
       readonly id: AgendaViewMode;
       readonly label: string;
@@ -8604,10 +8963,8 @@ export function App() {
       { id: "month", label: "Mes" }
     ];
     const activeAgendaBookings =
-      agendaWorkspaceTab === "list" || agendaViewMode === "day" ?
-        filteredDayAgendaBookings
-      : agendaViewMode === "week" ?
-        filteredWeekBookings
+      agendaViewMode === "day" ? filteredDayAgendaBookings
+      : agendaViewMode === "week" ? filteredWeekBookings
       : currentMonthCells.flatMap((cell) => cell.bookings);
     const activeAgendaSummary = {
       total: activeAgendaBookings.length,
@@ -8616,37 +8973,29 @@ export function App() {
       completed: activeAgendaBookings.filter((booking) => booking.status === "concluido").length
     };
     const activeAgendaLabel =
-      agendaWorkspaceTab === "list" || agendaViewMode === "day" ?
-        formatAgendaDayLabel(agendaDate)
-      : agendaViewMode === "week" ?
-        formatAgendaWeekLabel(agendaWeekDates)
+      agendaViewMode === "day" ? formatAgendaDayLabel(agendaDate)
+      : agendaViewMode === "week" ? formatAgendaWeekLabel(agendaWeekDates)
       : formatAgendaMonthLabel(agendaDate);
-    const agendaViewLabel =
-      agendaWorkspaceTab === "list" ?
-        "Lista operacional"
-      : agendaViewMode === "day" ?
-        "Calendario diario"
-      : agendaViewMode === "week" ?
-        "Calendario semanal"
-      : "Calendario mensal";
     const navigationLabels =
-      agendaWorkspaceTab === "calendar" && agendaViewMode === "week" ?
-        { previous: "Semana anterior", current: "Esta semana", next: "Proxima semana" }
-      : agendaWorkspaceTab === "calendar" && agendaViewMode === "month" ?
-        { previous: "Mes anterior", current: "Este mes", next: "Proximo mes" }
-      : { previous: "Dia anterior", current: "Hoje", next: "Proximo dia" };
+      agendaViewMode === "week"
+        ? { previous: "Semana anterior", current: "Esta semana", next: "Proxima semana" }
+        : agendaViewMode === "month"
+          ? { previous: "Mes anterior", current: "Este mes", next: "Proximo mes" }
+          : { previous: "Dia anterior", current: "Hoje", next: "Proximo dia" };
+    const selectedOperationalProfessional = selectedAgendaBooking ?
+      professionals.find((professional) => professional.id === selectedAgendaBooking.professionalId)
+    : undefined;
+    const selectedOperationalService = selectedAgendaBooking ?
+      services.find((service) => service.id === selectedAgendaBooking.serviceId)
+    : undefined;
+    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry);
+    const canReverseSelectedBooking = Boolean(selectedAgendaBankMovement);
 
     return (
       <DocumentViewLayout
-        className="agenda-document-view"
-        eyebrow="Agenda / calendario"
-        title="Agenda operacional"
-        subtitle="Filtros, lista do dia e grade interativa da agenda sem misturar capacidade agregada e leitura gerencial."
-        statusBadge={
-          <ViewBadge tone={agendaWorkspaceTab === "list" ? "info" : "success"}>
-            {agendaViewLabel}
-          </ViewBadge>
-        }
+        className="agenda-document-view agenda-unified-document"
+        title="Agenda"
+        statusBadge={<ViewBadge tone="info">{activeAgendaLabel}</ViewBadge>}
         pageActions={
           <div className="agenda-page-actions">
             <div className="mode-switch">
@@ -8666,7 +9015,7 @@ export function App() {
             </div>
 
             <label className="dashboard-select" htmlFor="agenda-date">
-              <span>Data da agenda</span>
+              <span>Data</span>
               <input
                 id="agenda-date"
                 onChange={(event) => setAgendaDate(event.target.value)}
@@ -8691,31 +9040,47 @@ export function App() {
               </select>
             </label>
 
+            <div aria-label="Visao da agenda" className="dashboard-tabbar agenda-subtabbar" role="tablist">
+              {agendaViewTabs.map((tab) => (
+                <button
+                  aria-selected={agendaViewMode === tab.id}
+                  className={agendaViewMode === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                  key={tab.id}
+                  onClick={() => setAgendaViewMode(tab.id)}
+                  role="tab"
+                  type="button"
+                >
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <button
+              className="secondary-button"
+              onClick={() => setIsAgendaDrawerOpen((current) => !current)}
+              type="button"
+            >
+              {isAgendaDrawerOpen ? "Ocultar fila" : "Mostrar fila"}
+            </button>
             <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
               Atualizar
+            </button>
+            <button className="primary-button" onClick={() => openCounterBookingModal()} type="button">
+              Novo agendamento
             </button>
           </div>
         }
         header={
           <DocumentHeader
             fields={[
-              { id: "period", label: "Recorte ativo", value: activeAgendaLabel },
+              { id: "period", label: "Recorte", value: activeAgendaLabel },
               {
                 id: "professional",
                 label: "Profissional",
                 value:
-                  agendaProfessionalFilter === "all" ?
-                    "Todos os profissionais"
-                  : resolveProfessionalName(agendaProfessionalFilter, professionals)
-              },
-              { id: "workspace", label: "Formato", value: agendaViewLabel },
-              {
-                id: "selected",
-                label: "Selecionada",
-                value:
-                  selectedAgendaBooking
-                    ? `${formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}  |  ${resolveClientName(selectedAgendaBooking.clientId, clients)}`
-                    : "Nenhuma booking selecionada"
+                  agendaProfessionalFilter === "all"
+                    ? "Todos os profissionais"
+                    : resolveProfessionalName(agendaProfessionalFilter, professionals)
               }
             ]}
           />
@@ -8727,74 +9092,111 @@ export function App() {
                 id: "total",
                 label: "No recorte",
                 value: activeAgendaSummary.total,
-                helper: "Eventos realmente carregados para a visao atual.",
                 tone: "info"
               },
               {
                 id: "open",
                 label: "Em aberto",
                 value: activeAgendaSummary.open,
-                helper: "Pendentes, confirmados e aguardando pagamento.",
                 tone: "warning"
               },
               {
                 id: "confirmed",
                 label: "Confirmados",
                 value: activeAgendaSummary.confirmed,
-                helper: "Prontos para execucao operacional.",
                 tone: "info"
               },
               {
                 id: "completed",
                 label: "Concluidos",
                 value: activeAgendaSummary.completed,
-                helper: "Fechados sem abrir o modulo gerencial.",
                 tone: "success"
               }
             ]}
           />
         }
-        tabs={
-          <div className="agenda-tabs-stack">
-            <div aria-label="Formatos da agenda" className="dashboard-tabbar" role="tablist">
-              {agendaWorkspaceTabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    aria-selected={agendaWorkspaceTab === tab.id}
-                    className={agendaWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
-                    key={tab.id}
-                    onClick={() => setAgendaWorkspaceTab(tab.id)}
-                    role="tab"
-                    type="button"
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{tab.label}</span>
-                    <small>{tab.helper}</small>
-                  </button>
-                );
-              })}
-            </div>
-
-            {agendaWorkspaceTab === "calendar" ? (
-              <div aria-label="Visoes do calendario" className="dashboard-tabbar agenda-subtabbar" role="tablist">
-                {agendaViewTabs.map((tab) => (
-                  <button
-                    aria-selected={agendaViewMode === tab.id}
-                    className={agendaViewMode === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
-                    key={tab.id}
-                    onClick={() => setAgendaViewMode(tab.id)}
-                    role="tab"
-                    type="button"
-                  >
-                    <span>{tab.label}</span>
-                  </button>
-                ))}
-              </div>
+        items={
+          <div className={isAgendaDrawerOpen ? "agenda-unified-layout" : "agenda-unified-layout is-drawer-hidden"}>
+            <div className="agenda-unified-main">{renderAgendaCalendarWorkspace()}</div>
+            {isAgendaDrawerOpen ? (
+              <aside className="agenda-unified-drawer">
+                {renderAgendaListWorkspace()}
+                <article className="ag-surface-card ag-view-panel agenda-selection-panel">
+                  <div className="agenda-panel-header">
+                    <div>
+                      <h3>Selecionado</h3>
+                    </div>
+                    {selectedAgendaBooking ? (
+                      <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
+                        {formatBookingStatus(selectedAgendaBooking.status)}
+                      </ViewBadge>
+                    ) : null}
+                  </div>
+                  {selectedAgendaBooking ? (
+                    <div className="records-column">
+                      <div className="record-stack">
+                        <strong>{resolveClientName(selectedAgendaBooking.clientId, clients)}</strong>
+                        <span>
+                          {selectedOperationalService?.nome ?? "Servico"} | {selectedOperationalProfessional?.nome ?? "Profissional"}
+                        </span>
+                      </div>
+                      <div className="record-meta">
+                        <span>{formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}</span>
+                        <span>{formatCurrency(resolveRecognizedRevenueAmount(selectedAgendaBooking, services, cashEntries) || (selectedOperationalService?.precoBase ?? 0))}</span>
+                      </div>
+                      <div className="button-row">
+                        <button className="secondary-button" onClick={() => openAgendaBookingModal(selectedAgendaBooking)} type="button">
+                          Visualizar
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={!canReceiveSelectedBooking}
+                          onClick={() => {
+                            if (!selectedAgendaBooking || !selectedAgendaCashEntry) {
+                              return;
+                            }
+                            setAgendaSettlementTarget(selectedAgendaBooking);
+                            setReceiveTarget({ cashEntryId: selectedAgendaCashEntry.id });
+                            setFinanceModalMode("create");
+                            setReceiveMovementForm({
+                              bankIdDestino: selectedOperationalProfessional?.bankId ?? "",
+                              valor: String(resolveRecognizedRevenueAmount(selectedAgendaBooking, services, cashEntries)),
+                              historico: `Recebimento ${selectedAgendaBooking.id.slice(-8).toUpperCase()} | ${selectedOperationalService?.nome ?? "Atendimento"}`,
+                              dataMovimento: new Date().toISOString().slice(0, 16)
+                            });
+                            setFinanceModal("receive");
+                          }}
+                          type="button"
+                        >
+                          Receber
+                        </button>
+                        <button
+                          className="secondary-button"
+                          disabled={!canReverseSelectedBooking}
+                          onClick={() => {
+                            if (!selectedAgendaBooking || !selectedAgendaBankMovement) {
+                              return;
+                            }
+                            setReverseTarget({
+                              kind: "agenda",
+                              movementId: selectedAgendaBankMovement.id,
+                              label: `${selectedAgendaBooking.id.slice(-8).toUpperCase()} | ${resolveClientName(selectedAgendaBooking.clientId, clients)}`
+                            });
+                          }}
+                          type="button"
+                        >
+                          Estornar
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="empty-state">Selecione um atendimento na fila para abrir as acoes.</p>
+                  )}
+                </article>
+              </aside>
             ) : null}
           </div>
         }
-        items={agendaWorkspaceTab === "list" ? renderAgendaListWorkspace() : renderAgendaCalendarWorkspace()}
       />
     );
   }
@@ -9374,7 +9776,6 @@ export function App() {
       case "relatorios":
         return renderReportsViewV2();
       case "operacional":
-        return renderOperationalView();
       case "agenda":
         return renderAgendaViewV2();
       case "catalogo":
@@ -9386,7 +9787,7 @@ export function App() {
       case "configuracoes":
         return renderSettingsView();
       default:
-        return renderOperationalView();
+        return renderAgendaViewV2();
     }
   }
 
@@ -9774,7 +10175,7 @@ export function App() {
             <button
               aria-label="Novo agendamento"
               className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
-              onClick={openCounterBookingModal}
+              onClick={() => openCounterBookingModal()}
               title="Novo agendamento"
               type="button"
             >
@@ -10849,6 +11250,21 @@ function formatDateInputValue(value: Date): string {
   const month = String(value.getMonth() + 1).padStart(2, "0");
   const day = String(value.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function formatLocalDateTimeOffsetValue(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  const hours = String(value.getHours()).padStart(2, "0");
+  const minutes = String(value.getMinutes()).padStart(2, "0");
+  const seconds = String(value.getSeconds()).padStart(2, "0");
+  const offsetMinutes = -value.getTimezoneOffset();
+  const sign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffset = Math.abs(offsetMinutes);
+  const offsetHours = String(Math.floor(absoluteOffset / 60)).padStart(2, "0");
+  const offsetRemainder = String(absoluteOffset % 60).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}${sign}${offsetHours}:${offsetRemainder}`;
 }
 
 function addDaysToDateValue(value: string, days: number): string {

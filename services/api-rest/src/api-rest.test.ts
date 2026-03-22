@@ -203,8 +203,42 @@ function buildIsoWindow(
 
   const endAt = new Date(startAt.getTime() + durationMinutes * 60000);
   return {
-    startAt: startAt.toISOString(),
-    endAt: endAt.toISOString()
+    startAt: formatLocalDateTimeValue(startAt),
+    endAt: formatLocalDateTimeValue(endAt)
+  };
+}
+
+function formatLocalDateTimeValue(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}:00`;
+}
+
+function buildNextWeekdayDateValue(targetWeekday: number, weeksAhead = 1): string {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  const currentWeekday = date.getDay();
+  let daysUntilTarget = (targetWeekday - currentWeekday + 7) % 7;
+  if (daysUntilTarget === 0) {
+    daysUntilTarget = 7;
+  }
+  date.setDate(date.getDate() + daysUntilTarget + (weeksAhead - 1) * 7);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function buildNextWeekdayWindow(
+  weekday: number,
+  startHour: number,
+  startMinute: number,
+  durationMinutes: number,
+  weeksAhead = 1
+) {
+  const dateValue = buildNextWeekdayDateValue(weekday, weeksAhead);
+  const [year, month, day] = dateValue.split("-").map(Number);
+  const startAt = new Date(year, month - 1, day, startHour, startMinute, 0, 0);
+  const endAt = new Date(startAt.getTime() + durationMinutes * 60000);
+  return {
+    date: dateValue,
+    startAt: formatLocalDateTimeValue(startAt),
+    endAt: formatLocalDateTimeValue(endAt)
   };
 }
 
@@ -349,6 +383,7 @@ test("profissionais, catalogo publico e disponibilidade por slug operam por tena
   try {
     const alpha = await onboardTenant(app, "catalog-alpha");
     const beta = await onboardTenant(app, "catalog-beta");
+    const fridayWindow = buildNextWeekdayWindow(5, 9, 0, 30);
 
     const service = await createService(app, alpha.session.token, {
       nome: "Consulta",
@@ -389,7 +424,7 @@ test("profissionais, catalogo publico e disponibilidade por slug operam por tena
 
     const publicAvailability = await app.inject({
       method: "GET",
-      url: `/v1/public/tenants/${alpha.tenant.slug}/availability?serviceId=${service.id}&professionalId=${professional.id}&date=2026-03-20`
+      url: `/v1/public/tenants/${alpha.tenant.slug}/availability?serviceId=${service.id}&professionalId=${professional.id}&date=${fridayWindow.date}`
     });
 
     assert.equal(publicAvailability.statusCode, 200);
@@ -415,6 +450,7 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
 
   try {
     const onboarding = await onboardTenant(app, "gamma");
+    const bookingWindow = buildNextWeekdayWindow(5, 13, 0, 60);
 
     const service = await createService(app, onboarding.session.token, {
       nome: "Consulta Inicial",
@@ -460,8 +496,8 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
         serviceId: service.id,
         professionalId: professional.id,
         status: "pendente",
-        startAt: "2026-03-20T13:00:00-03:00",
-        endAt: "2026-03-20T14:00:00-03:00"
+        startAt: bookingWindow.startAt,
+        endAt: bookingWindow.endAt
       }
     });
     assert.equal(bookingResponse.statusCode, 201);
@@ -476,8 +512,8 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
         serviceId: service.id,
         professionalId: professional.id,
         status: "pendente",
-        startAt: "2026-03-20T13:00:00-03:00",
-        endAt: "2026-03-20T14:00:00-03:00"
+        startAt: bookingWindow.startAt,
+        endAt: bookingWindow.endAt
       }
     });
     assert.equal(conflictResponse.statusCode, 409);
@@ -485,7 +521,7 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
 
     const publicAvailabilityAfterBooking = await app.inject({
       method: "GET",
-      url: `/v1/public/tenants/${onboarding.tenant.slug}/availability?serviceId=${service.id}&professionalId=${professional.id}&date=2026-03-20`
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/availability?serviceId=${service.id}&professionalId=${professional.id}&date=${bookingWindow.date}`
     });
     assert.equal(publicAvailabilityAfterBooking.statusCode, 200);
     assert.equal(
@@ -527,7 +563,7 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
 
     const publicAvailabilityAfterCancel = await app.inject({
       method: "GET",
-      url: `/v1/public/tenants/${onboarding.tenant.slug}/availability?serviceId=${service.id}&professionalId=${professional.id}&date=2026-03-20`
+      url: `/v1/public/tenants/${onboarding.tenant.slug}/availability?serviceId=${service.id}&professionalId=${professional.id}&date=${bookingWindow.date}`
     });
     assert.equal(publicAvailabilityAfterCancel.statusCode, 200);
     assert.equal(
@@ -541,11 +577,163 @@ test("bookings respeitam especialidade, disponibilidade e conflito no mesmo tena
   }
 });
 
+test("admin bloqueia booking em horario passado", async () => {
+  const app = await createApp();
+
+  try {
+    const onboarding = await onboardTenant(app, "past-booking");
+    const service = await createService(app, onboarding.session.token, {
+      nome: "Servico horario passado",
+      duracaoMin: 30,
+      precoBase: 90
+    });
+    const professional = await createProfessional(app, onboarding.session.token, [service.id], {
+      nome: "Ana Passado"
+    });
+    const client = await createClient(app, onboarding.session.token, {
+      nome: "Cliente Passado"
+    });
+
+    const startAt = new Date(Date.now() - 60 * 60 * 1000);
+    const endAt = new Date(Date.now() - 30 * 60 * 1000);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/v1/admin/bookings",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        clientId: client.id,
+        serviceId: service.id,
+        professionalId: professional.id,
+        status: "pendente",
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString()
+      }
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error, "booking_time_in_past");
+  } finally {
+    await app.close();
+  }
+});
+
+test("preview de fechar caixa separa pendentes e baixa apenas itens selecionados", async () => {
+  const app = await createApp();
+
+  try {
+    const onboarding = await onboardTenant(app, "cash-close-preview");
+
+    const bankResponse = await app.inject({
+      method: "POST",
+      url: "/v1/admin/banks",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        codigo: "BNK001",
+        bacenCode: "001",
+        nomeBanco: "Banco QA",
+        agencia: "1234",
+        conta: "98765-0",
+        ativo: true
+      }
+    });
+    assert.equal(bankResponse.statusCode, 201);
+    const bank = bankResponse.json();
+
+    const revenuesResponse = await app.inject({
+      method: "POST",
+      url: "/v1/admin/revenues",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        codigo: "REC001",
+        descricao: "Receita aberta",
+        valor: 120,
+        dataVencimento: "2026-03-20",
+        tipo: "unica",
+        bankId: bank.id,
+        baixaAutomatica: "nao"
+      }
+    });
+    assert.equal(revenuesResponse.statusCode, 201);
+    const [revenue] = revenuesResponse.json().items;
+
+    const expensesResponse = await app.inject({
+      method: "POST",
+      url: "/v1/admin/expenses",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        codigo: "DSP001",
+        descricao: "Despesa aberta",
+        valor: 45,
+        dataVencimento: "2026-03-20",
+        tipo: "unica",
+        bankId: bank.id,
+        baixaAutomatica: "nao"
+      }
+    });
+    assert.equal(expensesResponse.statusCode, 201);
+    const [expense] = expensesResponse.json().items;
+
+    const previewResponse = await app.inject({
+      method: "GET",
+      url: `/v1/admin/cash-closes/preview?bankId=${bank.id}&dateFrom=2026-03-20&dateTo=2026-03-20`,
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(previewResponse.statusCode, 200);
+    assert.equal(previewResponse.json().pending.length, 2);
+    assert.equal(previewResponse.json().settled.length, 0);
+
+    const closeResponse = await app.inject({
+      method: "POST",
+      url: "/v1/admin/cash-closes",
+      headers: authHeaders(onboarding.session.token),
+      payload: {
+        bankId: bank.id,
+        dateFrom: "2026-03-20",
+        dateTo: "2026-03-20",
+        items: [
+          {
+            sourceType: "revenue_schedule",
+            sourceId: revenue.id
+          }
+        ]
+      }
+    });
+
+    assert.equal(closeResponse.statusCode, 201);
+    assert.equal(closeResponse.json().items.length, 1);
+    assert.equal(closeResponse.json().movements.length, 1);
+    assert.equal(closeResponse.json().cashClose.totalEntradas, 120);
+    assert.equal(closeResponse.json().cashClose.totalSaidas, 0);
+
+    const previewAfterCloseResponse = await app.inject({
+      method: "GET",
+      url: `/v1/admin/cash-closes/preview?bankId=${bank.id}&dateFrom=2026-03-20&dateTo=2026-03-20`,
+      headers: authHeaders(onboarding.session.token)
+    });
+
+    assert.equal(previewAfterCloseResponse.statusCode, 200);
+    assert.equal(
+      previewAfterCloseResponse.json().pending.some((entry: { sourceId: string }) => entry.sourceId === expense.id),
+      true
+    );
+    assert.equal(
+      previewAfterCloseResponse.json().settled.some((entry: { sourceId: string }) => entry.sourceId === revenue.id),
+      true
+    );
+  } finally {
+    await app.close();
+  }
+});
+
 test("booking publico confirma servico sem sinal e bloqueia servico com pagamento pendente", async () => {
   const app = await createApp();
 
   try {
     const onboarding = await onboardTenant(app, "publico");
+    const firstWindow = buildNextWeekdayWindow(5, 9, 0, 30);
+    const secondWindow = buildNextWeekdayWindow(5, 10, 0, 60);
 
     const service = await createService(app, onboarding.session.token, {
       nome: "Sessao Expressa",
@@ -574,8 +762,8 @@ test("booking publico confirma servico sem sinal e bloqueia servico com pagament
       payload: {
         serviceId: service.id,
         professionalId: professional.id,
-        startAt: "2026-03-20T09:00:00-03:00",
-        endAt: "2026-03-20T09:30:00-03:00",
+        startAt: firstWindow.startAt,
+        endAt: firstWindow.endAt,
         client: {
           nome: "Julia Ramos",
           telefone: "11977776666",
@@ -612,8 +800,8 @@ test("booking publico confirma servico sem sinal e bloqueia servico com pagament
       payload: {
         serviceId: serviceWithSignal.id,
         professionalId: professional.id,
-        startAt: "2026-03-20T10:00:00-03:00",
-        endAt: "2026-03-20T11:00:00-03:00",
+        startAt: secondWindow.startAt,
+        endAt: secondWindow.endAt,
         client: {
           nome: "Julia Ramos",
           telefone: "11977776666",
@@ -772,7 +960,7 @@ test("read model administrativo de relatorios agrega financeiro minimo e recorre
       serviceId: service.id,
       professionalId: professional.id,
       status: "pendente",
-      ...buildIsoWindow(-2, 11, 0, 45)
+      ...buildIsoWindow(2, 11, 0, 45)
     });
 
     const response = await app.inject({
@@ -839,6 +1027,7 @@ test("cash entries persistem entrada online e receita reconhecida por booking", 
 
   try {
     const onboarding = await onboardTenant(app, "cash-entry");
+    const paymentWindow = buildNextWeekdayWindow(5, 9, 0, 45);
 
     await app.inject({
       method: "PUT",
@@ -897,8 +1086,8 @@ test("cash entries persistem entrada online e receita reconhecida por booking", 
       payload: {
         serviceId: service.id,
         professionalId: professional.id,
-        startAt: "2026-03-20T09:00:00-03:00",
-        endAt: "2026-03-20T09:45:00-03:00",
+        startAt: paymentWindow.startAt,
+        endAt: paymentWindow.endAt,
         client: {
           nome: "Julia Ramos",
           telefone: "11977776666",
@@ -1013,6 +1202,7 @@ test("payment intent publica cria booking aguardando pagamento e retorna checkou
 
   try {
     const onboarding = await onboardTenant(app, "checkout");
+    const checkoutWindow = buildNextWeekdayWindow(5, 9, 0, 60);
 
     const paymentSettingsResponse = await app.inject({
       method: "PUT",
@@ -1072,8 +1262,8 @@ test("payment intent publica cria booking aguardando pagamento e retorna checkou
       payload: {
         serviceId: service.id,
         professionalId: professional.id,
-        startAt: "2026-03-20T09:00:00-03:00",
-        endAt: "2026-03-20T10:00:00-03:00",
+        startAt: checkoutWindow.startAt,
+        endAt: checkoutWindow.endAt,
         client: {
           nome: "Julia Ramos",
           telefone: "11977776666",
@@ -1120,6 +1310,7 @@ test("sync e webhook reconciliam pagamento aprovado e confirmam booking", async 
 
   try {
     const onboarding = await onboardTenant(app, "checkout-sync");
+    const syncWindow = buildNextWeekdayWindow(5, 10, 0, 45);
 
     await app.inject({
       method: "PUT",
@@ -1178,8 +1369,8 @@ test("sync e webhook reconciliam pagamento aprovado e confirmam booking", async 
       payload: {
         serviceId: service.id,
         professionalId: professional.id,
-        startAt: "2026-03-20T10:00:00-03:00",
-        endAt: "2026-03-20T10:45:00-03:00",
+        startAt: syncWindow.startAt,
+        endAt: syncWindow.endAt,
         client: {
           nome: "Paula Gomes",
           telefone: "11966665555",
@@ -1275,6 +1466,7 @@ test("sync encontra pagamento por external reference quando paymentId ainda nao 
 
   try {
     const onboarding = await onboardTenant(app, "checkout-search");
+    const mondayWindow = buildNextWeekdayWindow(1, 9, 0, 60);
 
     await app.inject({
       method: "PUT",
@@ -1333,8 +1525,8 @@ test("sync encontra pagamento por external reference quando paymentId ainda nao 
       payload: {
         serviceId: service.id,
         professionalId: professional.id,
-        startAt: "2026-03-23T09:00:00-03:00",
-        endAt: "2026-03-23T10:00:00-03:00",
+        startAt: mondayWindow.startAt,
+        endAt: mondayWindow.endAt,
         client: {
           nome: "Marina Teixeira",
           telefone: "11933334444",
