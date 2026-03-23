@@ -9469,7 +9469,7 @@ export function App() {
 
   function renderAgendaListWorkspace(): JSX.Element {
     return (
-      <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-workspace-panel-full">
+      <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-workspace-panel-full agenda-bookings-panel">
           <div className="agenda-panel-header">
             <div>
               <h3>{formatAgendaDayLabel(agendaDate)}</h3>
@@ -9477,9 +9477,9 @@ export function App() {
             <ViewBadge tone="info">{filteredDayAgendaBookings.length} booking(s)</ViewBadge>
           </div>
 
-          <div className="ag-master-detail-body">
+          <div className="ag-master-detail-body agenda-bookings-body">
             {filteredDayAgendaBookings.length ? (
-              <div className="records-column">
+              <div className="records-column agenda-bookings-list">
                 {filteredDayAgendaBookings.map((booking) => {
                   const service = services.find((item) => item.id === booking.serviceId);
                   const professional = professionals.find((item) => item.id === booking.professionalId);

@@ -487,3 +487,6 @@
 {"level":30,"time":1774197362660,"pid":6548,"hostname":"ACTVSNBDEV004","reqId":"req-6o","res":{"statusCode":200},"responseTime":0.6141000390052795,"msg":"request completed"}
 {"level":30,"time":1774197362671,"pid":6548,"hostname":"ACTVSNBDEV004","reqId":"req-6p","req":{"method":"GET","url":"/v1/admin/report-definitions","host":"127.0.0.1:3333","remoteAddress":"127.0.0.1","remotePort":54329},"msg":"incoming request"}
 {"level":30,"time":1774197362673,"pid":6548,"hostname":"ACTVSNBDEV004","reqId":"req-6p","res":{"statusCode":200},"responseTime":1.8482000231742859,"msg":"request completed"}
+C:\projetos\agendaai\services\api-rest:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @agendaai/api-rest@0.1.0 dev: `node --import tsx src/index.ts`
+Exit status 3221225786

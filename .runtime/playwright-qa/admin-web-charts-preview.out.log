@@ -1,1 +1,5 @@
   [32m➜[39m  [1mLocal[22m:   [36mhttp://127.0.0.1:[1m4176[22m/[39m
+undefined
+ ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL  Command "vite" not found
+
+Did you mean "pnpm exec vite"?

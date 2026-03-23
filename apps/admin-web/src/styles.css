@@ -3311,6 +3311,23 @@ a {
   align-content: start;
 }
 
+.agenda-bookings-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+}
+
+.agenda-bookings-body {
+  min-height: 0;
+}
+
+.agenda-bookings-list {
+  max-height: min(44vh, 520px);
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
 .counter-booking-conflict-banner {
   display: grid;
   gap: 10px;
