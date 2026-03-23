@@ -103,11 +103,11 @@ No chrome global do shell:
 - `catalogo` deve abrir `visualizar`, `editar`, `novo` e `excluir` em popup, sem empilhar o formulario inteiro abaixo da lista principal;
 - o popup de `catalogo` deve usar leitura de registro, com labels discretos e sem cards com tipografia gigante para nomes de campo;
 - quando a entidade for simples, o workspace nao deve carregar blocos narrativos como `o que voce controla aqui`, `em evolucao`, resumos laterais ou politicas duplicadas fora do proprio registro;
-- `profissionais` passa a operar em `document view`, mantendo browse lateral da equipe e um stage principal com tabs locais para `cadastro base`, `profissionais x servicos` e `horarios`;
-- a frente `profissionais x servicos` deve abrir como workspace proprio dentro da rota, com consulta padrao de profissional no topo, browse zebrado de servicos, busca, filtro e rolagem independente;
+- `profissionais` passa a operar em frente exclusiva de cadastro, com browse amplo, filtros, acoes padrao (`incluir`, `visualizar`, `alterar`, `bloquear`) e modal de registro;
+- a linha clicada no browse de `profissionais` vira o registro selecionado para as acoes da toolbar, mantendo rolagem independente e leitura zebrada;
+- `profissionais x servicos` deve abrir como workspace proprio dentro da rota, com consulta padrao de profissional no topo, browse zebrado de servicos, busca, filtro e rolagem independente;
 - a marcacao de servicos em `profissionais x servicos` deve persistir o vinculo no backend real sem exigir formulario paralelo escondido em outra aba;
-- `profissionais` pode manter `banco padrao` opcional por consulta, sem texto livre e sem tornar o vinculo obrigatorio;
-- disponibilidade detalhada pode nascer em `profissionais` ou migrar depois para `calendario`.
+- `profissionais x agenda` deve ficar em workspace exclusivo, separado do cadastro base, para manter a disponibilidade semanal fora da tela principal de cadastro.
 
 ### Agenda
 
@@ -212,7 +212,7 @@ Ainda em `21/03/2026`, os cadastros operacionais foram realinhados ao shell ofic
 
 - `catalogo` permaneceu como `registro master`, mas passou a abrir `novo`, `visualizar`, `editar` e `excluir` em popup;
 - `profissionais` saiu do grid de cards como superficie principal e passou a operar em `master-detail`;
-- o detalhe de `profissionais` agora separa `cadastro e servicos` de `horarios`, preservando a relacao operacional com agenda e servicos sem misturar tudo na mesma tela.
+- `profissionais` agora separa `cadastro`, `profissionais x servicos` e `profissionais x agenda` como frentes exclusivas, sem misturar o editor cadastral com vinculos operacionais.
 
 Este documento continua sendo a referencia oficial para:
 

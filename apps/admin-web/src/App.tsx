@@ -207,6 +207,12 @@ type OperationalWorkspaceTab =
   | "noshow";
 type ServiceWorkspaceMode = "browse" | "view" | "edit" | "new";
 type ProfessionalWorkspaceMode = "profile" | "services" | "availability";
+type ProfessionalRecordDialogMode =
+  | "closed"
+  | "new"
+  | "view"
+  | "edit"
+  | "toggle-status";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
 type CounterBookingStep = "service" | "professional" | "slot" | "client";
@@ -805,9 +811,9 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     section: "Administracao",
     icon: Users,
     eyebrow: "Administracao",
-    title: "Equipe e disponibilidade semanal",
+    title: "Cadastro de profissionais",
     description:
-      "Cadastro da equipe, especialidades e agenda operacional semanal por profissional.",
+      "Tela exclusiva para visualizar, incluir, alterar e bloquear profissionais. Vinculos com servicos e agenda ficam em frentes dedicadas.",
     stage: "funcional"
   },
   clientes: {
@@ -1038,6 +1044,13 @@ const defaultServiceForm: ServiceFormState = {
   fixedAmount: "",
   percentage: "30",
   acceptedMethods: [...defaultServicePaymentPolicy.acceptedMethods]
+};
+
+const defaultProfessionalForm: ProfessionalFormState = {
+  nome: "",
+  status: "active",
+  especialidades: [],
+  bankId: ""
 };
 
 function groupReportsWorkspaceItems(
@@ -1774,6 +1787,11 @@ export function App() {
     useState(false);
   const [isProfessionalLookupOpen, setIsProfessionalLookupOpen] =
     useState(false);
+  const [professionalRecordDialogMode, setProfessionalRecordDialogMode] =
+    useState<ProfessionalRecordDialogMode>("closed");
+  const [professionalBrowseSearch, setProfessionalBrowseSearch] = useState("");
+  const [professionalBrowseStatusFilter, setProfessionalBrowseStatusFilter] =
+    useState<ProfessionalStatus | "all">("all");
   const [professionalServicesSearch, setProfessionalServicesSearch] =
     useState("");
   const [
@@ -1881,12 +1899,7 @@ export function App() {
   const [agendaServiceFilter, setAgendaServiceFilter] = useState("all");
   const [agendaPendingOnlyFilter, setAgendaPendingOnlyFilter] = useState(false);
   const [professionalForm, setProfessionalForm] =
-    useState<ProfessionalFormState>({
-      nome: "",
-      status: "active",
-      especialidades: [],
-      bankId: ""
-    });
+    useState<ProfessionalFormState>(defaultProfessionalForm);
   const [availabilityDays, setAvailabilityDays] = useState<
     AvailabilityDayState[]
   >(createDefaultAvailabilityDays());
@@ -2350,10 +2363,8 @@ export function App() {
       });
     } else if (!isCreatingProfessional) {
       setProfessionalForm({
-        nome: "",
-        status: "active",
-        especialidades: [],
-        bankId: ""
+        ...defaultProfessionalForm,
+        especialidades: [...defaultProfessionalForm.especialidades]
       });
     }
   }, [
@@ -4068,7 +4079,9 @@ export function App() {
             bankId: professionalForm.bankId || undefined
           });
       setIsCreatingProfessional(false);
+      setIsProfessionalBankLookupOpen(false);
       setSelectedProfessionalId(professional.id);
+      setProfessionalRecordDialogMode("closed");
       setProfessionalWorkspaceMode("profile");
       await refreshAdminState();
       setFeedback({
@@ -4867,22 +4880,62 @@ export function App() {
     }, 40);
   }
 
-  function openProfessionalProfileWorkspace(professionalId?: string): void {
-    setIsCreatingProfessional(!professionalId);
-    setSelectedProfessionalId(professionalId ?? "");
-    setProfessionalWorkspaceMode("profile");
+  function resetProfessionalDraft(): void {
+    setProfessionalForm({
+      ...defaultProfessionalForm,
+      especialidades: [...defaultProfessionalForm.especialidades]
+    });
+    setAvailabilityDays(createDefaultAvailabilityDays());
+  }
 
-    if (!professionalId) {
-      setProfessionalForm({
-        nome: "",
-        status: "active",
-        especialidades: [],
-        bankId: ""
-      });
-      setAvailabilityDays(createDefaultAvailabilityDays());
+  function selectProfessionalRecord(professionalId: string): void {
+    setIsCreatingProfessional(false);
+    setSelectedProfessionalId(professionalId);
+    setProfessionalRecordDialogMode("closed");
+  }
+
+  function openProfessionalProfileWorkspace(professionalId?: string): void {
+    setProfessionalWorkspaceMode("profile");
+    setProfessionalRecordDialogMode("closed");
+    setIsCreatingProfessional(false);
+
+    if (professionalId) {
+      setSelectedProfessionalId(professionalId);
     }
 
     scrollProfessionalsWorkspaceIntoView();
+  }
+
+  function openNewProfessionalDialog(): void {
+    setProfessionalWorkspaceMode("profile");
+    setIsCreatingProfessional(true);
+    setSelectedProfessionalId("");
+    setIsProfessionalBankLookupOpen(false);
+    resetProfessionalDraft();
+    setProfessionalRecordDialogMode("new");
+    scrollProfessionalsWorkspaceIntoView();
+  }
+
+  function openProfessionalRecordDialog(
+    mode: Exclude<ProfessionalRecordDialogMode, "closed" | "new">,
+    professionalId?: string
+  ): void {
+    const targetProfessionalId = professionalId ?? selectedProfessionalId;
+    if (!targetProfessionalId) {
+      return;
+    }
+
+    setProfessionalWorkspaceMode("profile");
+    setIsCreatingProfessional(false);
+    setSelectedProfessionalId(targetProfessionalId);
+    setIsProfessionalBankLookupOpen(false);
+    setProfessionalRecordDialogMode(mode);
+  }
+
+  function closeProfessionalRecordDialog(): void {
+    setIsCreatingProfessional(false);
+    setIsProfessionalBankLookupOpen(false);
+    setProfessionalRecordDialogMode("closed");
   }
 
   function selectServiceRecord(serviceId: string): void {
@@ -4918,9 +4971,14 @@ export function App() {
     setIsServiceDeleteDialogOpen(false);
   }
 
-  function openProfessionalAvailabilityWorkspace(professionalId: string): void {
+  function openProfessionalAvailabilityWorkspace(
+    professionalId?: string
+  ): void {
     setIsCreatingProfessional(false);
-    setSelectedProfessionalId(professionalId);
+    setProfessionalRecordDialogMode("closed");
+    if (professionalId) {
+      setSelectedProfessionalId(professionalId);
+    }
     setProfessionalWorkspaceMode("availability");
     scrollProfessionalsWorkspaceIntoView();
   }
@@ -4931,6 +4989,7 @@ export function App() {
       setSelectedProfessionalId(professionalId);
     }
 
+    setProfessionalRecordDialogMode("closed");
     setProfessionalWorkspaceMode("services");
     scrollProfessionalsWorkspaceIntoView();
   }
@@ -4938,9 +4997,38 @@ export function App() {
   function clearSelectedProfessional(): void {
     setIsCreatingProfessional(false);
     setSelectedProfessionalId("");
-    setProfessionalWorkspaceMode((current) =>
-      current === "availability" ? "profile" : current
+    setIsProfessionalBankLookupOpen(false);
+    setProfessionalRecordDialogMode("closed");
+  }
+
+  async function handleToggleProfessionalStatus(): Promise<void> {
+    const professional = professionals.find(
+      (item) => item.id === selectedProfessionalId
     );
+    if (!professional) {
+      return;
+    }
+
+    const nextStatus: ProfessionalStatus =
+      professional.status === "active" ? "inactive" : "active";
+
+    await runAction(async () => {
+      await updateProfessional(apiBaseUrl, sessionToken, professional.id, {
+        nome: professional.nome.trim(),
+        status: nextStatus,
+        especialidades: [...professional.especialidades],
+        bankId: professional.bankId || undefined
+      });
+      setProfessionalRecordDialogMode("closed");
+      await refreshAdminState();
+      setFeedback({
+        tone: nextStatus === "inactive" ? "info" : "success",
+        message:
+          nextStatus === "inactive"
+            ? "Profissional bloqueado."
+            : "Profissional reativado."
+      });
+    });
   }
 
   async function handleToggleProfessionalServiceLink(
@@ -5928,10 +6016,64 @@ export function App() {
     );
   }
 
-  function renderProfessionalProfileWorkspace(): JSX.Element {
-    const selectedProfessional = professionals.find(
-      (professional) => professional.id === selectedProfessionalId
+  function renderProfessionalBankLookupModal(): JSX.Element | null {
+    if (!isProfessionalBankLookupOpen) {
+      return null;
+    }
+
+    return (
+      <WorkspaceRecordModal
+        subtitle="Selecione o banco padrao do profissional."
+        title="Banco padrao"
+        onClose={() => setIsProfessionalBankLookupOpen(false)}
+      >
+        <div className="stack-form">
+          {renderFinanceBrowseTable(
+            [
+              { key: "codigo", label: "Codigo" },
+              { key: "banco", label: "Banco" },
+              { key: "bacen", label: "BACEN" },
+              { key: "conta", label: "Agencia / Conta" }
+            ],
+            banks.map((bank) => ({
+              id: bank.id,
+              selected: bank.id === professionalForm.bankId,
+              onClick: () => {
+                setProfessionalForm((current) => ({
+                  ...current,
+                  bankId: bank.id
+                }));
+                setIsProfessionalBankLookupOpen(false);
+              },
+              cells: [
+                { key: "codigo", value: bank.codigo },
+                { key: "banco", value: bank.nomeBanco },
+                { key: "bacen", value: bank.bacenCode },
+                { key: "conta", value: `${bank.agencia}/${bank.conta}` }
+              ]
+            })),
+            "Nenhum banco disponivel."
+          )}
+        </div>
+      </WorkspaceRecordModal>
     );
+  }
+
+  function renderProfessionalRecordDialog(): JSX.Element | null {
+    if (professionalRecordDialogMode === "closed") {
+      return null;
+    }
+
+    const selectedProfessional =
+      professionals.find(
+        (professional) => professional.id === selectedProfessionalId
+      ) ?? null;
+    const selectedProfessionalBank =
+      banks.find(
+        (bank) =>
+          bank.id === professionalForm.bankId ||
+          bank.id === selectedProfessional?.bankId
+      ) ?? null;
     const linkedServiceNames = selectedProfessional
       ? resolveProfessionalServiceNames(selectedProfessional, services)
       : professionalForm.especialidades
@@ -5945,88 +6087,140 @@ export function App() {
           weeklyAvailabilityByProfessional[selectedProfessionalId] ?? []
         )
       : "Sem horarios configurados";
-    const formId = "professional-profile-form";
-    const linkedServicesLabel = linkedServiceNames.length
-      ? linkedServiceNames.join(" | ")
-      : "Sem especialidades vinculadas ainda.";
-    const linkedServicesPreview = linkedServiceNames.length
-      ? linkedServiceNames.slice(0, 2).join(" | ")
-      : "Sem especialidades ainda";
-    const selectedProfessionalBank =
-      banks.find(
-        (bank) =>
-          bank.id === professionalForm.bankId ||
-          bank.id === selectedProfessional?.bankId
-      ) ?? null;
-    const serviceLinkSummary = [
+    const isViewingProfessional = professionalRecordDialogMode === "view";
+    const isEditingProfessional = professionalRecordDialogMode === "edit";
+    const isCreatingProfessionalRecord = professionalRecordDialogMode === "new";
+    const isTogglingStatus = professionalRecordDialogMode === "toggle-status";
+    const formId = "professional-record-form";
+    const modalTitle = isCreatingProfessionalRecord
+      ? "Incluir profissional"
+      : isViewingProfessional
+        ? `Visualizar ${selectedProfessional?.nome ?? "profissional"}`
+        : isEditingProfessional
+          ? `Alterar ${selectedProfessional?.nome ?? "profissional"}`
+          : selectedProfessional?.status === "inactive"
+            ? `Reativar ${selectedProfessional.nome}`
+            : `Bloquear ${selectedProfessional?.nome ?? "profissional"}`;
+    const modalSubtitle = isCreatingProfessionalRecord
+      ? "Use esta tela apenas para dados cadastrais do profissional."
+      : isViewingProfessional
+        ? "Consulta rapida do cadastro selecionado."
+        : isEditingProfessional
+          ? "Edite somente o cadastro base. Servicos e agenda ficam em frentes dedicadas."
+          : selectedProfessional?.status === "inactive"
+            ? "Esta acao volta a liberar o cadastro para operacao."
+            : "Esta acao impede novos usos operacionais do profissional sem apagar historico.";
+    const previewFields = [
       {
-        id: "linked-count",
+        id: "codigo",
+        label: "Codigo",
+        value: selectedProfessional?.codigo ?? "Novo cadastro"
+      },
+      {
+        id: "nome",
+        label: "Nome",
+        value:
+          selectedProfessional?.nome ||
+          professionalForm.nome ||
+          "Profissional nao selecionado"
+      },
+      {
+        id: "status",
+        label: "Status",
+        value: formatProfessionalStatus(
+          selectedProfessional?.status ?? professionalForm.status
+        )
+      },
+      {
+        id: "banco",
+        label: "Banco padrao",
+        value: selectedProfessionalBank?.nomeBanco ?? "Nao definido"
+      },
+      {
+        id: "servicos",
         label: "Servicos vinculados",
-        value: String(linkedServiceNames.length)
+        value: `${linkedServiceNames.length}`
       },
       {
-        id: "linked-preview",
-        label: "Resumo operacional",
-        value: linkedServicesPreview
-      },
-      {
-        id: "availability",
-        label: "Disponibilidade",
+        id: "agenda",
+        label: "Janela da agenda",
         value: availabilitySummary
       }
     ] as const;
 
+    if (
+      (isViewingProfessional || isEditingProfessional || isTogglingStatus) &&
+      !selectedProfessional
+    ) {
+      return null;
+    }
+
     return (
       <>
-        <div className="professionals-detail-stack">
-          <DocumentHeader
-            fields={[
-              {
-                id: "professional-code",
-                label: "Codigo",
-                value: selectedProfessional?.codigo ?? "Novo cadastro"
-              },
-              {
-                id: "professional-name",
-                label: "Nome",
-                value:
-                  professionalForm.nome ||
-                  selectedProfessional?.nome ||
-                  "Novo profissional"
-              },
-              {
-                id: "professional-status",
-                label: "Status",
-                value: formatProfessionalStatus(professionalForm.status)
-              },
-              {
-                id: "professional-services",
-                label: "Servicos vinculados",
-                value: `${linkedServiceNames.length}`
-              },
-              {
-                id: "professional-bank",
-                label: "Banco padrao",
-                value: selectedProfessionalBank?.nomeBanco ?? "Nao definido"
-              },
-              {
-                id: "professional-availability",
-                label: "Disponibilidade",
-                value: availabilitySummary
-              }
-            ]}
-          />
-
-          <form
-            className="professional-editor-form professional-master-detail-form"
-            id={formId}
-            onSubmit={handleSaveProfessional}
-          >
-            <EntitySection
-              title="Cadastro base"
-              description="Dados principais do profissional selecionado."
+        <WorkspaceRecordModal
+          subtitle={modalSubtitle}
+          title={modalTitle}
+          onClose={closeProfessionalRecordDialog}
+        >
+          {isViewingProfessional ? (
+            <div className="catalog-record-preview-grid">
+              {previewFields.map((field) => (
+                <div className="catalog-preview-item" key={field.id}>
+                  <span className="catalog-preview-item-label">
+                    {field.label}
+                  </span>
+                  <strong className="catalog-preview-item-value">
+                    {field.value}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          ) : isTogglingStatus ? (
+            <div className="stack-form">
+              <div className="catalog-record-preview-grid">
+                {previewFields.map((field) => (
+                  <div className="catalog-preview-item" key={field.id}>
+                    <span className="catalog-preview-item-label">
+                      {field.label}
+                    </span>
+                    <strong className="catalog-preview-item-value">
+                      {field.value}
+                    </strong>
+                  </div>
+                ))}
+              </div>
+              <p className="professional-record-status-copy">
+                {selectedProfessional?.status === "inactive"
+                  ? "O cadastro voltara para a operacao normal, preservando seus vinculos atuais."
+                  : "O cadastro sera marcado como inativo, preservando historico e vinculos ja existentes."}
+              </p>
+              <div className="button-row">
+                <button
+                  className="secondary-button"
+                  onClick={closeProfessionalRecordDialog}
+                  type="button"
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  onClick={() => void handleToggleProfessionalStatus()}
+                  type="button"
+                >
+                  {selectedProfessional?.status === "inactive"
+                    ? "Reativar profissional"
+                    : "Bloquear profissional"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form
+              className="stack-form professional-record-form"
+              id={formId}
+              onSubmit={handleSaveProfessional}
             >
-              <div className="professional-editor-grid">
+              <div className="form-grid">
                 <label className="field">
                   <span>Nome</span>
                   <input
@@ -6094,119 +6288,258 @@ export function App() {
                   </div>
                 </label>
               </div>
-            </EntitySection>
 
-            <EntitySection
-              title="Amarracao com servicos"
-              description="Os vinculos operacionais ficam na frente dedicada Profissionais x Servicos, sem misturar o cadastro base."
-            >
-              <div className="professional-link-summary-grid">
-                {serviceLinkSummary.map((item) => (
-                  <div className="catalog-preview-item" key={item.id}>
-                    <span className="catalog-preview-item-label">
-                      {item.label}
+              <div className="professional-record-caption">
+                {selectedProfessional ? (
+                  <>
+                    <span>
+                      {linkedServiceNames.length} servico(s) vinculado(s)
                     </span>
-                    <strong className="catalog-preview-item-value">
-                      {item.value}
-                    </strong>
-                  </div>
-                ))}
+                    <span>{availabilitySummary}</span>
+                  </>
+                ) : (
+                  <span>
+                    Vinculos com servicos e agenda sao tratados nas frentes
+                    exclusivas do shell.
+                  </span>
+                )}
               </div>
-              <div className="button-row">
-                <button
-                  className="secondary-button"
-                  disabled={!selectedProfessionalId}
-                  onClick={() =>
-                    openProfessionalServicesWorkspace(selectedProfessionalId)
-                  }
-                  type="button"
-                >
-                  Profissionais x Servicos
-                </button>
-              </div>
-            </EntitySection>
 
-            <div className="professional-editor-footer">
-              <div className="professional-editor-summary">
-                <span>{linkedServiceNames.length} servico(s) vinculado(s)</span>
-                <span>{linkedServicesPreview}</span>
-              </div>
               <div className="button-row">
-                {!isCreatingProfessional && selectedProfessionalId ? (
+                {isEditingProfessional && selectedProfessional ? (
                   <button
                     className="secondary-button"
                     onClick={() =>
-                      openProfessionalAgenda(selectedProfessionalId)
-                    }
-                    type="button"
-                  >
-                    Ver agenda
-                  </button>
-                ) : null}
-                {!isCreatingProfessional && selectedProfessionalId ? (
-                  <button
-                    className="secondary-button"
-                    onClick={() =>
-                      openProfessionalAvailabilityWorkspace(
-                        selectedProfessionalId
+                      openProfessionalRecordDialog(
+                        "view",
+                        selectedProfessional.id
                       )
                     }
                     type="button"
                   >
-                    Horarios
+                    Visualizar
                   </button>
                 ) : null}
+                <button
+                  className="secondary-button"
+                  onClick={closeProfessionalRecordDialog}
+                  type="button"
+                >
+                  Cancelar
+                </button>
                 <button
                   className="primary-button"
                   disabled={isBusy}
                   form={formId}
                   type="submit"
                 >
-                  {isCreatingProfessional
+                  {isCreatingProfessionalRecord
                     ? "Criar profissional"
                     : "Salvar profissional"}
                 </button>
               </div>
-            </div>
-          </form>
-        </div>
+            </form>
+          )}
+        </WorkspaceRecordModal>
+        {renderProfessionalBankLookupModal()}
+      </>
+    );
+  }
 
-        {isProfessionalBankLookupOpen ? (
-          <WorkspaceRecordModal
-            subtitle="Selecione o banco padrao do profissional."
-            title="Banco padrao"
-            onClose={() => setIsProfessionalBankLookupOpen(false)}
-          >
-            <div className="stack-form">
-              {renderFinanceBrowseTable(
-                [
-                  { key: "codigo", label: "Codigo" },
-                  { key: "banco", label: "Banco" },
-                  { key: "bacen", label: "BACEN" },
-                  { key: "conta", label: "Agencia / Conta" }
-                ],
-                banks.map((bank) => ({
-                  id: bank.id,
-                  selected: bank.id === professionalForm.bankId,
-                  onClick: () => {
-                    setProfessionalForm((current) => ({
-                      ...current,
-                      bankId: bank.id
-                    }));
-                    setIsProfessionalBankLookupOpen(false);
-                  },
-                  cells: [
-                    { key: "codigo", value: bank.codigo },
-                    { key: "banco", value: bank.nomeBanco },
-                    { key: "bacen", value: bank.bacenCode },
-                    { key: "conta", value: `${bank.agencia}/${bank.conta}` }
-                  ]
-                })),
-                "Nenhum banco disponivel."
-              )}
+  function renderProfessionalProfileWorkspace(): JSX.Element {
+    const selectedProfessional =
+      professionals.find(
+        (professional) => professional.id === selectedProfessionalId
+      ) ?? null;
+    const normalizedQuery = professionalBrowseSearch.trim().toLowerCase();
+    const filteredProfessionals = professionals.filter((professional) => {
+      if (
+        professionalBrowseStatusFilter !== "all" &&
+        professional.status !== professionalBrowseStatusFilter
+      ) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      const linkedServiceNames = resolveProfessionalServiceNames(
+        professional,
+        services
+      );
+      const professionalBank = banks.find(
+        (bank) => bank.id === professional.bankId
+      );
+      const searchable = [
+        professional.codigo,
+        professional.nome,
+        professionalBank?.nomeBanco ?? "",
+        formatProfessionalStatus(professional.status),
+        resolveProfessionalSummaryLine(linkedServiceNames)
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(normalizedQuery);
+    });
+    const professionalRows = filteredProfessionals.map((professional) => {
+      const linkedServiceNames = resolveProfessionalServiceNames(
+        professional,
+        services
+      );
+      const professionalBank = banks.find(
+        (bank) => bank.id === professional.bankId
+      );
+
+      return {
+        id: professional.id,
+        selected: professional.id === selectedProfessionalId,
+        onClick: () => selectProfessionalRecord(professional.id),
+        cells: [
+          { key: "codigo", value: professional.codigo },
+          { key: "nome", value: professional.nome },
+          {
+            key: "banco",
+            value: professionalBank?.nomeBanco ?? "Sem banco"
+          },
+          { key: "servicos", value: `${linkedServiceNames.length} vinculo(s)` },
+          {
+            key: "status",
+            value: (
+              <span
+                className={`status-pill is-${resolveProfessionalStatusTone(professional.status)}`}
+              >
+                {formatProfessionalStatus(professional.status)}
+              </span>
+            )
+          }
+        ]
+      };
+    });
+    const selectedLinkedServiceNames = selectedProfessional
+      ? resolveProfessionalServiceNames(selectedProfessional, services)
+      : [];
+    const selectedAvailabilitySummary = selectedProfessionalId
+      ? resolveAvailabilitySummary(
+          weeklyAvailabilityByProfessional[selectedProfessionalId] ?? []
+        )
+      : "Selecione um registro no browse para habilitar as acoes.";
+
+    return (
+      <>
+        <article className="ag-surface-card ag-view-panel professional-registry-workspace">
+          <div className="ag-view-panel-header">
+            <div className="ag-view-panel-copy">
+              <h3 className="ag-view-panel-title">Cadastro de profissionais</h3>
+              <p className="ag-view-panel-description">
+                Frente exclusiva para incluir, visualizar, alterar e bloquear
+                profissionais no padrao de browse operacional.
+              </p>
             </div>
-          </WorkspaceRecordModal>
-        ) : null}
+            <ViewBadge tone="info">
+              {filteredProfessionals.length} registro(s)
+            </ViewBadge>
+          </div>
+
+          <div className="professional-registry-toolbar">
+            <label className="dashboard-select">
+              <span>Pesquisar</span>
+              <input
+                placeholder="Codigo, nome, banco ou status"
+                type="search"
+                value={professionalBrowseSearch}
+                onChange={(event) =>
+                  setProfessionalBrowseSearch(event.target.value)
+                }
+              />
+            </label>
+
+            <label className="dashboard-select">
+              <span>Status</span>
+              <select
+                value={professionalBrowseStatusFilter}
+                onChange={(event) =>
+                  setProfessionalBrowseStatusFilter(
+                    event.target.value as ProfessionalStatus | "all"
+                  )
+                }
+              >
+                <option value="all">Todos</option>
+                {professionalStatusValues.map((status) => (
+                  <option key={status} value={status}>
+                    {formatProfessionalStatus(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div className="entity-record-actions professional-registry-actions">
+              <button
+                className="primary-button"
+                onClick={openNewProfessionalDialog}
+                type="button"
+              >
+                Incluir
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedProfessionalId}
+                onClick={() => openProfessionalRecordDialog("view")}
+                type="button"
+              >
+                Visualizar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedProfessionalId}
+                onClick={() => openProfessionalRecordDialog("edit")}
+                type="button"
+              >
+                Alterar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedProfessionalId}
+                onClick={() => openProfessionalRecordDialog("toggle-status")}
+                type="button"
+              >
+                {selectedProfessional?.status === "inactive"
+                  ? "Reativar"
+                  : "Bloquear"}
+              </button>
+            </div>
+          </div>
+
+          <div className="professional-registry-selection">
+            <span>
+              {selectedProfessional
+                ? `${selectedProfessional.codigo} | ${selectedProfessional.nome}`
+                : "Selecione uma linha do browse para habilitar as acoes do cadastro."}
+            </span>
+            <span>
+              {selectedProfessional
+                ? `${selectedLinkedServiceNames.length} servico(s) | ${selectedAvailabilitySummary}`
+                : `${filteredProfessionals.length} registro(s) visivel(is) no filtro atual.`}
+            </span>
+          </div>
+
+          <div className="professionals-browse-shell professional-registry-browse-shell">
+            {renderFinanceBrowseTable(
+              [
+                { key: "codigo", label: "Codigo" },
+                { key: "nome", label: "Profissional" },
+                { key: "banco", label: "Banco padrao" },
+                { key: "servicos", label: "Servicos" },
+                { key: "status", label: "Status" }
+              ],
+              professionalRows,
+              "Nenhum profissional encontrado."
+            )}
+          </div>
+        </article>
+
+        {renderProfessionalRecordDialog()}
       </>
     );
   }
@@ -6337,7 +6670,7 @@ export function App() {
                 onClick={() => setProfessionalWorkspaceMode("profile")}
                 type="button"
               >
-                Voltar ao cadastro
+                Cadastro de profissionais
               </button>
               {selectedProfessionalId ? (
                 <button
@@ -6345,7 +6678,7 @@ export function App() {
                   onClick={() => openProfessionalAgenda(selectedProfessionalId)}
                   type="button"
                 >
-                  Ver agenda
+                  Ver agenda real
                 </button>
               ) : null}
               {selectedProfessionalId ? (
@@ -6631,7 +6964,7 @@ export function App() {
                     onClick={() => setProfessionalWorkspaceMode("profile")}
                     type="button"
                   >
-                    Cadastro base
+                    Cadastro de profissionais
                   </button>
                   <button
                     className="secondary-button"
@@ -6642,7 +6975,7 @@ export function App() {
                     }
                     type="button"
                   >
-                    Horarios
+                    Profissionais x Agenda
                   </button>
                   <button
                     className="secondary-button"
@@ -6651,7 +6984,7 @@ export function App() {
                     }
                     type="button"
                   >
-                    Ver agenda
+                    Ver agenda real
                   </button>
                 </div>
               </div>
@@ -6664,69 +6997,6 @@ export function App() {
           )}
         </article>
       </div>
-    );
-  }
-
-  function renderProfessionalBrowsePanel(): JSX.Element {
-    const professionalColumns = [
-      { key: "codigo", label: "Codigo" },
-      { key: "profissional", label: "Profissional" },
-      { key: "servicos", label: "Servicos" },
-      { key: "status", label: "Status" }
-    ] as const;
-    const professionalRows = professionals.map((professional) => {
-      const linkedServiceNames = resolveProfessionalServiceNames(
-        professional,
-        services
-      );
-
-      return {
-        id: professional.id,
-        selected:
-          !isCreatingProfessional && professional.id === selectedProfessionalId,
-        onClick: () => openProfessionalProfileWorkspace(professional.id),
-        cells: [
-          { key: "codigo", value: professional.codigo },
-          {
-            key: "profissional",
-            value: `${professional.nome} | ${resolveProfessionalSummaryLine(linkedServiceNames)}`
-          },
-          { key: "servicos", value: `${linkedServiceNames.length} vinculo(s)` },
-          {
-            key: "status",
-            value: (
-              <span
-                className={`status-pill is-${resolveProfessionalStatusTone(professional.status)}`}
-              >
-                {formatProfessionalStatus(professional.status)}
-              </span>
-            )
-          }
-        ]
-      };
-    });
-
-    return (
-      <article className="ag-surface-card ag-view-panel professional-browse-panel">
-        <div className="ag-view-panel-header">
-          <div className="ag-view-panel-copy">
-            <h3 className="ag-view-panel-title">Equipe cadastrada</h3>
-            <p className="ag-view-panel-description">
-              Selecione um profissional para editar cadastro, amarracoes e
-              horarios.
-            </p>
-          </div>
-          <ViewBadge tone="info">{professionals.length} cadastro(s)</ViewBadge>
-        </div>
-
-        <div className="professionals-browse-shell">
-          {renderFinanceBrowseTable(
-            professionalColumns,
-            professionalRows,
-            "Nenhum profissional cadastrado."
-          )}
-        </div>
-      </article>
     );
   }
 
@@ -6751,8 +7021,7 @@ export function App() {
         id: professional.id,
         selected: professional.id === selectedProfessionalId,
         onClick: () => {
-          setIsCreatingProfessional(false);
-          setSelectedProfessionalId(professional.id);
+          selectProfessionalRecord(professional.id);
           setIsProfessionalLookupOpen(false);
           scrollProfessionalsWorkspaceIntoView();
         },
@@ -6776,7 +7045,7 @@ export function App() {
 
     return (
       <WorkspaceRecordModal
-        subtitle="Escolha o profissional para editar cadastro, horarios ou amarracoes com servicos."
+        subtitle="Escolha o profissional para carregar as frentes exclusivas de servicos ou agenda."
         title="Selecionar profissional"
         onClose={() => setIsProfessionalLookupOpen(false)}
       >
@@ -6812,10 +7081,8 @@ export function App() {
       professionalWorkspaceMode === "services"
         ? "Profissionais x Servicos"
         : professionalWorkspaceMode === "availability"
-          ? "Horarios"
-          : isCreatingProfessional
-            ? "Novo profissional"
-            : "Cadastro base";
+          ? "Profissionais x Agenda"
+          : "Cadastro de profissionais";
 
     return (
       <>
@@ -6824,7 +7091,7 @@ export function App() {
           eyebrow="Equipe"
           header={null}
           title="Profissionais"
-          subtitle="Cadastro base, amarracoes com servicos e horarios operacionais em uma unica frente de trabalho."
+          subtitle="Cadastro de profissionais em frente exclusiva, com servicos e agenda separados em workspaces proprios."
           statusBadge={
             <ViewBadge
               tone={
@@ -6845,35 +7112,55 @@ export function App() {
             <div className="professionals-page-actions">
               <button
                 className="secondary-button"
-                onClick={() => setIsProfessionalLookupOpen(true)}
-                type="button"
-              >
-                Selecionar profissional
-              </button>
-              <button
-                className="secondary-button"
                 disabled={isBusy}
                 onClick={handleRefreshClick}
                 type="button"
               >
                 Atualizar
               </button>
+              {professionalWorkspaceMode !== "profile" ? (
+                <button
+                  className="secondary-button"
+                  onClick={() => setIsProfessionalLookupOpen(true)}
+                  type="button"
+                >
+                  Selecionar profissional
+                </button>
+              ) : null}
+              {selectedProfessionalId &&
+              professionalWorkspaceMode !== "profile" ? (
+                <button
+                  className="secondary-button"
+                  onClick={() => {
+                    openProfessionalProfileWorkspace(selectedProfessionalId);
+                    openProfessionalRecordDialog(
+                      "view",
+                      selectedProfessionalId
+                    );
+                  }}
+                  type="button"
+                >
+                  Ver cadastro
+                </button>
+              ) : null}
               {selectedProfessionalId ? (
                 <button
                   className="secondary-button"
                   onClick={() => openProfessionalAgenda(selectedProfessionalId)}
                   type="button"
                 >
-                  Ver agenda
+                  Ver agenda real
                 </button>
               ) : null}
-              <button
-                className="primary-button"
-                onClick={() => openProfessionalProfileWorkspace()}
-                type="button"
-              >
-                Novo profissional
-              </button>
+              {professionalWorkspaceMode === "profile" ? (
+                <button
+                  className="primary-button"
+                  onClick={openNewProfessionalDialog}
+                  type="button"
+                >
+                  Incluir profissional
+                </button>
+              ) : null}
             </div>
           }
           summary={
@@ -6907,7 +7194,9 @@ export function App() {
                   helper: selectedProfessional
                     ? linkedServiceNames.join(" | ") ||
                       "Sem servicos vinculados."
-                    : "Abra o browse ou a consulta padrao."
+                    : professionalWorkspaceMode === "profile"
+                      ? "Use o browse do cadastro para selecionar um registro."
+                      : "Abra a consulta padrao para carregar um profissional."
                 }
               ]}
             />
@@ -6929,7 +7218,7 @@ export function App() {
                 role="tab"
                 type="button"
               >
-                Cadastro base
+                Cadastro
               </button>
               <button
                 aria-selected={professionalWorkspaceMode === "services"}
@@ -6955,34 +7244,28 @@ export function App() {
                     ? "dashboard-tab-button is-active"
                     : "dashboard-tab-button"
                 }
-                disabled={!selectedProfessionalId}
                 onClick={() =>
-                  selectedProfessionalId &&
-                  openProfessionalAvailabilityWorkspace(selectedProfessionalId)
+                  openProfessionalAvailabilityWorkspace(
+                    selectedProfessionalId || undefined
+                  )
                 }
                 role="tab"
                 type="button"
               >
-                Horarios
+                Profissionais x Agenda
               </button>
             </div>
           }
           items={
             <div
-              className="professionals-document-grid"
+              className="professionals-workspace-stage"
               id="professionals-workspace"
             >
-              <div className="professionals-document-main">
-                {renderProfessionalBrowsePanel()}
-              </div>
-              <div className="professionals-document-detail">
-                {professionalWorkspaceMode === "services"
-                  ? renderProfessionalServicesWorkspace()
-                  : professionalWorkspaceMode === "availability" &&
-                      selectedProfessionalId
-                    ? renderProfessionalAvailabilityWorkspace()
-                    : renderProfessionalProfileWorkspace()}
-              </div>
+              {professionalWorkspaceMode === "services"
+                ? renderProfessionalServicesWorkspace()
+                : professionalWorkspaceMode === "availability"
+                  ? renderProfessionalAvailabilityWorkspace()
+                  : renderProfessionalProfileWorkspace()}
             </div>
           }
         />
