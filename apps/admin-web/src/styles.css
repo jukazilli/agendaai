@@ -621,8 +621,16 @@ a {
   min-height: 100vh;
   padding: clamp(20px, 3vw, 40px);
   background:
-    radial-gradient(circle at top left, rgba(11, 122, 117, 0.14), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, var(--ag-color-bg-default) 100%);
+    radial-gradient(
+      circle at top left,
+      rgba(11, 122, 117, 0.14),
+      transparent 28%
+    ),
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.92) 0%,
+      var(--ag-color-bg-default) 100%
+    );
 }
 
 .shell h1,
@@ -853,7 +861,10 @@ a {
   background: rgba(255, 255, 255, 0.94);
   text-align: left;
   cursor: pointer;
-  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .client-record-button:hover {
@@ -865,7 +876,11 @@ a {
 .client-record-button.is-active {
   border-color: rgba(var(--ag-color-brand-primary-rgb), 0.38);
   box-shadow: 0 0 0 1px rgba(var(--ag-color-brand-primary-rgb), 0.16);
-  background: linear-gradient(180deg, rgba(var(--ag-color-brand-primary-rgb), 0.08), rgba(255, 255, 255, 0.98));
+  background: linear-gradient(
+    180deg,
+    rgba(var(--ag-color-brand-primary-rgb), 0.08),
+    rgba(255, 255, 255, 0.98)
+  );
 }
 
 .client-record-topline {
@@ -1835,7 +1850,9 @@ a {
   border-radius: 8px 8px 0 0;
   background: #f0f2f5;
   color: #344252;
-  transition: background 150ms ease, border-color 150ms ease;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
 }
 
 .admin-route-tab:hover {
@@ -2216,7 +2233,10 @@ a {
   color: var(--ag-color-text-primary);
   text-align: left;
   cursor: pointer;
-  transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+  transition:
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .counter-booking-choice-card:hover {
@@ -2456,7 +2476,9 @@ a {
   color: var(--ag-color-text-primary);
   text-align: left;
   cursor: pointer;
-  transition: border-color 160ms ease, background 160ms ease;
+  transition:
+    border-color 160ms ease,
+    background 160ms ease;
 }
 
 .reports-menu-item:hover {
@@ -2994,6 +3016,14 @@ a {
   gap: 12px;
 }
 
+.professionals-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 .dashboard-document-actions .dashboard-select {
   min-width: 220px;
 }
@@ -3048,7 +3078,9 @@ a {
   color: var(--ag-color-text-primary);
   text-align: left;
   cursor: pointer;
-  transition: background 180ms ease, transform 180ms ease;
+  transition:
+    background 180ms ease,
+    transform 180ms ease;
 }
 
 .entity-record-row:nth-child(odd) {
@@ -3104,6 +3136,44 @@ a {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 12px;
+}
+
+.catalog-browse-shell,
+.professionals-browse-shell,
+.professional-service-browse-shell {
+  overflow-x: auto;
+}
+
+.catalog-browse-shell .finance-browse-row {
+  grid-template-columns: 90px minmax(0, 1.55fr) 120px 120px 160px 120px;
+}
+
+.catalog-browse-shell .finance-browse-shell {
+  min-width: 820px;
+}
+
+.catalog-preview-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 22px;
+  background: rgba(248, 250, 252, 0.76);
+}
+
+.catalog-preview-item-label {
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ag-color-text-muted);
+}
+
+.catalog-preview-item-value {
+  color: var(--ag-color-text-primary);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 .catalog-form-footer {
@@ -3253,7 +3323,11 @@ a {
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 24px;
   background:
-    radial-gradient(circle at top right, rgba(79, 70, 229, 0.08), transparent 30%),
+    radial-gradient(
+      circle at top right,
+      rgba(79, 70, 229, 0.08),
+      transparent 30%
+    ),
     rgba(248, 250, 252, 0.82);
 }
 
@@ -3340,23 +3414,43 @@ a {
 }
 
 .agenda-rbc-event.is-success {
-  background: linear-gradient(135deg, rgba(16, 185, 129, 0.94), rgba(5, 150, 105, 0.94));
+  background: linear-gradient(
+    135deg,
+    rgba(16, 185, 129, 0.94),
+    rgba(5, 150, 105, 0.94)
+  );
 }
 
 .agenda-rbc-event.is-info {
-  background: linear-gradient(135deg, rgba(79, 70, 229, 0.94), rgba(67, 56, 202, 0.94));
+  background: linear-gradient(
+    135deg,
+    rgba(79, 70, 229, 0.94),
+    rgba(67, 56, 202, 0.94)
+  );
 }
 
 .agenda-rbc-event.is-warning {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.94), rgba(217, 119, 6, 0.94));
+  background: linear-gradient(
+    135deg,
+    rgba(245, 158, 11, 0.94),
+    rgba(217, 119, 6, 0.94)
+  );
 }
 
 .agenda-rbc-event.is-danger {
-  background: linear-gradient(135deg, rgba(244, 63, 94, 0.94), rgba(225, 29, 72, 0.94));
+  background: linear-gradient(
+    135deg,
+    rgba(244, 63, 94, 0.94),
+    rgba(225, 29, 72, 0.94)
+  );
 }
 
 .agenda-rbc-event.is-neutral {
-  background: linear-gradient(135deg, rgba(71, 85, 105, 0.94), rgba(51, 65, 85, 0.94));
+  background: linear-gradient(
+    135deg,
+    rgba(71, 85, 105, 0.94),
+    rgba(51, 65, 85, 0.94)
+  );
 }
 
 .dashboard-metric-grid {
@@ -3512,7 +3606,9 @@ a {
 
 .finance-browse-row:not(.finance-browse-header) {
   cursor: pointer;
-  transition: background 160ms ease, transform 160ms ease;
+  transition:
+    background 160ms ease,
+    transform 160ms ease;
 }
 
 .finance-browse-row:not(.finance-browse-header):hover {
@@ -4201,6 +4297,7 @@ a {
 }
 
 .professional-entity-view .ag-view-panel,
+.professional-document-view .ag-view-panel,
 .professionals-master-detail .ag-view-panel,
 .clients-master-detail .ag-view-panel {
   background: rgba(255, 255, 255, 0.94);
@@ -4212,12 +4309,33 @@ a {
   gap: 20px;
 }
 
-.professional-detail-tabbar {
+.professional-detail-tabbar,
+.professional-workspace-tabbar {
   justify-content: flex-start;
 }
 
 .professionals-master-list {
   min-height: 100%;
+}
+
+.professionals-document-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.92fr) minmax(0, 1.35fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.professionals-document-main,
+.professionals-document-detail {
+  min-width: 0;
+}
+
+.professionals-browse-shell .finance-browse-row {
+  grid-template-columns: 90px minmax(0, 1.45fr) 120px 120px;
+}
+
+.professionals-browse-shell .finance-browse-shell {
+  min-width: 640px;
 }
 
 .agenda-booking-document {
@@ -4331,6 +4449,85 @@ a {
 .professional-editor-summary {
   display: grid;
   gap: 6px;
+}
+
+.professional-link-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.professional-service-workspace {
+  display: grid;
+  gap: 18px;
+}
+
+.professional-service-toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(220px, 0.95fr) minmax(
+      180px,
+      220px
+    );
+  gap: 16px;
+  align-items: end;
+}
+
+.professional-service-toolbar .dashboard-select {
+  min-width: 0;
+}
+
+.professional-service-summary {
+  display: grid;
+  gap: 6px;
+  padding: 16px 18px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 20px;
+  background: rgba(248, 250, 252, 0.82);
+}
+
+.professional-service-summary span:last-child {
+  color: var(--ag-color-text-muted);
+}
+
+.professional-service-browse-shell {
+  min-width: 0;
+}
+
+.professional-service-browse .finance-browse-row {
+  grid-template-columns: 90px 110px minmax(0, 1.5fr) 120px 120px 130px;
+}
+
+.professional-service-browse {
+  min-width: 820px;
+}
+
+.professional-service-browse-body {
+  max-height: min(48vh, 540px);
+}
+
+.professional-service-browse-row {
+  cursor: default;
+}
+
+.professional-service-browse-row .finance-browse-cell strong {
+  font-size: 1rem;
+}
+
+.professional-service-toggle-cell {
+  display: flex;
+  align-items: center;
+}
+
+.professional-service-toggle-cell input {
+  width: 18px;
+  height: 18px;
+}
+
+.professional-service-empty {
+  padding: 18px;
+  border: 1px dashed rgba(148, 163, 184, 0.28);
+  border-radius: 18px;
+  background: rgba(248, 250, 252, 0.72);
 }
 
 .professional-availability-grid {
@@ -4536,24 +4733,30 @@ a {
   }
 
   .agenda-unified-layout,
+  .professionals-document-grid,
   .cash-close-preview-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-.dashboard-document-actions,
-.operational-document-actions,
-.agenda-page-actions,
-.clients-toolbar {
-  justify-content: flex-start;
-}
+  .dashboard-document-actions,
+  .operational-document-actions,
+  .agenda-page-actions,
+  .professionals-page-actions,
+  .clients-toolbar {
+    justify-content: flex-start;
+  }
 
-.dashboard-document-actions {
-  grid-auto-flow: row;
-}
+  .dashboard-document-actions {
+    grid-auto-flow: row;
+  }
 
-.agenda-page-actions {
-  justify-content: flex-start;
-}
+  .agenda-page-actions {
+    justify-content: flex-start;
+  }
+
+  .professionals-page-actions {
+    justify-content: flex-start;
+  }
 
   .settings-page-actions {
     justify-content: flex-start;
@@ -4599,18 +4802,23 @@ a {
     min-width: 0;
   }
 
-.dashboard-document-actions .dashboard-select,
-.operational-document-actions .dashboard-select,
-.agenda-page-actions .dashboard-select,
-.clients-toolbar .dashboard-select {
-  min-width: 0;
-  width: 100%;
-}
+  .dashboard-document-actions .dashboard-select,
+  .operational-document-actions .dashboard-select,
+  .agenda-page-actions .dashboard-select,
+  .professional-service-toolbar .dashboard-select,
+  .clients-toolbar .dashboard-select {
+    min-width: 0;
+    width: 100%;
+  }
 
-.agenda-calendar-shell {
-  min-height: 520px;
-  height: 62vh;
-}
+  .agenda-calendar-shell {
+    min-height: 520px;
+    height: 62vh;
+  }
+
+  .professional-service-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
 
   .settings-page-actions .button-link,
   .settings-page-actions .secondary-button {

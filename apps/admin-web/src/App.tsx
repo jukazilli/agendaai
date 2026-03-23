@@ -1,5 +1,19 @@
-import { Fragment, useEffect, useRef, useState, type CSSProperties, type FormEvent, type JSX, type ReactNode } from "react";
-import { format as formatDateFns, getDay, parse as parseDateFns, startOfWeek } from "date-fns";
+import {
+  Fragment,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+  type JSX,
+  type ReactNode
+} from "react";
+import {
+  format as formatDateFns,
+  getDay,
+  parse as parseDateFns,
+  startOfWeek
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   Activity,
@@ -173,11 +187,26 @@ type FinanceWorkspaceTab =
   | "movements"
   | "close";
 type FinancialSituationFilter = "all" | "aberto" | "baixado";
-type CashflowMovementStatusFilter = "all" | "previsto" | "lancado" | "estornado";
-type CashflowOriginFilter = "all" | "manual" | "agenda" | "receita" | "despesa" | "fechar_caixa";
-type OperationalWorkspaceTab = "overview" | "pending" | "confirmed" | "completed" | "noshow";
+type CashflowMovementStatusFilter =
+  | "all"
+  | "previsto"
+  | "lancado"
+  | "estornado";
+type CashflowOriginFilter =
+  | "all"
+  | "manual"
+  | "agenda"
+  | "receita"
+  | "despesa"
+  | "fechar_caixa";
+type OperationalWorkspaceTab =
+  | "overview"
+  | "pending"
+  | "confirmed"
+  | "completed"
+  | "noshow";
 type ServiceWorkspaceMode = "browse" | "view" | "edit" | "new";
-type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
+type ProfessionalWorkspaceMode = "profile" | "services" | "availability";
 type ClientReturnWindow = "30d" | "60d" | "90d";
 type ClientSegmentFilter = "all" | "returning" | "inactive" | "never_completed";
 type CounterBookingStep = "service" | "professional" | "slot" | "client";
@@ -436,26 +465,30 @@ const reportsWorkspaceItems: readonly ReportsWorkspaceItem[] = [
     key: "overview",
     label: "Visao executiva",
     group: "Visao gerencial",
-    description: "Resumo do periodo para receita, volume, ticket e fila em aberto.",
+    description:
+      "Resumo do periodo para receita, volume, ticket e fila em aberto.",
     badge: "Core"
   },
   {
     key: "services",
     label: "Receita e servicos",
     group: "Comercial",
-    description: "Mix de servicos, receita reconhecida, ticket e clientes unicos."
+    description:
+      "Mix de servicos, receita reconhecida, ticket e clientes unicos."
   },
   {
     key: "team",
     label: "Equipe e produtividade",
     group: "Operacao",
-    description: "Leitura do resultado por profissional, sem misturar agenda diaria."
+    description:
+      "Leitura do resultado por profissional, sem misturar agenda diaria."
   },
   {
     key: "retention",
     label: "Retorno e retencao",
     group: "Clientes",
-    description: "Base com retorno, sem retorno, recorrencia e clientes em risco."
+    description:
+      "Base com retorno, sem retorno, recorrencia e clientes em risco."
   },
   {
     key: "week",
@@ -479,17 +512,60 @@ const reportsWorkspaceItems: readonly ReportsWorkspaceItem[] = [
 ] as const;
 
 const reportBuilderMenuMeta = {
-  "RPT-EXECUTIVE": { group: "Gestao", label: "Visao executiva", description: "Resumo do negocio no recorte ativo." },
-  "RPT-REVENUE": { group: "Comercial", label: "Receita e servicos", description: "Faturamento, ticket e mix de servicos." },
-  "RPT-TEAM": { group: "Equipe", label: "Equipe e produtividade", description: "Leitura por profissional e capacidade entregue." },
-  "RPT-OPERATIONS": { group: "Operacao", label: "Pendencias operacionais", description: "Fila que ainda pede tratamento operacional." },
-  "RPT-RETENTION": { group: "Clientes", label: "Retorno e retencao", description: "Retorno, recorrencia e inatividade da base." },
-  "RPT-WEEK": { group: "Capacidade", label: "Radar semanal", description: "Carga da semana para redistribuir operacao." },
-  "RPT-MONTH": { group: "Capacidade", label: "Visao mensal", description: "Leitura consolidada do mes por dia." },
-  "RPT-SERVICE-CATALOG": { group: "Cadastros", label: "Cadastro de servicos", description: "Catalogo comercial, preco, duracao e cobranca." },
-  "RPT-PROFESSIONAL-REGISTRY": { group: "Cadastros", label: "Cadastro de profissionais", description: "Equipe cadastrada, situacao e servicos vinculados." },
-  "RPT-PAYMENTS": { group: "Financeiro", label: "Pagamentos e cobranca", description: "Cobrancas online ligadas aos atendimentos." }
-} as const satisfies Record<string, { group: string; label: string; description: string }>;
+  "RPT-EXECUTIVE": {
+    group: "Gestao",
+    label: "Visao executiva",
+    description: "Resumo do negocio no recorte ativo."
+  },
+  "RPT-REVENUE": {
+    group: "Comercial",
+    label: "Receita e servicos",
+    description: "Faturamento, ticket e mix de servicos."
+  },
+  "RPT-TEAM": {
+    group: "Equipe",
+    label: "Equipe e produtividade",
+    description: "Leitura por profissional e capacidade entregue."
+  },
+  "RPT-OPERATIONS": {
+    group: "Operacao",
+    label: "Pendencias operacionais",
+    description: "Fila que ainda pede tratamento operacional."
+  },
+  "RPT-RETENTION": {
+    group: "Clientes",
+    label: "Retorno e retencao",
+    description: "Retorno, recorrencia e inatividade da base."
+  },
+  "RPT-WEEK": {
+    group: "Capacidade",
+    label: "Radar semanal",
+    description: "Carga da semana para redistribuir operacao."
+  },
+  "RPT-MONTH": {
+    group: "Capacidade",
+    label: "Visao mensal",
+    description: "Leitura consolidada do mes por dia."
+  },
+  "RPT-SERVICE-CATALOG": {
+    group: "Cadastros",
+    label: "Cadastro de servicos",
+    description: "Catalogo comercial, preco, duracao e cobranca."
+  },
+  "RPT-PROFESSIONAL-REGISTRY": {
+    group: "Cadastros",
+    label: "Cadastro de profissionais",
+    description: "Equipe cadastrada, situacao e servicos vinculados."
+  },
+  "RPT-PAYMENTS": {
+    group: "Financeiro",
+    label: "Pagamentos e cobranca",
+    description: "Cobrancas online ligadas aos atendimentos."
+  }
+} as const satisfies Record<
+  string,
+  { group: string; label: string; description: string }
+>;
 
 interface BookingSummary {
   readonly today: number;
@@ -614,9 +690,18 @@ const DEPLOY_ADMIN_API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   DEFAULT_ADMIN_API_BASE_URL;
 const BOOKING_BASE_URL =
-  (import.meta.env.VITE_BOOKING_BASE_URL as string | undefined)?.trim() || "http://127.0.0.1:3000";
+  (import.meta.env.VITE_BOOKING_BASE_URL as string | undefined)?.trim() ||
+  "http://127.0.0.1:3000";
 const ADMIN_SHELL_COMPACT_BREAKPOINT = 1100;
-const weekdayLabels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"] as const;
+const weekdayLabels = [
+  "Dom",
+  "Seg",
+  "Ter",
+  "Qua",
+  "Qui",
+  "Sex",
+  "Sab"
+] as const;
 const agendaCalendarMessages = {
   next: "Proximo",
   previous: "Anterior",
@@ -656,7 +741,8 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     icon: LayoutDashboard,
     eyebrow: "Gestao do negocio",
     title: "Dashboard",
-    description: "Fluxo de caixa, agenda da semana e radar operacional do negocio.",
+    description:
+      "Fluxo de caixa, agenda da semana e radar operacional do negocio.",
     stage: "parcial"
   },
   financeiro: {
@@ -676,7 +762,8 @@ const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
     icon: TrendingUp,
     eyebrow: "Gestao do negocio",
     title: "Relatorios essenciais do tenant",
-    description: "Comparativos por periodo, retorno e insights de capacidade sem disputar a operacao da agenda.",
+    description:
+      "Comparativos por periodo, retorno e insights de capacidade sem disputar a operacao da agenda.",
     stage: "parcial"
   },
   operacional: {
@@ -930,7 +1017,9 @@ const defaultFinanceBrowseFilters: FinanceBrowseFiltersState = {
   }
 };
 
-const defaultAgendaFilterDraft = (dateValue: string): AgendaFilterDraftState => ({
+const defaultAgendaFilterDraft = (
+  dateValue: string
+): AgendaFilterDraftState => ({
   date: dateValue,
   professionalId: "all",
   status: "all",
@@ -981,7 +1070,11 @@ function WorkspaceRecordModal({
   onClose
 }: WorkspaceRecordModalProps): JSX.Element {
   return (
-    <div className="workspace-record-overlay" role="presentation" onClick={onClose}>
+    <div
+      className="workspace-record-overlay"
+      role="presentation"
+      onClick={onClose}
+    >
       <section
         aria-label={title}
         className="workspace-record-modal"
@@ -998,7 +1091,9 @@ function WorkspaceRecordModal({
           </button>
         </div>
         <div className="workspace-record-modal-body">{children}</div>
-        {footer ? <div className="workspace-record-modal-footer">{footer}</div> : null}
+        {footer ? (
+          <div className="workspace-record-modal-footer">{footer}</div>
+        ) : null}
       </section>
     </div>
   );
@@ -1029,7 +1124,10 @@ function formatCurrencyInputValue(value: string): string {
   return brlCurrencyFormatter.format(amount);
 }
 
-function buildCashClosePreviewSelectionKey(sourceType: string, sourceId: string): string {
+function buildCashClosePreviewSelectionKey(
+  sourceType: string,
+  sourceId: string
+): string {
   return `${sourceType}:${sourceId}`;
 }
 
@@ -1037,8 +1135,14 @@ function resolveNextSlotSuggestion(
   slots: readonly AvailabilitySlot[],
   referenceStartAt: string
 ): AvailabilitySlot | null {
-  const orderedSlots = [...slots].sort((left, right) => left.startAt.localeCompare(right.startAt));
-  return orderedSlots.find((slot) => slot.startAt >= referenceStartAt) ?? orderedSlots[0] ?? null;
+  const orderedSlots = [...slots].sort((left, right) =>
+    left.startAt.localeCompare(right.startAt)
+  );
+  return (
+    orderedSlots.find((slot) => slot.startAt >= referenceStartAt) ??
+    orderedSlots[0] ??
+    null
+  );
 }
 
 function CurrencyInput({
@@ -1059,7 +1163,9 @@ function CurrencyInput({
       required={required}
       type="text"
       value={formatCurrencyInputValue(value)}
-      onChange={(event) => onValueChange(normalizeCurrencyInputValue(event.target.value))}
+      onChange={(event) =>
+        onValueChange(normalizeCurrencyInputValue(event.target.value))
+      }
     />
   );
 }
@@ -1072,12 +1178,18 @@ function buildReportsBuilderMenuItems(
   }
 
   return catalog.systemDefinitions.map((definition) => {
-    const meta = reportBuilderMenuMeta[definition.code as keyof typeof reportBuilderMenuMeta];
+    const meta =
+      reportBuilderMenuMeta[
+        definition.code as keyof typeof reportBuilderMenuMeta
+      ];
     return {
       code: definition.code,
       label: meta?.label ?? definition.name,
       group: meta?.group ?? "Relatorios",
-      description: meta?.description ?? definition.description ?? "Abrir relatorio em dock tab dedicada."
+      description:
+        meta?.description ??
+        definition.description ??
+        "Abrir relatorio em dock tab dedicada."
     };
   });
 }
@@ -1110,7 +1222,9 @@ function isMissingReportBuilderRoute(error: unknown): boolean {
   return error instanceof AdminApiError && error.status === 404;
 }
 
-function createDefaultReportsPaneFilters(window: ClientReturnWindow): ReportsPaneFilters {
+function createDefaultReportsPaneFilters(
+  window: ClientReturnWindow
+): ReportsPaneFilters {
   return {
     dateFrom: "",
     dateTo: "",
@@ -1123,7 +1237,11 @@ function createDefaultReportsPaneFilters(window: ClientReturnWindow): ReportsPan
   };
 }
 
-function describeLookupRange(from: string, to: string, emptyLabel: string): string {
+function describeLookupRange(
+  from: string,
+  to: string,
+  emptyLabel: string
+): string {
   if (from && to) {
     return from === to ? from : `${from} ate ${to}`;
   }
@@ -1136,7 +1254,11 @@ function describeLookupRange(from: string, to: string, emptyLabel: string): stri
   return emptyLabel;
 }
 
-function describeDateWindow(from: string, to: string, fallbackLabel: string): string {
+function describeDateWindow(
+  from: string,
+  to: string,
+  fallbackLabel: string
+): string {
   if (from && to) {
     return `${formatDateShort(from)} ate ${formatDateShort(to)}`;
   }
@@ -1192,14 +1314,18 @@ function resolveLookupIndex(
   }
 
   const exactIndex = options.findIndex((option) =>
-    option.searchTerms.some((term) => normalizeLookupValue(term) === normalizedQuery)
+    option.searchTerms.some(
+      (term) => normalizeLookupValue(term) === normalizedQuery
+    )
   );
   if (exactIndex >= 0) {
     return exactIndex;
   }
 
   const fuzzyIndex = options.findIndex((option) =>
-    option.searchTerms.some((term) => normalizeLookupValue(term).includes(normalizedQuery))
+    option.searchTerms.some((term) =>
+      normalizeLookupValue(term).includes(normalizedQuery)
+    )
   );
   return fuzzyIndex >= 0 ? fuzzyIndex : null;
 }
@@ -1223,7 +1349,9 @@ function isWithinLookupRange(
   const toIndex = resolveLookupIndex(options, toQuery);
   const start = fromIndex ?? 0;
   const end = toIndex ?? options.length - 1;
-  return valueIndex >= Math.min(start, end) && valueIndex <= Math.max(start, end);
+  return (
+    valueIndex >= Math.min(start, end) && valueIndex <= Math.max(start, end)
+  );
 }
 
 function filterBookingsByDetailedReportsFilters(
@@ -1260,7 +1388,12 @@ function filterBookingsByDetailedReportsFilters(
 
   return dateScopedBookings
     .filter((booking) =>
-      isWithinLookupRange(booking.serviceId, services, filters.serviceFrom, filters.serviceTo)
+      isWithinLookupRange(
+        booking.serviceId,
+        services,
+        filters.serviceFrom,
+        filters.serviceTo
+      )
     )
     .filter((booking) =>
       isWithinLookupRange(
@@ -1280,7 +1413,12 @@ function filterBookingsByDetailedReportsFilters(
         return false;
       }
 
-      return [client.nome, client.telefone, client.id, `${client.nome} | ${client.telefone}`].some((term) =>
+      return [
+        client.nome,
+        client.telefone,
+        client.id,
+        `${client.nome} | ${client.telefone}`
+      ].some((term) =>
         normalizeLookupValue(term).includes(normalizedClientQuery)
       );
     })
@@ -1303,8 +1441,10 @@ function DashboardChart({
     );
   }
 
-  const maxRevenue = Math.max(...data.map((item) => item.recognizedRevenue), 1) * 1.2;
-  const maxBookings = Math.max(...data.map((item) => item.bookingsCount), 1) * 1.2;
+  const maxRevenue =
+    Math.max(...data.map((item) => item.recognizedRevenue), 1) * 1.2;
+  const maxBookings =
+    Math.max(...data.map((item) => item.bookingsCount), 1) * 1.2;
   const width = 820;
   const height = 280;
   const paddingX = 42;
@@ -1314,15 +1454,23 @@ function DashboardChart({
 
   const getX = (index: number) =>
     paddingX + index * (chartWidth / Math.max(data.length - 1, 1));
-  const getRevenueY = (value: number) => paddingY + chartHeight - (value / maxRevenue) * chartHeight;
-  const getBookingsY = (value: number) => paddingY + chartHeight - (value / maxBookings) * chartHeight;
+  const getRevenueY = (value: number) =>
+    paddingY + chartHeight - (value / maxRevenue) * chartHeight;
+  const getBookingsY = (value: number) =>
+    paddingY + chartHeight - (value / maxBookings) * chartHeight;
 
   const revenuePath = data
-    .map((item, index) => `${index === 0 ? "M" : "L"} ${getX(index)} ${getRevenueY(item.recognizedRevenue)}`)
+    .map(
+      (item, index) =>
+        `${index === 0 ? "M" : "L"} ${getX(index)} ${getRevenueY(item.recognizedRevenue)}`
+    )
     .join(" ");
   const revenueArea = `${revenuePath} L ${getX(data.length - 1)} ${paddingY + chartHeight} L ${getX(0)} ${paddingY + chartHeight} Z`;
   const bookingsPath = data
-    .map((item, index) => `${index === 0 ? "M" : "L"} ${getX(index)} ${getBookingsY(item.bookingsCount)}`)
+    .map(
+      (item, index) =>
+        `${index === 0 ? "M" : "L"} ${getX(index)} ${getBookingsY(item.bookingsCount)}`
+    )
     .join(" ");
 
   return (
@@ -1339,9 +1487,19 @@ function DashboardChart({
       </div>
 
       <div className="dashboard-chart-svg-shell">
-        <svg viewBox={`0 0 ${width} ${height}`} className="dashboard-chart-svg" role="img">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="dashboard-chart-svg"
+          role="img"
+        >
           <defs>
-            <linearGradient id="agendaaiRevenueArea" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient
+              id="agendaaiRevenueArea"
+              x1="0"
+              y1="0"
+              x2="0"
+              y2="1"
+            >
               <stop offset="0%" stopColor="rgba(11, 122, 117, 0.28)" />
               <stop offset="100%" stopColor="rgba(11, 122, 117, 0)" />
             </linearGradient>
@@ -1439,20 +1597,34 @@ function DashboardChart({
                       stroke="#ffffff"
                       strokeWidth="2"
                     />
-                    <g transform={`translate(${x > width / 2 ? x - 146 : x + 14}, ${paddingY + 8})`}>
+                    <g
+                      transform={`translate(${x > width / 2 ? x - 146 : x + 14}, ${paddingY + 8})`}
+                    >
                       <rect
                         width="132"
                         height="72"
                         rx="12"
                         fill="rgba(15, 23, 42, 0.96)"
                       />
-                      <text x="12" y="24" className="dashboard-chart-tooltip-title">
+                      <text
+                        x="12"
+                        y="24"
+                        className="dashboard-chart-tooltip-title"
+                      >
                         {item.label}
                       </text>
-                      <text x="12" y="44" className="dashboard-chart-tooltip-revenue">
+                      <text
+                        x="12"
+                        y="44"
+                        className="dashboard-chart-tooltip-revenue"
+                      >
                         {formatCurrency(item.recognizedRevenue)}
                       </text>
-                      <text x="12" y="61" className="dashboard-chart-tooltip-bookings">
+                      <text
+                        x="12"
+                        y="61"
+                        className="dashboard-chart-tooltip-bookings"
+                      >
                         {item.bookingsCount} agendamento(s)
                       </text>
                     </g>
@@ -1486,38 +1658,59 @@ function readAdminRouteFromHash(): AdminRoute {
 
 export function App() {
   const [authMode, setAuthMode] = useState<AuthMode>("login");
-  const [currentRoute, setCurrentRoute] = useState<AdminRoute>(readAdminRouteFromHash);
+  const [currentRoute, setCurrentRoute] = useState<AdminRoute>(
+    readAdminRouteFromHash
+  );
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [apiBaseUrl, setApiBaseUrl] = useState(() =>
     loadStoredValue(API_BASE_STORAGE_KEY, DEPLOY_ADMIN_API_BASE_URL)
   );
-  const [sessionToken, setSessionToken] = useState(() => loadStoredValue(SESSION_STORAGE_KEY, ""));
+  const [sessionToken, setSessionToken] = useState(() =>
+    loadStoredValue(SESSION_STORAGE_KEY, "")
+  );
   const [adminProfile, setAdminProfile] = useState(() => ({
     name: loadStoredValue(ADMIN_PROFILE_NAME_STORAGE_KEY, ""),
     email: loadStoredValue(ADMIN_PROFILE_EMAIL_STORAGE_KEY, "")
   }));
-  const [bootstrap, setBootstrap] = useState<AdminBootstrapPayload | null>(null);
+  const [bootstrap, setBootstrap] = useState<AdminBootstrapPayload | null>(
+    null
+  );
   const [feedback, setFeedback] = useState<FeedbackState | null>(null);
   const [bootError, setBootError] = useState<string | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [dashboardRange, setDashboardRange] = useState<DashboardRange>("30d");
-  const [dashboardWorkspaceTab, setDashboardWorkspaceTab] = useState<DashboardWorkspaceTab>("cashflow");
-  const [dashboardProfessionalFilter, setDashboardProfessionalFilter] = useState("all");
-  const [financeBrowseFilters, setFinanceBrowseFilters] = useState<FinanceBrowseFiltersState>(
-    defaultFinanceBrowseFilters
-  );
-  const [isCashflowFilterModalOpen, setIsCashflowFilterModalOpen] = useState(false);
-  const [cashflowFilterDraft, setCashflowFilterDraft] = useState<FinanceBrowseFiltersState["cashflow"]>(
-    defaultFinanceBrowseFilters.cashflow
-  );
-  const [isCashflowBankLookupOpen, setIsCashflowBankLookupOpen] = useState(false);
-  const [financialReadModel, setFinancialReadModel] = useState<AdminFinancialReadModel | null>(null);
-  const [financeWorkspaceTab, setFinanceWorkspaceTab] = useState<FinanceWorkspaceTab>("cashflow");
+  const [dashboardWorkspaceTab, setDashboardWorkspaceTab] =
+    useState<DashboardWorkspaceTab>("cashflow");
+  const [dashboardProfessionalFilter, setDashboardProfessionalFilter] =
+    useState("all");
+  const [financeBrowseFilters, setFinanceBrowseFilters] =
+    useState<FinanceBrowseFiltersState>(defaultFinanceBrowseFilters);
+  const [isCashflowFilterModalOpen, setIsCashflowFilterModalOpen] =
+    useState(false);
+  const [cashflowFilterDraft, setCashflowFilterDraft] = useState<
+    FinanceBrowseFiltersState["cashflow"]
+  >(defaultFinanceBrowseFilters.cashflow);
+  const [isCashflowBankLookupOpen, setIsCashflowBankLookupOpen] =
+    useState(false);
+  const [financialReadModel, setFinancialReadModel] =
+    useState<AdminFinancialReadModel | null>(null);
+  const [financeWorkspaceTab, setFinanceWorkspaceTab] =
+    useState<FinanceWorkspaceTab>("cashflow");
   const [isCashCloseComposerOpen, setIsCashCloseComposerOpen] = useState(false);
   const [financeModal, setFinanceModal] = useState<
-    null | "bank" | "balance" | "revenue" | "expense" | "receive" | "pay" | "transfer" | "movement" | "close"
+    | null
+    | "bank"
+    | "balance"
+    | "revenue"
+    | "expense"
+    | "receive"
+    | "pay"
+    | "transfer"
+    | "movement"
+    | "close"
   >(null);
-  const [financeModalMode, setFinanceModalMode] = useState<FinanceDialogMode>("create");
+  const [financeModalMode, setFinanceModalMode] =
+    useState<FinanceDialogMode>("create");
   const [editingBankId, setEditingBankId] = useState("");
   const [editingBalanceId, setEditingBalanceId] = useState("");
   const [editingRevenueId, setEditingRevenueId] = useState("");
@@ -1530,75 +1723,134 @@ export function App() {
   const [selectedMovementId, setSelectedMovementId] = useState("");
   const [selectedCashCloseId, setSelectedCashCloseId] = useState("");
   const [bankForm, setBankForm] = useState<BankFormState>(defaultBankForm);
-  const [bankBalanceForm, setBankBalanceForm] = useState<BankBalanceFormState>(defaultBankBalanceForm);
-  const [revenueForm, setRevenueForm] = useState<RevenueFormState>(defaultRevenueForm);
-  const [expenseForm, setExpenseForm] = useState<ExpenseFormState>(defaultExpenseForm);
-  const [receiveMovementForm, setReceiveMovementForm] = useState<ReceiveMovementFormState>(defaultReceiveMovementForm);
-  const [payMovementForm, setPayMovementForm] = useState<PayMovementFormState>(defaultPayMovementForm);
-  const [transferMovementForm, setTransferMovementForm] = useState<TransferMovementFormState>(
-    defaultTransferMovementForm
+  const [bankBalanceForm, setBankBalanceForm] = useState<BankBalanceFormState>(
+    defaultBankBalanceForm
   );
-  const [manualMovementForm, setManualMovementForm] = useState<ManualMovementFormState>(defaultManualMovementForm);
-  const [cashCloseForm, setCashCloseForm] = useState<CashCloseFormState>(defaultCashCloseForm);
-  const [cashClosePreview, setCashClosePreview] = useState<CashClosePreviewPayload | null>(null);
-  const [selectedCashClosePreviewKeys, setSelectedCashClosePreviewKeys] = useState<string[]>([]);
-  const [isLoadingCashClosePreview, setIsLoadingCashClosePreview] = useState(false);
-  const [cashClosePreviewRequestKey, setCashClosePreviewRequestKey] = useState(0);
-  const [reverseMovementForm, setReverseMovementForm] = useState<ReverseMovementFormState>(
-    defaultReverseMovementForm
+  const [revenueForm, setRevenueForm] =
+    useState<RevenueFormState>(defaultRevenueForm);
+  const [expenseForm, setExpenseForm] =
+    useState<ExpenseFormState>(defaultExpenseForm);
+  const [receiveMovementForm, setReceiveMovementForm] =
+    useState<ReceiveMovementFormState>(defaultReceiveMovementForm);
+  const [payMovementForm, setPayMovementForm] = useState<PayMovementFormState>(
+    defaultPayMovementForm
   );
-  const [deleteTarget, setDeleteTarget] = useState<
-    null | { readonly kind: "bank" | "balance" | "revenue" | "expense"; readonly id: string; readonly label: string }
-  >(null);
-  const [reverseTarget, setReverseTarget] = useState<
-    null | { readonly kind: "movement" | "agenda"; readonly movementId: string; readonly label: string }
-  >(null);
-  const [agendaSettlementTarget, setAgendaSettlementTarget] = useState<Booking | null>(null);
-  const [receiveTarget, setReceiveTarget] = useState<null | { readonly revenueId?: string; readonly cashEntryId?: string }>(null);
-  const [payTarget, setPayTarget] = useState<null | { readonly expenseId?: string }>(null);
-  const [isProfessionalBankLookupOpen, setIsProfessionalBankLookupOpen] = useState(false);
+  const [transferMovementForm, setTransferMovementForm] =
+    useState<TransferMovementFormState>(defaultTransferMovementForm);
+  const [manualMovementForm, setManualMovementForm] =
+    useState<ManualMovementFormState>(defaultManualMovementForm);
+  const [cashCloseForm, setCashCloseForm] =
+    useState<CashCloseFormState>(defaultCashCloseForm);
+  const [cashClosePreview, setCashClosePreview] =
+    useState<CashClosePreviewPayload | null>(null);
+  const [selectedCashClosePreviewKeys, setSelectedCashClosePreviewKeys] =
+    useState<string[]>([]);
+  const [isLoadingCashClosePreview, setIsLoadingCashClosePreview] =
+    useState(false);
+  const [cashClosePreviewRequestKey, setCashClosePreviewRequestKey] =
+    useState(0);
+  const [reverseMovementForm, setReverseMovementForm] =
+    useState<ReverseMovementFormState>(defaultReverseMovementForm);
+  const [deleteTarget, setDeleteTarget] = useState<null | {
+    readonly kind: "bank" | "balance" | "revenue" | "expense";
+    readonly id: string;
+    readonly label: string;
+  }>(null);
+  const [reverseTarget, setReverseTarget] = useState<null | {
+    readonly kind: "movement" | "agenda";
+    readonly movementId: string;
+    readonly label: string;
+  }>(null);
+  const [agendaSettlementTarget, setAgendaSettlementTarget] =
+    useState<Booking | null>(null);
+  const [receiveTarget, setReceiveTarget] = useState<null | {
+    readonly revenueId?: string;
+    readonly cashEntryId?: string;
+  }>(null);
+  const [payTarget, setPayTarget] = useState<null | {
+    readonly expenseId?: string;
+  }>(null);
+  const [isProfessionalBankLookupOpen, setIsProfessionalBankLookupOpen] =
+    useState(false);
+  const [isProfessionalLookupOpen, setIsProfessionalLookupOpen] =
+    useState(false);
+  const [professionalServicesSearch, setProfessionalServicesSearch] =
+    useState("");
+  const [
+    professionalServicesStatusFilter,
+    setProfessionalServicesStatusFilter
+  ] = useState<ServiceStatus | "all">("all");
   const [isAgendaFilterModalOpen, setIsAgendaFilterModalOpen] = useState(false);
-  const [agendaFilterDraft, setAgendaFilterDraft] = useState<AgendaFilterDraftState>(() =>
-    defaultAgendaFilterDraft(formatDateInputValue(new Date()))
-  );
+  const [agendaFilterDraft, setAgendaFilterDraft] =
+    useState<AgendaFilterDraftState>(() =>
+      defaultAgendaFilterDraft(formatDateInputValue(new Date()))
+    );
   const [operationalWorkspaceTab, setOperationalWorkspaceTab] =
     useState<OperationalWorkspaceTab>("overview");
   const [isShellContextOpen, setIsShellContextOpen] = useState(false);
   const [isShellPulseOpen, setIsShellPulseOpen] = useState(false);
-  const [isCounterBookingModalOpen, setIsCounterBookingModalOpen] = useState(false);
-  const [isAgendaBookingModalOpen, setIsAgendaBookingModalOpen] = useState(false);
-  const [counterBookingStep, setCounterBookingStep] = useState<CounterBookingStep>("service");
+  const [isCounterBookingModalOpen, setIsCounterBookingModalOpen] =
+    useState(false);
+  const [isAgendaBookingModalOpen, setIsAgendaBookingModalOpen] =
+    useState(false);
+  const [counterBookingStep, setCounterBookingStep] =
+    useState<CounterBookingStep>("service");
   const [counterBookingServiceId, setCounterBookingServiceId] = useState("");
-  const [counterBookingProfessionalId, setCounterBookingProfessionalId] = useState("");
-  const [counterBookingDate, setCounterBookingDate] = useState(() => formatDateInputValue(new Date()));
-  const [counterBookingSlots, setCounterBookingSlots] = useState<AvailabilitySlot[]>([]);
-  const [counterBookingPreferredSlotStartAt, setCounterBookingPreferredSlotStartAt] = useState("");
-  const [counterBookingSlotStartAt, setCounterBookingSlotStartAt] = useState("");
-  const [isLoadingCounterBookingSlots, setIsLoadingCounterBookingSlots] = useState(false);
-  const [counterBookingForm, setCounterBookingForm] = useState<CounterBookingFormState>(
-    defaultCounterBookingForm
+  const [counterBookingProfessionalId, setCounterBookingProfessionalId] =
+    useState("");
+  const [counterBookingDate, setCounterBookingDate] = useState(() =>
+    formatDateInputValue(new Date())
   );
-  const [counterBookingError, setCounterBookingError] = useState<string | null>(null);
-  const [counterBookingConflictSuggestion, setCounterBookingConflictSuggestion] = useState<null | {
+  const [counterBookingSlots, setCounterBookingSlots] = useState<
+    AvailabilitySlot[]
+  >([]);
+  const [
+    counterBookingPreferredSlotStartAt,
+    setCounterBookingPreferredSlotStartAt
+  ] = useState("");
+  const [counterBookingSlotStartAt, setCounterBookingSlotStartAt] =
+    useState("");
+  const [isLoadingCounterBookingSlots, setIsLoadingCounterBookingSlots] =
+    useState(false);
+  const [counterBookingForm, setCounterBookingForm] =
+    useState<CounterBookingFormState>(defaultCounterBookingForm);
+  const [counterBookingError, setCounterBookingError] = useState<string | null>(
+    null
+  );
+  const [
+    counterBookingConflictSuggestion,
+    setCounterBookingConflictSuggestion
+  ] = useState<null | {
     readonly slot: AvailabilitySlot;
     readonly message: string;
   }>(null);
-  const [isSubmittingCounterBooking, setIsSubmittingCounterBooking] = useState(false);
-  const [counterBookingReceipt, setCounterBookingReceipt] = useState<CounterBookingReceipt | null>(null);
+  const [isSubmittingCounterBooking, setIsSubmittingCounterBooking] =
+    useState(false);
+  const [counterBookingReceipt, setCounterBookingReceipt] =
+    useState<CounterBookingReceipt | null>(null);
   const [reportsRange, setReportsRange] = useState<DashboardRange>("30d");
   const [reportsServiceFilter, setReportsServiceFilter] = useState("all");
-  const [reportsProfessionalFilter, setReportsProfessionalFilter] = useState("all");
-  const [reportsReadModel, setReportsReadModel] = useState<AdminReportsReadModel | null>(null);
-  const [reportsReadModelError, setReportsReadModelError] = useState<string | null>(null);
-  const [isLoadingReportsReadModel, setIsLoadingReportsReadModel] = useState(false);
-  const [clientReturnWindow, setClientReturnWindow] = useState<ClientReturnWindow>("30d");
-  const [clientSegmentFilter, setClientSegmentFilter] = useState<ClientSegmentFilter>("all");
+  const [reportsProfessionalFilter, setReportsProfessionalFilter] =
+    useState("all");
+  const [reportsReadModel, setReportsReadModel] =
+    useState<AdminReportsReadModel | null>(null);
+  const [reportsReadModelError, setReportsReadModelError] = useState<
+    string | null
+  >(null);
+  const [isLoadingReportsReadModel, setIsLoadingReportsReadModel] =
+    useState(false);
+  const [clientReturnWindow, setClientReturnWindow] =
+    useState<ClientReturnWindow>("30d");
+  const [clientSegmentFilter, setClientSegmentFilter] =
+    useState<ClientSegmentFilter>("all");
   const [selectedClientId, setSelectedClientId] = useState("");
   const [loginForm, setLoginForm] = useState({
     email: "owner@agendaai.demo",
     password: "agendaai-demo"
   });
-  const [openRouteTabs, setOpenRouteTabs] = useState<AdminRoute[]>([defaultAdminRoute]);
+  const [openRouteTabs, setOpenRouteTabs] = useState<AdminRoute[]>([
+    defaultAdminRoute
+  ]);
   const [onboardingForm, setOnboardingForm] = useState({
     nome: "",
     slug: "",
@@ -1609,43 +1861,61 @@ export function App() {
     senha: ""
   });
   const [slug, setSlug] = useState("");
-  const [brandingForm, setBrandingForm] = useState<BrandingFormState>(defaultBrandingForm);
-  const [paymentForm, setPaymentForm] = useState<PaymentFormState>(defaultPaymentForm);
+  const [brandingForm, setBrandingForm] =
+    useState<BrandingFormState>(defaultBrandingForm);
+  const [paymentForm, setPaymentForm] =
+    useState<PaymentFormState>(defaultPaymentForm);
   const [selectedServiceId, setSelectedServiceId] = useState("");
-  const [serviceWorkspaceMode, setServiceWorkspaceMode] = useState<ServiceWorkspaceMode>("browse");
-  const [isServiceDeleteDialogOpen, setIsServiceDeleteDialogOpen] = useState(false);
-  const [serviceForm, setServiceForm] = useState<ServiceFormState>(defaultServiceForm);
+  const [serviceWorkspaceMode, setServiceWorkspaceMode] =
+    useState<ServiceWorkspaceMode>("browse");
+  const [isServiceDeleteDialogOpen, setIsServiceDeleteDialogOpen] =
+    useState(false);
+  const [serviceForm, setServiceForm] =
+    useState<ServiceFormState>(defaultServiceForm);
   const [selectedProfessionalId, setSelectedProfessionalId] = useState("");
   const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
   const [professionalWorkspaceMode, setProfessionalWorkspaceMode] =
-    useState<ProfessionalWorkspaceMode>("overview");
-  const [agendaStatusFilter, setAgendaStatusFilter] = useState<AgendaFilterDraftState["status"]>("all");
+    useState<ProfessionalWorkspaceMode>("profile");
+  const [agendaStatusFilter, setAgendaStatusFilter] =
+    useState<AgendaFilterDraftState["status"]>("all");
   const [agendaServiceFilter, setAgendaServiceFilter] = useState("all");
   const [agendaPendingOnlyFilter, setAgendaPendingOnlyFilter] = useState(false);
-  const [professionalForm, setProfessionalForm] = useState<ProfessionalFormState>({
-    nome: "",
-    status: "active",
-    especialidades: [],
-    bankId: ""
-  });
-  const [availabilityDays, setAvailabilityDays] = useState<AvailabilityDayState[]>(
-    createDefaultAvailabilityDays()
-  );
+  const [professionalForm, setProfessionalForm] =
+    useState<ProfessionalFormState>({
+      nome: "",
+      status: "active",
+      especialidades: [],
+      bankId: ""
+    });
+  const [availabilityDays, setAvailabilityDays] = useState<
+    AvailabilityDayState[]
+  >(createDefaultAvailabilityDays());
   const [agendaViewMode, setAgendaViewMode] = useState<AgendaViewMode>("day");
   const [isAgendaDrawerOpen, setIsAgendaDrawerOpen] = useState(true);
-  const [agendaDate, setAgendaDate] = useState(() => formatDateInputValue(new Date()));
-  const [agendaProfessionalFilter, setAgendaProfessionalFilter] = useState("all");
+  const [agendaDate, setAgendaDate] = useState(() =>
+    formatDateInputValue(new Date())
+  );
+  const [agendaProfessionalFilter, setAgendaProfessionalFilter] =
+    useState("all");
   const [selectedAgendaBookingId, setSelectedAgendaBookingId] = useState("");
-  const [rescheduleDate, setRescheduleDate] = useState(() => formatDateInputValue(new Date()));
+  const [rescheduleDate, setRescheduleDate] = useState(() =>
+    formatDateInputValue(new Date())
+  );
   const [agendaSlots, setAgendaSlots] = useState<AvailabilitySlot[]>([]);
-  const [selectedAgendaSlotStartAt, setSelectedAgendaSlotStartAt] = useState("");
+  const [selectedAgendaSlotStartAt, setSelectedAgendaSlotStartAt] =
+    useState("");
   const [isLoadingAgendaSlots, setIsLoadingAgendaSlots] = useState(false);
-  const [weeklyAvailabilityByProfessional, setWeeklyAvailabilityByProfessional] = useState<
-    Record<string, AvailabilityRule[]>
-  >({});
-  const [isLoadingWeeklyAvailability, setIsLoadingWeeklyAvailability] = useState(false);
-  const [reportsWorkspaceTab, setReportsWorkspaceTab] = useState<ReportsWorkspaceTab>("overview");
-  const [reportsOpenTabs, setReportsOpenTabs] = useState<ReportsWorkspaceTab[]>(["overview"]);
+  const [
+    weeklyAvailabilityByProfessional,
+    setWeeklyAvailabilityByProfessional
+  ] = useState<Record<string, AvailabilityRule[]>>({});
+  const [isLoadingWeeklyAvailability, setIsLoadingWeeklyAvailability] =
+    useState(false);
+  const [reportsWorkspaceTab, setReportsWorkspaceTab] =
+    useState<ReportsWorkspaceTab>("overview");
+  const [reportsOpenTabs, setReportsOpenTabs] = useState<ReportsWorkspaceTab[]>(
+    ["overview"]
+  );
   const [isReportsMenuOpen, setIsReportsMenuOpen] = useState(false);
   const [isReportsContextVisible, setIsReportsContextVisible] = useState(false);
   const [reportsAgendaWorkspaceTab, setReportsAgendaWorkspaceTab] =
@@ -1653,18 +1923,29 @@ export function App() {
   const [reportsFiltersByTab, setReportsFiltersByTab] = useState<
     Partial<Record<ReportsWorkspaceTab, ReportsPaneFilters>>
   >({});
-  const [reportsFilterDraft, setReportsFilterDraft] = useState<ReportsPaneFilters | null>(null);
-  const [isReportsFilterModalOpen, setIsReportsFilterModalOpen] = useState(false);
-  const [reportsLookupFieldId, setReportsLookupFieldId] = useState<string | null>(null);
+  const [reportsFilterDraft, setReportsFilterDraft] =
+    useState<ReportsPaneFilters | null>(null);
+  const [isReportsFilterModalOpen, setIsReportsFilterModalOpen] =
+    useState(false);
+  const [reportsLookupFieldId, setReportsLookupFieldId] = useState<
+    string | null
+  >(null);
   const [reportsLookupQuery, setReportsLookupQuery] = useState("");
   const financialRange = financeBrowseFilters.cashflow.range;
   const financialSituation = financeBrowseFilters.cashflow.situation;
   const financialBankFilter = financeBrowseFilters.cashflow.bankId;
-  const [reportsCatalog, setReportsCatalog] = useState<ReportBuilderCatalog | null>(null);
-  const [savedReportDefinitions, setSavedReportDefinitions] = useState<ReportDefinition[]>([]);
-  const [reportBuilderTabs, setReportBuilderTabs] = useState<ReportsBuilderTabState[]>([]);
+  const [reportsCatalog, setReportsCatalog] =
+    useState<ReportBuilderCatalog | null>(null);
+  const [savedReportDefinitions, setSavedReportDefinitions] = useState<
+    ReportDefinition[]
+  >([]);
+  const [reportBuilderTabs, setReportBuilderTabs] = useState<
+    ReportsBuilderTabState[]
+  >([]);
   const [activeReportBuilderTabId, setActiveReportBuilderTabId] = useState("");
-  const [reportsBuilderError, setReportsBuilderError] = useState<string | null>(null);
+  const [reportsBuilderError, setReportsBuilderError] = useState<string | null>(
+    null
+  );
   const [isLoadingReportsBuilder, setIsLoadingReportsBuilder] = useState(false);
   const didAutoOpenDefaultReportTabRef = useRef(false);
   const [isCompactShell, setIsCompactShell] = useState(false);
@@ -1690,12 +1971,16 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    setOpenRouteTabs((current) => (current.includes(currentRoute) ? current : [...current, currentRoute]));
+    setOpenRouteTabs((current) =>
+      current.includes(currentRoute) ? current : [...current, currentRoute]
+    );
   }, [currentRoute]);
 
   useEffect(() => {
     setReportsOpenTabs((current) =>
-      current.includes(reportsWorkspaceTab) ? current : [...current, reportsWorkspaceTab]
+      current.includes(reportsWorkspaceTab)
+        ? current
+        : [...current, reportsWorkspaceTab]
     );
   }, [reportsWorkspaceTab]);
 
@@ -1719,7 +2004,8 @@ export function App() {
     }
 
     const syncShellMode = () => {
-      const nextCompactShell = window.innerWidth <= ADMIN_SHELL_COMPACT_BREAKPOINT;
+      const nextCompactShell =
+        window.innerWidth <= ADMIN_SHELL_COMPACT_BREAKPOINT;
       if (nextCompactShell === isCompactShell) {
         return;
       }
@@ -1751,7 +2037,9 @@ export function App() {
     }
 
     const timeoutId = window.setTimeout(() => {
-      setFeedback((current) => (current?.message === feedback.message ? null : current));
+      setFeedback((current) =>
+        current?.message === feedback.message ? null : current
+      );
     }, 3600);
 
     return () => {
@@ -1804,11 +2092,16 @@ export function App() {
 
     async function loadFinancialReadModel() {
       try {
-        const nextReadModel = await fetchAdminFinancialReadModel(apiBaseUrl, sessionToken, {
-          range: financialRange,
-          bankId: financialBankFilter !== "all" ? financialBankFilter : undefined,
-          situation: financialSituation
-        });
+        const nextReadModel = await fetchAdminFinancialReadModel(
+          apiBaseUrl,
+          sessionToken,
+          {
+            range: financialRange,
+            bankId:
+              financialBankFilter !== "all" ? financialBankFilter : undefined,
+            situation: financialSituation
+          }
+        );
         if (!ignore) {
           setFinancialReadModel(nextReadModel);
         }
@@ -1826,7 +2119,13 @@ export function App() {
     return () => {
       ignore = true;
     };
-  }, [apiBaseUrl, financialBankFilter, financialRange, financialSituation, sessionToken]);
+  }, [
+    apiBaseUrl,
+    financialBankFilter,
+    financialRange,
+    financialSituation,
+    sessionToken
+  ]);
 
   useEffect(() => {
     if (!sessionToken) {
@@ -1841,13 +2140,20 @@ export function App() {
 
     async function loadReportsReadModel() {
       try {
-        const nextReadModel = await fetchAdminReportsReadModel(apiBaseUrl, sessionToken, {
-          range: reportsRange,
-          serviceId: reportsServiceFilter !== "all" ? reportsServiceFilter : undefined,
-          professionalId:
-            reportsProfessionalFilter !== "all" ? reportsProfessionalFilter : undefined,
-          returnWindow: clientReturnWindow
-        });
+        const nextReadModel = await fetchAdminReportsReadModel(
+          apiBaseUrl,
+          sessionToken,
+          {
+            range: reportsRange,
+            serviceId:
+              reportsServiceFilter !== "all" ? reportsServiceFilter : undefined,
+            professionalId:
+              reportsProfessionalFilter !== "all"
+                ? reportsProfessionalFilter
+                : undefined,
+            returnWindow: clientReturnWindow
+          }
+        );
 
         if (!ignore) {
           setReportsReadModel(nextReadModel);
@@ -1903,10 +2209,18 @@ export function App() {
         let nextDefinitions: ReportDefinition[] = [];
 
         try {
-          nextCatalog = await fetchReportBuilderCatalog(apiBaseUrl, sessionToken);
+          nextCatalog = await fetchReportBuilderCatalog(
+            apiBaseUrl,
+            sessionToken
+          );
         } catch (error) {
-          if (isMissingReportBuilderRoute(error) && bootstrap?.session.tenant.id) {
-            nextCatalog = createFallbackReportBuilderCatalog(bootstrap.session.tenant.id);
+          if (
+            isMissingReportBuilderRoute(error) &&
+            bootstrap?.session.tenant.id
+          ) {
+            nextCatalog = createFallbackReportBuilderCatalog(
+              bootstrap.session.tenant.id
+            );
             setFeedback({
               tone: "info",
               message:
@@ -1918,7 +2232,10 @@ export function App() {
         }
 
         try {
-          nextDefinitions = await listReportDefinitions(apiBaseUrl, sessionToken);
+          nextDefinitions = await listReportDefinitions(
+            apiBaseUrl,
+            sessionToken
+          );
         } catch (error) {
           if (isMissingReportBuilderRoute(error)) {
             nextDefinitions = [];
@@ -1941,7 +2258,11 @@ export function App() {
         if (error instanceof AdminApiError && error.status === 401) {
           setSessionToken("");
         }
-        setReportsCatalog(bootstrap?.session.tenant.id ? createFallbackReportBuilderCatalog(bootstrap.session.tenant.id) : null);
+        setReportsCatalog(
+          bootstrap?.session.tenant.id
+            ? createFallbackReportBuilderCatalog(bootstrap.session.tenant.id)
+            : null
+        );
         setSavedReportDefinitions([]);
         setReportsBuilderError(
           isMissingReportBuilderRoute(error)
@@ -1998,8 +2319,8 @@ export function App() {
     setBrandingForm(toBrandingForm(bootstrap.session.tenant.branding));
     setPaymentForm(toPaymentForm(bootstrap.paymentSettings));
 
-    const service = selectedServiceId ?
-        bootstrap.services.find((item) => item.id === selectedServiceId)
+    const service = selectedServiceId
+      ? bootstrap.services.find((item) => item.id === selectedServiceId)
       : undefined;
     if (service) {
       setServiceForm(toServiceForm(service));
@@ -2015,8 +2336,10 @@ export function App() {
       setServiceForm(defaultServiceForm);
     }
 
-    const professional = selectedProfessionalId ?
-        bootstrap.professionals.find((item) => item.id === selectedProfessionalId)
+    const professional = selectedProfessionalId
+      ? bootstrap.professionals.find(
+          (item) => item.id === selectedProfessionalId
+        )
       : undefined;
     if (professional) {
       setProfessionalForm({
@@ -2051,7 +2374,11 @@ export function App() {
 
     async function loadAvailability() {
       try {
-        const rules = await fetchProfessionalAvailability(apiBaseUrl, sessionToken, selectedProfessionalId);
+        const rules = await fetchProfessionalAvailability(
+          apiBaseUrl,
+          sessionToken,
+          selectedProfessionalId
+        );
         if (!ignore) {
           setAvailabilityDays(toAvailabilityDays(rules));
         }
@@ -2085,10 +2412,17 @@ export function App() {
     async function loadWeeklyAvailability() {
       try {
         const entries = await Promise.all(
-          nextProfessionals.map(async (professional) => [
-            professional.id,
-            await fetchProfessionalAvailability(apiBaseUrl, sessionToken, professional.id)
-          ] as const)
+          nextProfessionals.map(
+            async (professional) =>
+              [
+                professional.id,
+                await fetchProfessionalAvailability(
+                  apiBaseUrl,
+                  sessionToken,
+                  professional.id
+                )
+              ] as const
+          )
         );
 
         if (!ignore) {
@@ -2115,7 +2449,9 @@ export function App() {
   }, [apiBaseUrl, bootstrap?.professionals, sessionToken]);
 
   const tenant = bootstrap?.session.tenant;
-  const publicBookingUrl = tenant ? `${BOOKING_BASE_URL.replace(/\/+$/, "")}/${tenant.slug}` : "";
+  const publicBookingUrl = tenant
+    ? `${BOOKING_BASE_URL.replace(/\/+$/, "")}/${tenant.slug}`
+    : "";
   const sidebarProfileName = adminProfile.name || tenant?.nome || "Admin";
   const sidebarProfileEmail = adminProfile.email || "";
   const services = bootstrap?.services ?? [];
@@ -2130,14 +2466,27 @@ export function App() {
   const expenseSchedules = bootstrap?.expenseSchedules ?? [];
   const bankMovements = bootstrap?.bankMovements ?? [];
   const cashCloses = bootstrap?.cashCloses ?? [];
-  const activeFinancialReadModel = financialReadModel ?? bootstrap?.financialReadModel ?? null;
+  const activeFinancialReadModel =
+    financialReadModel ?? bootstrap?.financialReadModel ?? null;
   const selectedBank = banks.find((entry) => entry.id === selectedBankId);
-  const selectedBalance = bankBalances.find((entry) => entry.id === selectedBalanceId);
-  const selectedRevenue = revenueSchedules.find((entry) => entry.id === selectedRevenueId);
-  const selectedExpense = expenseSchedules.find((entry) => entry.id === selectedExpenseId);
-  const selectedMovement = bankMovements.find((entry) => entry.id === selectedMovementId);
-  const selectedCashClose = cashCloses.find((entry) => entry.id === selectedCashCloseId);
-  const bookableServices = services.filter((service) => service.status === "active");
+  const selectedBalance = bankBalances.find(
+    (entry) => entry.id === selectedBalanceId
+  );
+  const selectedRevenue = revenueSchedules.find(
+    (entry) => entry.id === selectedRevenueId
+  );
+  const selectedExpense = expenseSchedules.find(
+    (entry) => entry.id === selectedExpenseId
+  );
+  const selectedMovement = bankMovements.find(
+    (entry) => entry.id === selectedMovementId
+  );
+  const selectedCashClose = cashCloses.find(
+    (entry) => entry.id === selectedCashCloseId
+  );
+  const bookableServices = services.filter(
+    (service) => service.status === "active"
+  );
   const activeProfessionals = professionals.filter((professional) => {
     const normalizedStatus = professional.status.trim().toLowerCase();
     return normalizedStatus === "active" || normalizedStatus === "ativo";
@@ -2155,7 +2504,10 @@ export function App() {
   const counterBookingSelectedSlot = counterBookingSlots.find(
     (slot) => slot.startAt === counterBookingSlotStartAt
   );
-  const counterBookingClientMatch = findMatchingClient(clients, counterBookingForm);
+  const counterBookingClientMatch = findMatchingClient(
+    clients,
+    counterBookingForm
+  );
   const dashboardBookings = filterBookingsByRange(bookings, dashboardRange);
   const revenueEntries = buildRevenueEntries(
     dashboardBookings,
@@ -2165,24 +2517,43 @@ export function App() {
     paymentIntents,
     cashEntries
   );
-  const dashboardRevenueSummary = summarizeRevenueEntries(revenueEntries, dashboardBookings);
+  const dashboardRevenueSummary = summarizeRevenueEntries(
+    revenueEntries,
+    dashboardBookings
+  );
   const previousDashboardBookings =
-    dashboardRange === "all" ? [] : filterBookingsByRange(bookings, dashboardRange, 1);
+    dashboardRange === "all"
+      ? []
+      : filterBookingsByRange(bookings, dashboardRange, 1);
   const previousDashboardRevenueSummary = summarizeRevenueEntries(
-    buildRevenueEntries(previousDashboardBookings, services, professionals, clients, paymentIntents, cashEntries),
+    buildRevenueEntries(
+      previousDashboardBookings,
+      services,
+      professionals,
+      clients,
+      paymentIntents,
+      cashEntries
+    ),
     previousDashboardBookings
   );
   const dashboardAnchorDate = formatDateInputValue(new Date());
   const dashboardWeekDates = buildAgendaWeekDates(dashboardAnchorDate);
-  const dashboardWeekBookings = filterBookingsByDates(bookings, dashboardWeekDates);
+  const dashboardWeekBookings = filterBookingsByDates(
+    bookings,
+    dashboardWeekDates
+  );
   const dashboardWeekProfessionals =
     dashboardProfessionalFilter === "all"
       ? professionals
-      : professionals.filter((professional) => professional.id === dashboardProfessionalFilter);
+      : professionals.filter(
+          (professional) => professional.id === dashboardProfessionalFilter
+        );
   const dashboardFilteredWeekBookings =
     dashboardProfessionalFilter === "all"
       ? dashboardWeekBookings
-      : dashboardWeekBookings.filter((booking) => booking.professionalId === dashboardProfessionalFilter);
+      : dashboardWeekBookings.filter(
+          (booking) => booking.professionalId === dashboardProfessionalFilter
+        );
   const dashboardWeekCapacitySummary = summarizeWeekCapacity(
     dashboardFilteredWeekBookings,
     dashboardWeekDates,
@@ -2222,9 +2593,19 @@ export function App() {
     paymentIntents,
     cashEntries
   );
-  const reportRevenueSummary = summarizeRevenueEntries(reportRevenueEntries, reportBookings);
+  const reportRevenueSummary = summarizeRevenueEntries(
+    reportRevenueEntries,
+    reportBookings
+  );
   const previousReportRevenueSummary = summarizeRevenueEntries(
-    buildRevenueEntries(previousReportBookings, services, professionals, clients, paymentIntents, cashEntries),
+    buildRevenueEntries(
+      previousReportBookings,
+      services,
+      professionals,
+      clients,
+      paymentIntents,
+      cashEntries
+    ),
     previousReportBookings
   );
   const reportServiceSummaries = buildServiceReportSummaries(
@@ -2241,11 +2622,16 @@ export function App() {
     cashEntries
   );
   const bookingSummary = summarizeBookings(bookings);
-  const todayBookings = bookings.filter((booking) => isSameCalendarDay(booking.startAt, new Date()));
+  const todayBookings = bookings.filter((booking) =>
+    isSameCalendarDay(booking.startAt, new Date())
+  );
   const todayPendingCount = todayBookings.filter(
-    (booking) => booking.status === "pendente" || booking.status === "aguardando pagamento"
+    (booking) =>
+      booking.status === "pendente" || booking.status === "aguardando pagamento"
   ).length;
-  const todayConfirmedCount = todayBookings.filter((booking) => booking.status === "confirmado").length;
+  const todayConfirmedCount = todayBookings.filter(
+    (booking) => booking.status === "confirmado"
+  ).length;
   const bookingHasPendingReceipt = (booking: Booking): boolean => {
     const recognizedCashEntry = cashEntries.find(
       (entry) =>
@@ -2265,13 +2651,19 @@ export function App() {
     );
   };
   const matchesAgendaFilters = (booking: Booking): boolean => {
-    if (agendaProfessionalFilter !== "all" && booking.professionalId !== agendaProfessionalFilter) {
+    if (
+      agendaProfessionalFilter !== "all" &&
+      booking.professionalId !== agendaProfessionalFilter
+    ) {
       return false;
     }
     if (agendaStatusFilter !== "all" && booking.status !== agendaStatusFilter) {
       return false;
     }
-    if (agendaServiceFilter !== "all" && booking.serviceId !== agendaServiceFilter) {
+    if (
+      agendaServiceFilter !== "all" &&
+      booking.serviceId !== agendaServiceFilter
+    ) {
       return false;
     }
     if (agendaPendingOnlyFilter && !bookingHasPendingReceipt(booking)) {
@@ -2280,23 +2672,49 @@ export function App() {
     return true;
   };
   const dayAgendaBookings = filterBookingsByDate(bookings, agendaDate);
-  const filteredDayAgendaBookings = dayAgendaBookings.filter(matchesAgendaFilters);
-  const clientInsights = buildClientInsights(clients, bookings, services, cashEntries);
+  const filteredDayAgendaBookings =
+    dayAgendaBookings.filter(matchesAgendaFilters);
+  const clientInsights = buildClientInsights(
+    clients,
+    bookings,
+    services,
+    cashEntries
+  );
   const filteredClientInsights = filterClientInsights(
     clientInsights,
     clientSegmentFilter,
     clientReturnWindow
   );
-  const clientPortfolioSummary = summarizeClientPortfolio(clientInsights, clientReturnWindow);
-  const inactiveClientInsights = filterClientInsights(clientInsights, "inactive", clientReturnWindow);
-  const fallbackReportCurrent = buildReportMetricSummary(reportBookings, services, paymentIntents, cashEntries);
+  const clientPortfolioSummary = summarizeClientPortfolio(
+    clientInsights,
+    clientReturnWindow
+  );
+  const inactiveClientInsights = filterClientInsights(
+    clientInsights,
+    "inactive",
+    clientReturnWindow
+  );
+  const fallbackReportCurrent = buildReportMetricSummary(
+    reportBookings,
+    services,
+    paymentIntents,
+    cashEntries
+  );
   const fallbackReportPrevious =
     reportsRange === "all"
       ? undefined
-      : buildReportMetricSummary(previousReportBookings, services, paymentIntents, cashEntries);
-  const activeReportCurrent = reportsReadModel?.current ?? fallbackReportCurrent;
-  const activeReportPrevious = reportsReadModel?.previous ?? fallbackReportPrevious;
-  const activeReportServiceSummaries = reportsReadModel?.services ?? reportServiceSummaries;
+      : buildReportMetricSummary(
+          previousReportBookings,
+          services,
+          paymentIntents,
+          cashEntries
+        );
+  const activeReportCurrent =
+    reportsReadModel?.current ?? fallbackReportCurrent;
+  const activeReportPrevious =
+    reportsReadModel?.previous ?? fallbackReportPrevious;
+  const activeReportServiceSummaries =
+    reportsReadModel?.services ?? reportServiceSummaries;
   const activeReportProfessionalSummaries =
     reportsReadModel?.professionals ?? reportProfessionalSummaries;
   const activeClientRecurrence =
@@ -2327,24 +2745,27 @@ export function App() {
   const pendingPaymentCount = paymentIntents.filter((intent) =>
     ["pending", "in_process", "authorized", "draft"].includes(intent.status)
   ).length;
-  const shellAttentionCount = todayPendingCount + pendingPaymentCount + clientPortfolioSummary.inactiveCount;
+  const shellAttentionCount =
+    todayPendingCount +
+    pendingPaymentCount +
+    clientPortfolioSummary.inactiveCount;
   const selectedAgendaBooking =
-    filteredDayAgendaBookings.find((booking) => booking.id === selectedAgendaBookingId) ??
-    bookings.find((booking) => booking.id === selectedAgendaBookingId);
-  const selectedAgendaPaymentIntent =
-    paymentIntents.find((intent) => intent.bookingId === selectedAgendaBooking?.id);
-  const selectedAgendaCashEntry =
-    selectedAgendaBooking ?
-      cashEntries.find(
+    filteredDayAgendaBookings.find(
+      (booking) => booking.id === selectedAgendaBookingId
+    ) ?? bookings.find((booking) => booking.id === selectedAgendaBookingId);
+  const selectedAgendaPaymentIntent = paymentIntents.find(
+    (intent) => intent.bookingId === selectedAgendaBooking?.id
+  );
+  const selectedAgendaCashEntry = selectedAgendaBooking
+    ? cashEntries.find(
         (entry) =>
           entry.bookingId === selectedAgendaBooking.id &&
           entry.kind === "recognized_revenue" &&
           entry.status === "open"
       )
     : undefined;
-  const selectedAgendaBankMovement =
-    selectedAgendaCashEntry ?
-      bankMovements.find(
+  const selectedAgendaBankMovement = selectedAgendaCashEntry
+    ? bankMovements.find(
         (movement) =>
           movement.sourceType === "cash_entry" &&
           movement.sourceId === selectedAgendaCashEntry.id &&
@@ -2353,15 +2774,18 @@ export function App() {
       )
     : undefined;
   const selectedClientInsight =
-    filteredClientInsights.find((entry) => entry.client.id === selectedClientId) ??
-    filteredClientInsights[0];
-  const selectedClientBookings = selectedClientInsight ?
-      bookings
-        .filter((booking) => booking.clientId === selectedClientInsight.client.id)
+    filteredClientInsights.find(
+      (entry) => entry.client.id === selectedClientId
+    ) ?? filteredClientInsights[0];
+  const selectedClientBookings = selectedClientInsight
+    ? bookings
+        .filter(
+          (booking) => booking.clientId === selectedClientInsight.client.id
+        )
         .sort((left, right) => right.startAt.localeCompare(left.startAt))
     : [];
-  const selectedClientCashEntries = selectedClientInsight ?
-      cashEntries
+  const selectedClientCashEntries = selectedClientInsight
+    ? cashEntries
         .filter((entry) => entry.clientId === selectedClientInsight.client.id)
         .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
     : [];
@@ -2371,7 +2795,9 @@ export function App() {
   const filteredWeekProfessionals =
     agendaProfessionalFilter === "all"
       ? professionals
-      : professionals.filter((professional) => professional.id === agendaProfessionalFilter);
+      : professionals.filter(
+          (professional) => professional.id === agendaProfessionalFilter
+        );
   const filteredWeekBookings = weekAgendaBookings.filter(matchesAgendaFilters);
   const weekCapacitySummary = summarizeWeekCapacity(
     filteredWeekBookings,
@@ -2396,36 +2822,52 @@ export function App() {
     bookings.filter(matchesAgendaFilters),
     agendaProfessionalFilter === "all"
       ? professionals
-      : professionals.filter((professional) => professional.id === agendaProfessionalFilter),
+      : professionals.filter(
+          (professional) => professional.id === agendaProfessionalFilter
+        ),
     weeklyAvailabilityByProfessional,
     agendaProfessionalFilter
   );
-  const currentMonthCells = agendaMonthCells.filter((cell) => cell.inCurrentMonth);
+  const currentMonthCells = agendaMonthCells.filter(
+    (cell) => cell.inCurrentMonth
+  );
   const monthCapacitySummary = summarizeMonthCapacity(currentMonthCells);
   const selectedMonthCell =
-    agendaMonthCells.find((cell) => cell.date === agendaDate) ?? currentMonthCells[0];
-  const filteredAgendaCalendarBookings =
-    bookings.filter(matchesAgendaFilters);
-  const agendaCalendarEvents: AgendaCalendarEvent[] = filteredAgendaCalendarBookings.map((booking) => ({
-    id: booking.id,
-    title: `${resolveClientName(booking.clientId, clients)} - ${resolveServiceName(booking.serviceId, services)}`,
-    start: new Date(booking.startAt),
-    end: new Date(booking.endAt),
-    resource: booking
-  }));
+    agendaMonthCells.find((cell) => cell.date === agendaDate) ??
+    currentMonthCells[0];
+  const filteredAgendaCalendarBookings = bookings.filter(matchesAgendaFilters);
+  const agendaCalendarEvents: AgendaCalendarEvent[] =
+    filteredAgendaCalendarBookings.map((booking) => ({
+      id: booking.id,
+      title: `${resolveClientName(booking.clientId, clients)} - ${resolveServiceName(booking.serviceId, services)}`,
+      start: new Date(booking.startAt),
+      end: new Date(booking.endAt),
+      resource: booking
+    }));
   const selectedAgendaCalendarEvent =
-    agendaCalendarEvents.find((event) => event.resource.id === selectedAgendaBooking?.id) ?? null;
+    agendaCalendarEvents.find(
+      (event) => event.resource.id === selectedAgendaBooking?.id
+    ) ?? null;
   const reportsInsightAnchorDate = formatDateInputValue(new Date());
   const reportsInsightProfessionals =
     reportsProfessionalFilter === "all"
       ? professionals
-      : professionals.filter((professional) => professional.id === reportsProfessionalFilter);
+      : professionals.filter(
+          (professional) => professional.id === reportsProfessionalFilter
+        );
   const reportsInsightBookings =
     reportsProfessionalFilter === "all"
       ? bookings
-      : bookings.filter((booking) => booking.professionalId === reportsProfessionalFilter);
-  const reportsInsightWeekDates = buildAgendaWeekDates(reportsInsightAnchorDate);
-  const reportsInsightWeekBookings = filterBookingsByDates(reportsInsightBookings, reportsInsightWeekDates);
+      : bookings.filter(
+          (booking) => booking.professionalId === reportsProfessionalFilter
+        );
+  const reportsInsightWeekDates = buildAgendaWeekDates(
+    reportsInsightAnchorDate
+  );
+  const reportsInsightWeekBookings = filterBookingsByDates(
+    reportsInsightBookings,
+    reportsInsightWeekDates
+  );
   const reportsInsightWeekCapacitySummary = summarizeWeekCapacity(
     reportsInsightWeekBookings,
     reportsInsightWeekDates,
@@ -2438,12 +2880,13 @@ export function App() {
     reportsInsightProfessionals,
     weeklyAvailabilityByProfessional
   );
-  const reportsInsightWeekProfessionalSummaries = buildWeekProfessionalSummaries(
-    reportsInsightWeekBookings,
-    reportsInsightWeekDates,
-    reportsInsightProfessionals,
-    weeklyAvailabilityByProfessional
-  );
+  const reportsInsightWeekProfessionalSummaries =
+    buildWeekProfessionalSummaries(
+      reportsInsightWeekBookings,
+      reportsInsightWeekDates,
+      reportsInsightProfessionals,
+      weeklyAvailabilityByProfessional
+    );
   const reportsInsightMonthCells = buildAgendaMonthCells(
     reportsInsightAnchorDate,
     bookings,
@@ -2451,8 +2894,12 @@ export function App() {
     weeklyAvailabilityByProfessional,
     reportsProfessionalFilter
   );
-  const reportsInsightCurrentMonthCells = reportsInsightMonthCells.filter((cell) => cell.inCurrentMonth);
-  const reportsInsightMonthCapacitySummary = summarizeMonthCapacity(reportsInsightCurrentMonthCells);
+  const reportsInsightCurrentMonthCells = reportsInsightMonthCells.filter(
+    (cell) => cell.inCurrentMonth
+  );
+  const reportsInsightMonthCapacitySummary = summarizeMonthCapacity(
+    reportsInsightCurrentMonthCells
+  );
 
   useEffect(() => {
     const nextClientId = filteredClientInsights[0]?.client.id ?? "";
@@ -2471,7 +2918,9 @@ export function App() {
 
     if (
       selectedClientId &&
-      !filteredClientInsights.some((entry) => entry.client.id === selectedClientId)
+      !filteredClientInsights.some(
+        (entry) => entry.client.id === selectedClientId
+      )
     ) {
       setSelectedClientId(nextClientId);
     }
@@ -2482,7 +2931,11 @@ export function App() {
       return;
     }
 
-    if (!professionals.some((professional) => professional.id === agendaProfessionalFilter)) {
+    if (
+      !professionals.some(
+        (professional) => professional.id === agendaProfessionalFilter
+      )
+    ) {
       setAgendaProfessionalFilter("all");
     }
   }, [agendaProfessionalFilter, professionals]);
@@ -2495,7 +2948,11 @@ export function App() {
       return;
     }
 
-    if (!filteredDayAgendaBookings.some((booking) => booking.id === selectedAgendaBookingId)) {
+    if (
+      !filteredDayAgendaBookings.some(
+        (booking) => booking.id === selectedAgendaBookingId
+      )
+    ) {
       const nextBooking = filteredDayAgendaBookings[0];
       setSelectedAgendaBookingId(nextBooking.id);
       setRescheduleDate(extractDatePart(nextBooking.startAt));
@@ -2529,7 +2986,10 @@ export function App() {
       return;
     }
 
-    if (!selectedBalanceId || !bankBalances.some((balance) => balance.id === selectedBalanceId)) {
+    if (
+      !selectedBalanceId ||
+      !bankBalances.some((balance) => balance.id === selectedBalanceId)
+    ) {
       setSelectedBalanceId(bankBalances[0].id);
     }
   }, [bankBalances, selectedBalanceId]);
@@ -2542,7 +3002,10 @@ export function App() {
       return;
     }
 
-    if (!selectedRevenueId || !revenueSchedules.some((entry) => entry.id === selectedRevenueId)) {
+    if (
+      !selectedRevenueId ||
+      !revenueSchedules.some((entry) => entry.id === selectedRevenueId)
+    ) {
       setSelectedRevenueId(revenueSchedules[0].id);
     }
   }, [revenueSchedules, selectedRevenueId]);
@@ -2555,7 +3018,10 @@ export function App() {
       return;
     }
 
-    if (!selectedExpenseId || !expenseSchedules.some((entry) => entry.id === selectedExpenseId)) {
+    if (
+      !selectedExpenseId ||
+      !expenseSchedules.some((entry) => entry.id === selectedExpenseId)
+    ) {
       setSelectedExpenseId(expenseSchedules[0].id);
     }
   }, [expenseSchedules, selectedExpenseId]);
@@ -2568,7 +3034,10 @@ export function App() {
       return;
     }
 
-    if (!selectedMovementId || !bankMovements.some((entry) => entry.id === selectedMovementId)) {
+    if (
+      !selectedMovementId ||
+      !bankMovements.some((entry) => entry.id === selectedMovementId)
+    ) {
       setSelectedMovementId(bankMovements[0].id);
     }
   }, [bankMovements, selectedMovementId]);
@@ -2581,7 +3050,10 @@ export function App() {
       return;
     }
 
-    if (!selectedCashCloseId || !cashCloses.some((entry) => entry.id === selectedCashCloseId)) {
+    if (
+      !selectedCashCloseId ||
+      !cashCloses.some((entry) => entry.id === selectedCashCloseId)
+    ) {
       setSelectedCashCloseId(cashCloses[0].id);
     }
   }, [cashCloses, selectedCashCloseId]);
@@ -2616,7 +3088,9 @@ export function App() {
             return current;
           }
 
-          const currentBookingSlot = slots.find((slot) => slot.startAt === booking.startAt);
+          const currentBookingSlot = slots.find(
+            (slot) => slot.startAt === booking.startAt
+          );
           return currentBookingSlot?.startAt ?? "";
         });
       } catch (error) {
@@ -2665,7 +3139,11 @@ export function App() {
       return;
     }
 
-    if (!bookableServices.some((service) => service.id === counterBookingServiceId)) {
+    if (
+      !bookableServices.some(
+        (service) => service.id === counterBookingServiceId
+      )
+    ) {
       setCounterBookingServiceId(bookableServices[0].id);
     }
   }, [bookableServices, counterBookingServiceId, isCounterBookingModalOpen]);
@@ -2682,10 +3160,18 @@ export function App() {
       return;
     }
 
-    if (!counterBookingProfessionals.some((professional) => professional.id === counterBookingProfessionalId)) {
+    if (
+      !counterBookingProfessionals.some(
+        (professional) => professional.id === counterBookingProfessionalId
+      )
+    ) {
       setCounterBookingProfessionalId(counterBookingProfessionals[0].id);
     }
-  }, [counterBookingProfessionalId, counterBookingProfessionals, isCounterBookingModalOpen]);
+  }, [
+    counterBookingProfessionalId,
+    counterBookingProfessionals,
+    isCounterBookingModalOpen
+  ]);
 
   useEffect(() => {
     if (
@@ -2723,7 +3209,10 @@ export function App() {
           }
 
           if (counterBookingPreferredSlotStartAt) {
-            const suggestedSlot = resolveNextSlotSuggestion(slots, counterBookingPreferredSlotStartAt);
+            const suggestedSlot = resolveNextSlotSuggestion(
+              slots,
+              counterBookingPreferredSlotStartAt
+            );
             if (suggestedSlot) {
               return suggestedSlot.startAt;
             }
@@ -2786,7 +3275,9 @@ export function App() {
         }
         setCashClosePreview(preview);
         setSelectedCashClosePreviewKeys(
-          preview.pending.map((entry) => buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId))
+          preview.pending.map((entry) =>
+            buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId)
+          )
         );
       })
       .catch((error) => {
@@ -2866,7 +3357,10 @@ export function App() {
     setPayTarget(null);
   }
 
-  function openBankModal(bank?: Bank, mode: FinanceDialogMode = bank ? "edit" : "create"): void {
+  function openBankModal(
+    bank?: Bank,
+    mode: FinanceDialogMode = bank ? "edit" : "create"
+  ): void {
     setFinanceModalMode(mode);
     setEditingBankId(bank?.id ?? "");
     setBankForm(
@@ -2923,7 +3417,9 @@ export function App() {
             tipo: revenue.tipo,
             recorrencia: revenue.recorrencia ?? "semanal",
             quantidadeOcorrencias: String(revenue.quantidadeOcorrencias ?? 1),
-            diaSemanaVencimento: String(revenue.diaSemanaVencimento ?? new Date().getDay()),
+            diaSemanaVencimento: String(
+              revenue.diaSemanaVencimento ?? new Date().getDay()
+            ),
             bankId: revenue.bankId ?? "",
             baixaAutomatica: revenue.baixaAutomatica ?? "nao"
           }
@@ -2948,7 +3444,9 @@ export function App() {
             tipo: expense.tipo,
             recorrencia: expense.recorrencia ?? "semanal",
             quantidadeOcorrencias: String(expense.quantidadeOcorrencias ?? 1),
-            diaSemanaVencimento: String(expense.diaSemanaVencimento ?? new Date().getDay()),
+            diaSemanaVencimento: String(
+              expense.diaSemanaVencimento ?? new Date().getDay()
+            ),
             beneficiarioNome: expense.beneficiarioNome ?? "",
             bankId: expense.bankId ?? "",
             baixaAutomatica: expense.baixaAutomatica ?? "nao"
@@ -3028,7 +3526,9 @@ export function App() {
       setIsCashCloseComposerOpen(true);
       setCashCloseForm({
         bankId:
-          financeBrowseFilters.close.bankId !== "all" ? financeBrowseFilters.close.bankId : banks[0]?.id ?? "",
+          financeBrowseFilters.close.bankId !== "all"
+            ? financeBrowseFilters.close.bankId
+            : (banks[0]?.id ?? ""),
         dateFrom: financeBrowseFilters.close.dateFrom,
         dateTo: financeBrowseFilters.close.dateTo
       });
@@ -3041,7 +3541,9 @@ export function App() {
     setCashCloseForm({
       bankId:
         cashClose?.bankId ??
-        (financeBrowseFilters.close.bankId !== "all" ? financeBrowseFilters.close.bankId : banks[0]?.id ?? ""),
+        (financeBrowseFilters.close.bankId !== "all"
+          ? financeBrowseFilters.close.bankId
+          : (banks[0]?.id ?? "")),
       dateFrom: cashClose?.dateFrom ?? financeBrowseFilters.close.dateFrom,
       dateTo: cashClose?.dateTo ?? financeBrowseFilters.close.dateTo
     });
@@ -3064,7 +3566,9 @@ export function App() {
     setIsAgendaFilterModalOpen(true);
   }
 
-  async function handleSaveBank(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSaveBank(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       if (editingBankId) {
@@ -3092,7 +3596,9 @@ export function App() {
     });
   }
 
-  async function handleSaveBankBalance(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSaveBankBalance(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       if (editingBalanceId) {
@@ -3117,7 +3623,9 @@ export function App() {
     });
   }
 
-  async function handleSaveRevenue(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSaveRevenue(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       const payload = {
@@ -3126,16 +3634,28 @@ export function App() {
         valor: Number(revenueForm.valor),
         dataVencimento: revenueForm.dataVencimento,
         tipo: revenueForm.tipo,
-        recorrencia: revenueForm.tipo === "recorrente" ? revenueForm.recorrencia : undefined,
+        recorrencia:
+          revenueForm.tipo === "recorrente"
+            ? revenueForm.recorrencia
+            : undefined,
         quantidadeOcorrencias:
-          revenueForm.tipo === "recorrente" ? Number(revenueForm.quantidadeOcorrencias) : undefined,
+          revenueForm.tipo === "recorrente"
+            ? Number(revenueForm.quantidadeOcorrencias)
+            : undefined,
         diaSemanaVencimento:
-          revenueForm.tipo === "recorrente" ? Number(revenueForm.diaSemanaVencimento) : undefined,
+          revenueForm.tipo === "recorrente"
+            ? Number(revenueForm.diaSemanaVencimento)
+            : undefined,
         bankId: revenueForm.bankId || undefined,
         baixaAutomatica: revenueForm.baixaAutomatica
       };
       if (editingRevenueId) {
-        await updateRevenueSchedule(apiBaseUrl, sessionToken, editingRevenueId, payload);
+        await updateRevenueSchedule(
+          apiBaseUrl,
+          sessionToken,
+          editingRevenueId,
+          payload
+        );
       } else {
         await createRevenueSchedule(apiBaseUrl, sessionToken, payload);
       }
@@ -3145,7 +3665,9 @@ export function App() {
     });
   }
 
-  async function handleSaveExpense(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSaveExpense(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       const payload = {
@@ -3154,17 +3676,29 @@ export function App() {
         valor: Number(expenseForm.valor),
         dataVencimento: expenseForm.dataVencimento,
         tipo: expenseForm.tipo,
-        recorrencia: expenseForm.tipo === "recorrente" ? expenseForm.recorrencia : undefined,
+        recorrencia:
+          expenseForm.tipo === "recorrente"
+            ? expenseForm.recorrencia
+            : undefined,
         quantidadeOcorrencias:
-          expenseForm.tipo === "recorrente" ? Number(expenseForm.quantidadeOcorrencias) : undefined,
+          expenseForm.tipo === "recorrente"
+            ? Number(expenseForm.quantidadeOcorrencias)
+            : undefined,
         diaSemanaVencimento:
-          expenseForm.tipo === "recorrente" ? Number(expenseForm.diaSemanaVencimento) : undefined,
+          expenseForm.tipo === "recorrente"
+            ? Number(expenseForm.diaSemanaVencimento)
+            : undefined,
         beneficiarioNome: expenseForm.beneficiarioNome || undefined,
         bankId: expenseForm.bankId || undefined,
         baixaAutomatica: expenseForm.baixaAutomatica
       };
       if (editingExpenseId) {
-        await updateExpenseSchedule(apiBaseUrl, sessionToken, editingExpenseId, payload);
+        await updateExpenseSchedule(
+          apiBaseUrl,
+          sessionToken,
+          editingExpenseId,
+          payload
+        );
       } else {
         await createExpenseSchedule(apiBaseUrl, sessionToken, payload);
       }
@@ -3174,14 +3708,18 @@ export function App() {
     });
   }
 
-  async function handleReceiveMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleReceiveMovement(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       await receiveBankMovement(apiBaseUrl, sessionToken, {
         bankIdDestino: receiveMovementForm.bankIdDestino,
         valor: Number(receiveMovementForm.valor),
         historico: receiveMovementForm.historico,
-        dataMovimento: new Date(receiveMovementForm.dataMovimento).toISOString(),
+        dataMovimento: new Date(
+          receiveMovementForm.dataMovimento
+        ).toISOString(),
         revenueId: receiveTarget?.revenueId,
         cashEntryId: receiveTarget?.cashEntryId
       });
@@ -3191,7 +3729,9 @@ export function App() {
     });
   }
 
-  async function handlePayMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handlePayMovement(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       await payBankMovement(apiBaseUrl, sessionToken, {
@@ -3208,7 +3748,9 @@ export function App() {
     });
   }
 
-  async function handleTransferMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleTransferMovement(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       await transferBankMovement(apiBaseUrl, sessionToken, {
@@ -3216,7 +3758,9 @@ export function App() {
         bankIdDestino: transferMovementForm.bankIdDestino,
         valor: Number(transferMovementForm.valor),
         historico: transferMovementForm.historico,
-        dataMovimento: new Date(transferMovementForm.dataMovimento).toISOString()
+        dataMovimento: new Date(
+          transferMovementForm.dataMovimento
+        ).toISOString()
       });
       await refreshAdminState();
       closeFinanceModal();
@@ -3224,7 +3768,9 @@ export function App() {
     });
   }
 
-  async function handleSaveManualMovement(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSaveManualMovement(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     await runAction(async () => {
       const payload = {
@@ -3238,7 +3784,12 @@ export function App() {
       };
 
       if (editingMovementId) {
-        await updateBankMovementRecord(apiBaseUrl, sessionToken, editingMovementId, payload);
+        await updateBankMovementRecord(
+          apiBaseUrl,
+          sessionToken,
+          editingMovementId,
+          payload
+        );
       } else {
         await createBankMovement(apiBaseUrl, sessionToken, payload);
       }
@@ -3247,7 +3798,9 @@ export function App() {
       closeFinanceModal();
       setFeedback({
         tone: "success",
-        message: editingMovementId ? "Movimento atualizado." : "Movimento incluido."
+        message: editingMovementId
+          ? "Movimento atualizado."
+          : "Movimento incluido."
       });
     });
   }
@@ -3258,16 +3811,24 @@ export function App() {
     }
 
     await runAction(async () => {
-      await reverseBankMovement(apiBaseUrl, sessionToken, reverseTarget.movementId, {
-        historico: reverseMovementForm.historico || undefined,
-        dataMovimento: reverseMovementForm.dataMovimento
-          ? new Date(reverseMovementForm.dataMovimento).toISOString()
-          : undefined
-      });
+      await reverseBankMovement(
+        apiBaseUrl,
+        sessionToken,
+        reverseTarget.movementId,
+        {
+          historico: reverseMovementForm.historico || undefined,
+          dataMovimento: reverseMovementForm.dataMovimento
+            ? new Date(reverseMovementForm.dataMovimento).toISOString()
+            : undefined
+        }
+      );
       await refreshAdminState();
       setReverseTarget(null);
       setReverseMovementForm(defaultReverseMovementForm);
-      setFeedback({ tone: "success", message: "Estorno registrado com movimento inverso." });
+      setFeedback({
+        tone: "success",
+        message: "Estorno registrado com movimento inverso."
+      });
     });
   }
 
@@ -3287,11 +3848,19 @@ export function App() {
           setSelectedBalanceId("");
           break;
         case "revenue":
-          await deleteRevenueSchedule(apiBaseUrl, sessionToken, deleteTarget.id);
+          await deleteRevenueSchedule(
+            apiBaseUrl,
+            sessionToken,
+            deleteTarget.id
+          );
           setSelectedRevenueId("");
           break;
         case "expense":
-          await deleteExpenseSchedule(apiBaseUrl, sessionToken, deleteTarget.id);
+          await deleteExpenseSchedule(
+            apiBaseUrl,
+            sessionToken,
+            deleteTarget.id
+          );
           setSelectedExpenseId("");
           break;
       }
@@ -3302,7 +3871,9 @@ export function App() {
     });
   }
 
-  async function handleCreateCashClose(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleCreateCashClose(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
     if (!selectedCashClosePreviewKeys.length) {
       setFeedback({
@@ -3314,13 +3885,19 @@ export function App() {
 
     await runAction(async () => {
       const selectedItems: Array<{
-        readonly sourceType: "revenue_schedule" | "expense_schedule" | "cash_entry";
+        readonly sourceType:
+          | "revenue_schedule"
+          | "expense_schedule"
+          | "cash_entry";
         readonly sourceId: string;
       }> =
         cashClosePreview?.pending
           .filter((entry) =>
             selectedCashClosePreviewKeys.includes(
-              buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId)
+              buildCashClosePreviewSelectionKey(
+                entry.sourceType,
+                entry.sourceId
+              )
             )
           )
           .map((entry) => ({
@@ -3334,20 +3911,30 @@ export function App() {
       });
       await refreshAdminState();
       closeFinanceModal();
-      setFeedback({ tone: "success", message: "Fechamento de caixa concluido." });
+      setFeedback({
+        tone: "success",
+        message: "Fechamento de caixa concluido."
+      });
     });
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(async () => {
-      const session = await loginAdmin(apiBaseUrl, loginForm.email, loginForm.password);
+      const session = await loginAdmin(
+        apiBaseUrl,
+        loginForm.email,
+        loginForm.password
+      );
       setSessionToken(session.token);
       setAdminProfile({
         name: resolveAdminDisplayName(loginForm.email),
         email: loginForm.email.trim().toLowerCase()
       });
-      setFeedback({ tone: "success", message: "Sessao administrativa aberta." });
+      setFeedback({
+        tone: "success",
+        message: "Sessao administrativa aberta."
+      });
     });
   }
 
@@ -3373,7 +3960,10 @@ export function App() {
         name: onboardingForm.adminNome.trim(),
         email: onboardingForm.adminEmail.trim().toLowerCase()
       });
-      setFeedback({ tone: "success", message: `Negocio ${onboarding.tenant.nome} criado e autenticado.` });
+      setFeedback({
+        tone: "success",
+        message: `Negocio ${onboarding.tenant.nome} criado e autenticado.`
+      });
     });
   }
 
@@ -3389,7 +3979,11 @@ export function App() {
   async function handleSaveBranding(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(async () => {
-      await updateTenantBranding(apiBaseUrl, sessionToken, buildBrandingPayload(brandingForm));
+      await updateTenantBranding(
+        apiBaseUrl,
+        sessionToken,
+        buildBrandingPayload(brandingForm)
+      );
       await refreshAdminState();
       setFeedback({ tone: "success", message: "Branding minimo atualizado." });
     });
@@ -3398,9 +3992,16 @@ export function App() {
   async function handleSavePayments(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     await runAction(async () => {
-      await savePaymentSettings(apiBaseUrl, sessionToken, buildPaymentPayload(paymentForm));
+      await savePaymentSettings(
+        apiBaseUrl,
+        sessionToken,
+        buildPaymentPayload(paymentForm)
+      );
       await refreshAdminState();
-      setFeedback({ tone: "success", message: "Configuracao do Mercado Pago salva." });
+      setFeedback({
+        tone: "success",
+        message: "Configuracao do Mercado Pago salva."
+      });
     });
   }
 
@@ -3408,14 +4009,21 @@ export function App() {
     event.preventDefault();
     await runAction(async () => {
       const payload = buildServicePayload(serviceForm);
-      const service =
-        selectedServiceId ?
-          await updateService(apiBaseUrl, sessionToken, selectedServiceId, payload)
+      const service = selectedServiceId
+        ? await updateService(
+            apiBaseUrl,
+            sessionToken,
+            selectedServiceId,
+            payload
+          )
         : await createService(apiBaseUrl, sessionToken, payload);
       setSelectedServiceId(service.id);
       setServiceWorkspaceMode("view");
       await refreshAdminState();
-      setFeedback({ tone: "success", message: selectedServiceId ? "Servico atualizado." : "Servico criado." });
+      setFeedback({
+        tone: "success",
+        message: selectedServiceId ? "Servico atualizado." : "Servico criado."
+      });
     });
   }
 
@@ -3442,14 +4050,18 @@ export function App() {
     event.preventDefault();
     await runAction(async () => {
       const isEditingProfessional = Boolean(selectedProfessionalId);
-      const professional =
-        isEditingProfessional ?
-          await updateProfessional(apiBaseUrl, sessionToken, selectedProfessionalId, {
-            nome: professionalForm.nome.trim(),
-            status: professionalForm.status,
-            especialidades: [...professionalForm.especialidades],
-            bankId: professionalForm.bankId || undefined
-          })
+      const professional = isEditingProfessional
+        ? await updateProfessional(
+            apiBaseUrl,
+            sessionToken,
+            selectedProfessionalId,
+            {
+              nome: professionalForm.nome.trim(),
+              status: professionalForm.status,
+              especialidades: [...professionalForm.especialidades],
+              bankId: professionalForm.bankId || undefined
+            }
+          )
         : await createProfessional(apiBaseUrl, sessionToken, {
             nome: professionalForm.nome.trim(),
             especialidades: [...professionalForm.especialidades],
@@ -3461,7 +4073,9 @@ export function App() {
       await refreshAdminState();
       setFeedback({
         tone: "success",
-        message: isEditingProfessional ? "Profissional atualizado." : "Profissional criado."
+        message: isEditingProfessional
+          ? "Profissional atualizado."
+          : "Profissional criado."
       });
     });
   }
@@ -3476,10 +4090,20 @@ export function App() {
           faixa: { startTime: day.startTime, endTime: day.endTime }
         }));
       if (rules.length === 0) {
-        throw new Error("Defina ao menos um dia com horario valido para publicar a agenda.");
+        throw new Error(
+          "Defina ao menos um dia com horario valido para publicar a agenda."
+        );
       }
-      await saveProfessionalAvailability(apiBaseUrl, sessionToken, selectedProfessionalId, rules);
-      setFeedback({ tone: "success", message: "Disponibilidade semanal salva." });
+      await saveProfessionalAvailability(
+        apiBaseUrl,
+        sessionToken,
+        selectedProfessionalId,
+        rules
+      );
+      setFeedback({
+        tone: "success",
+        message: "Disponibilidade semanal salva."
+      });
     });
   }
 
@@ -3497,7 +4121,9 @@ export function App() {
     });
   }
 
-  async function handlePaymentSync(paymentIntent: PaymentIntent): Promise<void> {
+  async function handlePaymentSync(
+    paymentIntent: PaymentIntent
+  ): Promise<void> {
     await runAction(async () => {
       await syncPaymentIntent(apiBaseUrl, sessionToken, paymentIntent.id, {
         paymentId: paymentIntent.paymentId
@@ -3519,11 +4145,14 @@ export function App() {
       return;
     }
 
-    const nextSlot = agendaSlots.find((slot) => slot.startAt === selectedAgendaSlotStartAt);
+    const nextSlot = agendaSlots.find(
+      (slot) => slot.startAt === selectedAgendaSlotStartAt
+    );
     if (!nextSlot) {
       setFeedback({
         tone: "error",
-        message: "Escolha um novo horario disponivel antes de salvar o reagendamento."
+        message:
+          "Escolha um novo horario disponivel antes de salvar o reagendamento."
       });
       return;
     }
@@ -3570,7 +4199,14 @@ export function App() {
   }
 
   function handleCounterBookingGoToStep(step: CounterBookingStep): void {
-    if (!isCounterBookingStepAvailable(step, counterBookingSelectedService, counterBookingSelectedProfessional, counterBookingSelectedSlot)) {
+    if (
+      !isCounterBookingStepAvailable(
+        step,
+        counterBookingSelectedService,
+        counterBookingSelectedProfessional,
+        counterBookingSelectedSlot
+      )
+    ) {
       return;
     }
 
@@ -3593,7 +4229,9 @@ export function App() {
         counterBookingForm
       )
     ) {
-      setCounterBookingError(resolveCounterBookingStepValidationMessage(counterBookingStep));
+      setCounterBookingError(
+        resolveCounterBookingStepValidationMessage(counterBookingStep)
+      );
       return;
     }
 
@@ -3611,16 +4249,34 @@ export function App() {
     setCounterBookingStep(previousStep);
   }
 
-  async function handleSubmitCounterBooking(event: FormEvent<HTMLFormElement>): Promise<void> {
+  async function handleSubmitCounterBooking(
+    event: FormEvent<HTMLFormElement>
+  ): Promise<void> {
     event.preventDefault();
 
-    if (!counterBookingSelectedService || !counterBookingSelectedProfessional || !counterBookingSelectedSlot) {
-      setCounterBookingError("Selecione servico, profissional e horario antes de salvar.");
+    if (
+      !counterBookingSelectedService ||
+      !counterBookingSelectedProfessional ||
+      !counterBookingSelectedSlot
+    ) {
+      setCounterBookingError(
+        "Selecione servico, profissional e horario antes de salvar."
+      );
       return;
     }
 
-    if (!isCounterBookingStepComplete("client", counterBookingSelectedService, counterBookingSelectedProfessional, counterBookingSelectedSlot, counterBookingForm)) {
-      setCounterBookingError(resolveCounterBookingStepValidationMessage("client"));
+    if (
+      !isCounterBookingStepComplete(
+        "client",
+        counterBookingSelectedService,
+        counterBookingSelectedProfessional,
+        counterBookingSelectedSlot,
+        counterBookingForm
+      )
+    ) {
+      setCounterBookingError(
+        resolveCounterBookingStepValidationMessage("client")
+      );
       return;
     }
 
@@ -3661,24 +4317,35 @@ export function App() {
     } catch (error) {
       if (
         error instanceof AdminApiError &&
-        (error.code === "slot_unavailable" || error.code === "booking_conflict") &&
+        (error.code === "slot_unavailable" ||
+          error.code === "booking_conflict") &&
         counterBookingSelectedService &&
         counterBookingSelectedProfessional
       ) {
         try {
-          const nextSlots = await fetchAvailabilitySlots(apiBaseUrl, sessionToken, {
-            serviceId: counterBookingSelectedService.id,
-            professionalId: counterBookingSelectedProfessional.id,
-            date: counterBookingDate
-          });
+          const nextSlots = await fetchAvailabilitySlots(
+            apiBaseUrl,
+            sessionToken,
+            {
+              serviceId: counterBookingSelectedService.id,
+              professionalId: counterBookingSelectedProfessional.id,
+              date: counterBookingDate
+            }
+          );
           setCounterBookingSlots(nextSlots);
-          const suggestedSlot = resolveNextSlotSuggestion(nextSlots, counterBookingSelectedSlot.startAt);
+          const suggestedSlot = resolveNextSlotSuggestion(
+            nextSlots,
+            counterBookingSelectedSlot.startAt
+          );
           if (suggestedSlot) {
             setCounterBookingConflictSuggestion({
               slot: suggestedSlot,
-              message: "Esse horario esta ocupado. Ajustar para a proxima janela disponivel?"
+              message:
+                "Esse horario esta ocupado. Ajustar para a proxima janela disponivel?"
             });
-            setCounterBookingError("O horario escolhido ficou indisponivel enquanto voce montava o agendamento.");
+            setCounterBookingError(
+              "O horario escolhido ficou indisponivel enquanto voce montava o agendamento."
+            );
             return;
           }
         } catch {
@@ -3753,7 +4420,8 @@ export function App() {
 
       const nextTabs = current.filter((item) => item !== route);
       if (route === currentRoute) {
-        const fallbackRoute = nextTabs[nextTabs.length - 1] ?? defaultAdminRoute;
+        const fallbackRoute =
+          nextTabs[nextTabs.length - 1] ?? defaultAdminRoute;
         window.setTimeout(() => navigateTo(fallbackRoute), 0);
       }
 
@@ -3763,7 +4431,9 @@ export function App() {
 
   function openReportsWorkspaceTab(tab: ReportsWorkspaceTab): void {
     setReportsWorkspaceTab(tab);
-    setReportsOpenTabs((current) => (current.includes(tab) ? current : [...current, tab]));
+    setReportsOpenTabs((current) =>
+      current.includes(tab) ? current : [...current, tab]
+    );
     setIsReportsMenuOpen(false);
     navigateTo("relatorios");
   }
@@ -3784,14 +4454,19 @@ export function App() {
     });
   }
 
-  async function reloadSavedReportBuilderDefinitions(): Promise<ReportDefinition[]> {
+  async function reloadSavedReportBuilderDefinitions(): Promise<
+    ReportDefinition[]
+  > {
     if (!sessionToken) {
       setSavedReportDefinitions([]);
       return [];
     }
 
     try {
-      const nextDefinitions = await listReportDefinitions(apiBaseUrl, sessionToken);
+      const nextDefinitions = await listReportDefinitions(
+        apiBaseUrl,
+        sessionToken
+      );
       setSavedReportDefinitions(nextDefinitions);
       return nextDefinitions;
     } catch (error) {
@@ -3817,13 +4492,19 @@ export function App() {
       const nextTabs = current.filter((tab) => tab.id !== tabId);
       if (tabId === activeReportBuilderTabId) {
         const fallback = nextTabs[nextTabs.length - 1];
-        window.setTimeout(() => setActiveReportBuilderTabId(fallback?.id ?? ""), 0);
+        window.setTimeout(
+          () => setActiveReportBuilderTabId(fallback?.id ?? ""),
+          0
+        );
       }
       return nextTabs;
     });
   }
 
-  function updateReportBuilderDefinition(tabId: string, definition: ReportDefinition): void {
+  function updateReportBuilderDefinition(
+    tabId: string,
+    definition: ReportDefinition
+  ): void {
     setReportBuilderTabs((current) =>
       current.map((tab) =>
         tab.id === tabId
@@ -3838,7 +4519,10 @@ export function App() {
     );
   }
 
-  async function executeReportBuilderTab(tabId: string, definitionOverride?: ReportDefinition): Promise<void> {
+  async function executeReportBuilderTab(
+    tabId: string,
+    definitionOverride?: ReportDefinition
+  ): Promise<void> {
     if (!sessionToken) {
       return;
     }
@@ -3862,9 +4546,13 @@ export function App() {
     );
 
     try {
-      const result = await executeAdminReportDefinition(apiBaseUrl, sessionToken, {
-        definition
-      });
+      const result = await executeAdminReportDefinition(
+        apiBaseUrl,
+        sessionToken,
+        {
+          definition
+        }
+      );
       setReportBuilderTabs((current) =>
         current.map((tab) =>
           tab.id === tabId
@@ -3903,7 +4591,9 @@ export function App() {
   }
 
   function openSystemReportBuilderTab(reportCode: string): void {
-    const definition = reportsCatalog?.systemDefinitions.find((entry) => entry.code === reportCode);
+    const definition = reportsCatalog?.systemDefinitions.find(
+      (entry) => entry.code === reportCode
+    );
     if (!definition) {
       return;
     }
@@ -3941,7 +4631,9 @@ export function App() {
   }
 
   function openSavedReportBuilderTab(definitionId: string): void {
-    const definition = savedReportDefinitions.find((entry) => entry.id === definitionId);
+    const definition = savedReportDefinitions.find(
+      (entry) => entry.id === definitionId
+    );
     if (!definition) {
       return;
     }
@@ -3977,7 +4669,11 @@ export function App() {
     }
   }
 
-  async function saveReportBuilderTab(tabId: string, name: string, description: string): Promise<void> {
+  async function saveReportBuilderTab(
+    tabId: string,
+    name: string,
+    description: string
+  ): Promise<void> {
     if (!sessionToken) {
       return;
     }
@@ -3998,7 +4694,11 @@ export function App() {
     };
 
     try {
-      const persisted = await createReportDefinition(apiBaseUrl, sessionToken, draftDefinition);
+      const persisted = await createReportDefinition(
+        apiBaseUrl,
+        sessionToken,
+        draftDefinition
+      );
       await reloadSavedReportBuilderDefinitions();
       const nextTabId = createReportBuilderTabId(persisted);
 
@@ -4034,8 +4734,13 @@ export function App() {
     }
   }
 
-  function resolveReportsPaneFilters(tab: ReportsWorkspaceTab = reportsWorkspaceTab): ReportsPaneFilters {
-    return reportsFiltersByTab[tab] ?? createDefaultReportsPaneFilters(clientReturnWindow);
+  function resolveReportsPaneFilters(
+    tab: ReportsWorkspaceTab = reportsWorkspaceTab
+  ): ReportsPaneFilters {
+    return (
+      reportsFiltersByTab[tab] ??
+      createDefaultReportsPaneFilters(clientReturnWindow)
+    );
   }
 
   function openReportsFilterModal(): void {
@@ -4187,7 +4892,10 @@ export function App() {
     }
   }
 
-  function openServiceWorkspace(mode: Exclude<ServiceWorkspaceMode, "browse">, serviceId?: string): void {
+  function openServiceWorkspace(
+    mode: Exclude<ServiceWorkspaceMode, "browse">,
+    serviceId?: string
+  ): void {
     setIsServiceDeleteDialogOpen(false);
     if (mode === "new") {
       setSelectedServiceId("");
@@ -4217,6 +4925,65 @@ export function App() {
     scrollProfessionalsWorkspaceIntoView();
   }
 
+  function openProfessionalServicesWorkspace(professionalId?: string): void {
+    if (professionalId) {
+      setIsCreatingProfessional(false);
+      setSelectedProfessionalId(professionalId);
+    }
+
+    setProfessionalWorkspaceMode("services");
+    scrollProfessionalsWorkspaceIntoView();
+  }
+
+  function clearSelectedProfessional(): void {
+    setIsCreatingProfessional(false);
+    setSelectedProfessionalId("");
+    setProfessionalWorkspaceMode((current) =>
+      current === "availability" ? "profile" : current
+    );
+  }
+
+  async function handleToggleProfessionalServiceLink(
+    serviceId: string
+  ): Promise<void> {
+    if (!selectedProfessionalId) {
+      setFeedback({
+        tone: "error",
+        message:
+          "Selecione um profissional antes de alterar os servicos vinculados."
+      });
+      return;
+    }
+
+    const nextServiceIds = toggleArrayValue(
+      professionalForm.especialidades,
+      serviceId
+    );
+
+    await runAction(async () => {
+      await updateProfessional(
+        apiBaseUrl,
+        sessionToken,
+        selectedProfessionalId,
+        {
+          nome: professionalForm.nome.trim(),
+          status: professionalForm.status,
+          especialidades: nextServiceIds,
+          bankId: professionalForm.bankId || undefined
+        }
+      );
+      setProfessionalForm((current) => ({
+        ...current,
+        especialidades: nextServiceIds
+      }));
+      await refreshAdminState();
+      setFeedback({
+        tone: "success",
+        message: "Amarracao de servicos atualizada."
+      });
+    });
+  }
+
   function openProfessionalAgenda(professionalId: string): void {
     setIsCreatingProfessional(false);
     setSelectedProfessionalId(professionalId);
@@ -4228,7 +4995,10 @@ export function App() {
   function handleRefreshClick(): void {
     void runAction(async () => {
       await refreshAdminState();
-      setFeedback({ tone: "info", message: "Painel administrativo atualizado." });
+      setFeedback({
+        tone: "info",
+        message: "Painel administrativo atualizado."
+      });
     });
   }
 
@@ -4282,8 +5052,14 @@ export function App() {
     setAgendaDate(nextDate);
     openCounterBookingModal({
       date: nextDate,
-      professionalId: agendaProfessionalFilter !== "all" ? agendaProfessionalFilter : undefined,
-      slotStartAt: agendaViewMode === "month" ? undefined : formatLocalDateTimeOffsetValue(start)
+      professionalId:
+        agendaProfessionalFilter !== "all"
+          ? agendaProfessionalFilter
+          : undefined,
+      slotStartAt:
+        agendaViewMode === "month"
+          ? undefined
+          : formatLocalDateTimeOffsetValue(start)
     });
   }
 
@@ -4296,85 +5072,96 @@ export function App() {
       <>
         {entries.map((entry) => {
           const segment = resolveClientSegment(entry, clientReturnWindow);
-          const isSelected = entry.client.id === selectedClientInsight?.client.id;
+          const isSelected =
+            entry.client.id === selectedClientInsight?.client.id;
           return (
-          <button
-            className={`record-card client-record-button${isSelected ? " is-active" : ""}`}
-            key={entry.client.id}
-            onClick={() => setSelectedClientId(entry.client.id)}
-            type="button"
-          >
-            <div className="client-record-topline">
-              <div className="record-stack">
-                <strong>{entry.client.nome}</strong>
-                <span>{entry.client.email}</span>
+            <button
+              className={`record-card client-record-button${isSelected ? " is-active" : ""}`}
+              key={entry.client.id}
+              onClick={() => setSelectedClientId(entry.client.id)}
+              type="button"
+            >
+              <div className="client-record-topline">
+                <div className="record-stack">
+                  <strong>{entry.client.nome}</strong>
+                  <span>{entry.client.email}</span>
+                </div>
+                <div className="client-record-kpi">
+                  <span>Receita derivada</span>
+                  <strong>{formatCurrency(entry.recognizedRevenue)}</strong>
+                </div>
               </div>
-              <div className="client-record-kpi">
-                <span>Receita derivada</span>
-                <strong>{formatCurrency(entry.recognizedRevenue)}</strong>
-              </div>
-            </div>
 
-            <div className="record-meta">
-              <span className={`status-pill is-${resolveClientSegmentTone(segment)}`}>
-                {formatClientSegment(segment, clientReturnWindow)}
-              </span>
-              <span className="status-pill is-neutral">{entry.totalBookings} booking(s)</span>
-              <span className="status-pill is-info">Em aberto {entry.openBookings}</span>
-              <span className="status-pill is-success">
-                Concluidos {entry.completedBookings}
-              </span>
-            </div>
-
-            <div className="client-record-meta-grid">
-              <div className="client-record-meta-item">
-                <span>Contato</span>
-                <strong>{entry.client.telefone || "Sem telefone"}</strong>
-              </div>
-              <div className="client-record-meta-item">
-                <span>Origem</span>
-                <strong>{entry.client.origem}</strong>
-              </div>
-              <div className="client-record-meta-item">
-                <span>Ultimo movimento</span>
-                <strong>
-                  {entry.lastBooking ? formatDateTime(entry.lastBooking.startAt) : "Sem booking"}
-                </strong>
-              </div>
-              <div className="client-record-meta-item">
-                <span>Retorno</span>
-                <strong>
-                  {entry.lastCompletedBooking
-                    ? `Sem retorno ha ${formatDaysSince(entry.lastCompletedBooking.endAt)}`
-                    : "Nunca concluiu"}
-                </strong>
-              </div>
-              <div className="client-record-meta-item">
-                <span>Ultimo concluido</span>
-                <strong>
-                  {entry.lastCompletedBooking
-                    ? formatDateTime(entry.lastCompletedBooking.endAt)
-                    : "Nao houve"}
-                </strong>
-              </div>
-              <div className="client-record-meta-item">
-                <span>Movimentos</span>
-                <strong>{entry.cashEntriesCount}</strong>
-              </div>
-            </div>
-
-            <div className="record-meta client-record-emphasis">
-              <span>Base formada pela agenda</span>
-              {entry.lastCashEntry ? (
-                <span>
-                  Ultimo movimento financeiro {formatDateTime(entry.lastCashEntry.occurredAt)}
+              <div className="record-meta">
+                <span
+                  className={`status-pill is-${resolveClientSegmentTone(segment)}`}
+                >
+                  {formatClientSegment(segment, clientReturnWindow)}
                 </span>
-              ) : (
-                <span>Nenhum movimento financeiro visivel</span>
-              )}
-            </div>
-          </button>
-        )})}
+                <span className="status-pill is-neutral">
+                  {entry.totalBookings} booking(s)
+                </span>
+                <span className="status-pill is-info">
+                  Em aberto {entry.openBookings}
+                </span>
+                <span className="status-pill is-success">
+                  Concluidos {entry.completedBookings}
+                </span>
+              </div>
+
+              <div className="client-record-meta-grid">
+                <div className="client-record-meta-item">
+                  <span>Contato</span>
+                  <strong>{entry.client.telefone || "Sem telefone"}</strong>
+                </div>
+                <div className="client-record-meta-item">
+                  <span>Origem</span>
+                  <strong>{entry.client.origem}</strong>
+                </div>
+                <div className="client-record-meta-item">
+                  <span>Ultimo movimento</span>
+                  <strong>
+                    {entry.lastBooking
+                      ? formatDateTime(entry.lastBooking.startAt)
+                      : "Sem booking"}
+                  </strong>
+                </div>
+                <div className="client-record-meta-item">
+                  <span>Retorno</span>
+                  <strong>
+                    {entry.lastCompletedBooking
+                      ? `Sem retorno ha ${formatDaysSince(entry.lastCompletedBooking.endAt)}`
+                      : "Nunca concluiu"}
+                  </strong>
+                </div>
+                <div className="client-record-meta-item">
+                  <span>Ultimo concluido</span>
+                  <strong>
+                    {entry.lastCompletedBooking
+                      ? formatDateTime(entry.lastCompletedBooking.endAt)
+                      : "Nao houve"}
+                  </strong>
+                </div>
+                <div className="client-record-meta-item">
+                  <span>Movimentos</span>
+                  <strong>{entry.cashEntriesCount}</strong>
+                </div>
+              </div>
+
+              <div className="record-meta client-record-emphasis">
+                <span>Base formada pela agenda</span>
+                {entry.lastCashEntry ? (
+                  <span>
+                    Ultimo movimento financeiro{" "}
+                    {formatDateTime(entry.lastCashEntry.occurredAt)}
+                  </span>
+                ) : (
+                  <span>Nenhum movimento financeiro visivel</span>
+                )}
+              </div>
+            </button>
+          );
+        })}
       </>
     );
   }
@@ -4420,7 +5207,12 @@ export function App() {
               Salvar slug
             </button>
             {publicBookingUrl ? (
-              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+              <a
+                className="secondary-button button-link"
+                href={publicBookingUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
                 Abrir booking publico
               </a>
             ) : (
@@ -4436,7 +5228,8 @@ export function App() {
     const accentColor = normalizeAccentColor(brandingForm.accentColor);
     const previewStyle = buildBrandingPreviewStyle(accentColor);
     const previewTagline =
-      brandingForm.tagline.trim() || "Agendamentos rapidos, claros e prontos para o celular.";
+      brandingForm.tagline.trim() ||
+      "Agendamentos rapidos, claros e prontos para o celular.";
 
     return (
       <EntitySection
@@ -4487,7 +5280,10 @@ export function App() {
             <div className="branding-preview-copy">
               <strong>{tenant?.nome ?? "Seu negocio"}</strong>
               <p>{previewTagline}</p>
-              <span>{publicBookingUrl || "Publique uma slug para visualizar o link."}</span>
+              <span>
+                {publicBookingUrl ||
+                  "Publique uma slug para visualizar o link."}
+              </span>
             </div>
           </div>
 
@@ -4552,7 +5348,10 @@ export function App() {
                 type="text"
                 value={paymentForm.publicKey}
                 onChange={(event) =>
-                  setPaymentForm({ ...paymentForm, publicKey: event.target.value })
+                  setPaymentForm({
+                    ...paymentForm,
+                    publicKey: event.target.value
+                  })
                 }
               />
             </label>
@@ -4562,7 +5361,10 @@ export function App() {
                 type="password"
                 value={paymentForm.accessToken}
                 onChange={(event) =>
-                  setPaymentForm({ ...paymentForm, accessToken: event.target.value })
+                  setPaymentForm({
+                    ...paymentForm,
+                    accessToken: event.target.value
+                  })
                 }
               />
             </label>
@@ -4572,7 +5374,10 @@ export function App() {
                 type="text"
                 value={paymentForm.collectorId}
                 onChange={(event) =>
-                  setPaymentForm({ ...paymentForm, collectorId: event.target.value })
+                  setPaymentForm({
+                    ...paymentForm,
+                    collectorId: event.target.value
+                  })
                 }
               />
             </label>
@@ -4608,7 +5413,10 @@ export function App() {
                 type="url"
                 value={paymentForm.backSuccess}
                 onChange={(event) =>
-                  setPaymentForm({ ...paymentForm, backSuccess: event.target.value })
+                  setPaymentForm({
+                    ...paymentForm,
+                    backSuccess: event.target.value
+                  })
                 }
               />
             </label>
@@ -4618,7 +5426,10 @@ export function App() {
                 type="url"
                 value={paymentForm.backPending}
                 onChange={(event) =>
-                  setPaymentForm({ ...paymentForm, backPending: event.target.value })
+                  setPaymentForm({
+                    ...paymentForm,
+                    backPending: event.target.value
+                  })
                 }
               />
             </label>
@@ -4628,7 +5439,10 @@ export function App() {
                 type="url"
                 value={paymentForm.backFailure}
                 onChange={(event) =>
-                  setPaymentForm({ ...paymentForm, backFailure: event.target.value })
+                  setPaymentForm({
+                    ...paymentForm,
+                    backFailure: event.target.value
+                  })
                 }
               />
             </label>
@@ -4667,7 +5481,10 @@ export function App() {
               checked={paymentForm.binaryMode}
               type="checkbox"
               onChange={(event) =>
-                setPaymentForm({ ...paymentForm, binaryMode: event.target.checked })
+                setPaymentForm({
+                  ...paymentForm,
+                  binaryMode: event.target.checked
+                })
               }
             />
             <span>Ativar `binary_mode`</span>
@@ -4682,19 +5499,111 @@ export function App() {
   }
 
   function renderCatalogPanel(): JSX.Element {
-    const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
-    const isViewingService = serviceWorkspaceMode === "view" && Boolean(selectedService);
-    const isEditingService = serviceWorkspaceMode === "edit" && Boolean(selectedService);
+    const selectedService =
+      services.find((service) => service.id === selectedServiceId) ?? null;
+    const isViewingService =
+      serviceWorkspaceMode === "view" && Boolean(selectedService);
+    const isEditingService =
+      serviceWorkspaceMode === "edit" && Boolean(selectedService);
     const isCreatingService = serviceWorkspaceMode === "new";
     const canOpenSelectedService = Boolean(selectedService);
-    const activeModalTitle =
-      isCreatingService ? "Novo servico" : isEditingService ? `Editar ${selectedService?.nome ?? "servico"}` : `Visualizar ${selectedService?.nome ?? "servico"}`;
-    const activeModalSubtitle =
-      isCreatingService
-        ? "Preencha os dados do cadastro e salve o novo servico."
-        : isEditingService
-          ? "Ajuste os dados do servico sem sair da tela principal do catalogo."
-          : "Leitura rapida do cadastro comercial selecionado.";
+    const activeModalTitle = isCreatingService
+      ? "Novo servico"
+      : isEditingService
+        ? `Editar ${selectedService?.nome ?? "servico"}`
+        : `Visualizar ${selectedService?.nome ?? "servico"}`;
+    const activeModalSubtitle = isCreatingService
+      ? "Preencha os dados do cadastro e salve o novo servico."
+      : isEditingService
+        ? "Ajuste os dados do servico sem sair da tela principal do catalogo."
+        : "Leitura rapida do cadastro comercial selecionado.";
+    const catalogColumns = [
+      { key: "codigo", label: "Codigo" },
+      { key: "servico", label: "Servico" },
+      { key: "duracao", label: "Duracao" },
+      { key: "preco", label: "Preco" },
+      { key: "cobranca", label: "Cobranca" },
+      { key: "status", label: "Status" }
+    ] as const;
+    const catalogRows = services.map((service, index) => {
+      const collectionLabel =
+        service.paymentPolicy.collectionMode === "none"
+          ? "Reserva imediata"
+          : service.paymentPolicy.collectionMode;
+
+      return {
+        id: service.id,
+        selected: service.id === selectedServiceId,
+        onClick: () => selectServiceRecord(service.id),
+        cells: [
+          {
+            key: "codigo",
+            value: service.codigo || String(index + 1).padStart(2, "0")
+          },
+          {
+            key: "servico",
+            value: `${service.nome} | ${formatMinutesAsHours(service.duracaoMin)}`
+          },
+          { key: "duracao", value: `${service.duracaoMin} min` },
+          { key: "preco", value: formatCurrency(service.precoBase) },
+          { key: "cobranca", value: collectionLabel },
+          {
+            key: "status",
+            value: (
+              <span
+                className={`status-pill is-${service.status === "active" ? "success" : "warning"}`}
+              >
+                {formatServiceStatus(service.status)}
+              </span>
+            )
+          }
+        ]
+      };
+    });
+    const catalogPreviewFields = selectedService
+      ? [
+          {
+            id: "codigo",
+            label: "Codigo",
+            value: selectedService.codigo || "Nao definido"
+          },
+          {
+            id: "status",
+            label: "Status",
+            value: formatServiceStatus(selectedService.status)
+          },
+          {
+            id: "duracao",
+            label: "Duracao",
+            value: formatMinutesAsHours(selectedService.duracaoMin)
+          },
+          {
+            id: "preco",
+            label: "Preco base",
+            value: formatCurrency(selectedService.precoBase)
+          },
+          {
+            id: "cobranca",
+            label: "Cobranca",
+            value:
+              selectedService.paymentPolicy.collectionMode === "none"
+                ? "Reserva imediata"
+                : selectedService.paymentPolicy.collectionMode
+          },
+          {
+            id: "checkout",
+            label: "Checkout",
+            value: selectedService.paymentPolicy.checkoutMode
+          },
+          {
+            id: "meios",
+            label: "Meios aceitos",
+            value:
+              selectedService.paymentPolicy.acceptedMethods.join(" | ") ||
+              "Nao definidos"
+          }
+        ]
+      : [];
 
     return (
       <>
@@ -4736,42 +5645,16 @@ export function App() {
             </div>
           }
         >
-          {services.length ? (
-            <div className="entity-record-list" role="list">
-              {services.map((service, index) => {
-                const collectionLabel =
-                  service.paymentPolicy.collectionMode === "none" ? "Reserva imediata" : service.paymentPolicy.collectionMode;
-
-                return (
-                  <button
-                    aria-pressed={service.id === selectedServiceId}
-                    className={service.id === selectedServiceId ? "entity-record-row is-selected" : "entity-record-row"}
-                    key={service.id}
-                    onClick={() => selectServiceRecord(service.id)}
-                    type="button"
-                  >
-                    <span className="entity-record-row-index">{service.codigo || String(index + 1).padStart(2, "0")}</span>
-                    <div className="entity-record-row-main">
-                      <strong>{service.nome}</strong>
-                      <span>{service.duracaoMin} min</span>
-                    </div>
-                    <div className="entity-record-row-meta">
-                      <span>{formatCurrency(service.precoBase)}</span>
-                      <span>{collectionLabel}</span>
-                      <span className={`status-pill is-${service.status === "active" ? "success" : "warning"}`}>
-                        {formatServiceStatus(service.status)}
-                      </span>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="empty-state">Nenhum servico cadastrado ainda.</p>
-          )}
+          <div className="catalog-browse-shell">
+            {renderFinanceBrowseTable(
+              catalogColumns,
+              catalogRows,
+              "Nenhum servico cadastrado ainda."
+            )}
+          </div>
         </EntitySection>
 
-        {(isViewingService || isEditingService || isCreatingService) ? (
+        {isViewingService || isEditingService || isCreatingService ? (
           <WorkspaceRecordModal
             subtitle={activeModalSubtitle}
             title={activeModalTitle}
@@ -4779,38 +5662,16 @@ export function App() {
           >
             {isViewingService && selectedService ? (
               <div className="catalog-record-preview-grid">
-                <div className="dashboard-mini-card">
-                  <strong>Codigo</strong>
-                  <span>{selectedService.codigo}</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>Status</strong>
-                  <span>{formatServiceStatus(selectedService.status)}</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>Duracao</strong>
-                  <span>{formatMinutesAsHours(selectedService.duracaoMin)}</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>Preco base</strong>
-                  <span>{formatCurrency(selectedService.precoBase)}</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>Cobranca</strong>
-                  <span>
-                    {selectedService.paymentPolicy.collectionMode === "none"
-                      ? "Reserva imediata"
-                      : selectedService.paymentPolicy.collectionMode}
-                  </span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>Checkout</strong>
-                  <span>{selectedService.paymentPolicy.checkoutMode}</span>
-                </div>
-                <div className="dashboard-mini-card">
-                  <strong>Meios aceitos</strong>
-                  <span>{selectedService.paymentPolicy.acceptedMethods.join(" | ") || "Nao definidos"}</span>
-                </div>
+                {catalogPreviewFields.map((field) => (
+                  <div className="catalog-preview-item" key={field.id}>
+                    <span className="catalog-preview-item-label">
+                      {field.label}
+                    </span>
+                    <strong className="catalog-preview-item-value">
+                      {field.value}
+                    </strong>
+                  </div>
+                ))}
               </div>
             ) : (
               <form className="stack-form" onSubmit={handleSaveService}>
@@ -4821,7 +5682,12 @@ export function App() {
                       required
                       type="text"
                       value={serviceForm.nome}
-                      onChange={(event) => setServiceForm({ ...serviceForm, nome: event.target.value })}
+                      onChange={(event) =>
+                        setServiceForm({
+                          ...serviceForm,
+                          nome: event.target.value
+                        })
+                      }
                     />
                   </label>
                   <label className="field">
@@ -4832,7 +5698,10 @@ export function App() {
                       type="number"
                       value={serviceForm.duracaoMin}
                       onChange={(event) =>
-                        setServiceForm({ ...serviceForm, duracaoMin: event.target.value })
+                        setServiceForm({
+                          ...serviceForm,
+                          duracaoMin: event.target.value
+                        })
                       }
                     />
                   </label>
@@ -4845,7 +5714,10 @@ export function App() {
                       type="number"
                       value={serviceForm.precoBase}
                       onChange={(event) =>
-                        setServiceForm({ ...serviceForm, precoBase: event.target.value })
+                        setServiceForm({
+                          ...serviceForm,
+                          precoBase: event.target.value
+                        })
                       }
                     />
                   </label>
@@ -4854,7 +5726,10 @@ export function App() {
                     <select
                       value={serviceForm.status}
                       onChange={(event) =>
-                        setServiceForm({ ...serviceForm, status: event.target.value as ServiceStatus })
+                        setServiceForm({
+                          ...serviceForm,
+                          status: event.target.value as ServiceStatus
+                        })
                       }
                     >
                       {serviceStatusValues.map((status) => (
@@ -4871,7 +5746,8 @@ export function App() {
                       onChange={(event) =>
                         setServiceForm({
                           ...serviceForm,
-                          collectionMode: event.target.value as PaymentCollectionMode
+                          collectionMode: event.target
+                            .value as PaymentCollectionMode
                         })
                       }
                     >
@@ -4890,7 +5766,8 @@ export function App() {
                       onChange={(event) =>
                         setServiceForm({
                           ...serviceForm,
-                          checkoutMode: event.target.value as PaymentCheckoutMode
+                          checkoutMode: event.target
+                            .value as PaymentCheckoutMode
                         })
                       }
                     >
@@ -4929,7 +5806,10 @@ export function App() {
                         type="number"
                         value={serviceForm.fixedAmount}
                         onChange={(event) =>
-                          setServiceForm({ ...serviceForm, fixedAmount: event.target.value })
+                          setServiceForm({
+                            ...serviceForm,
+                            fixedAmount: event.target.value
+                          })
                         }
                       />
                     </label>
@@ -4942,7 +5822,10 @@ export function App() {
                         type="number"
                         value={serviceForm.percentage}
                         onChange={(event) =>
-                          setServiceForm({ ...serviceForm, percentage: event.target.value })
+                          setServiceForm({
+                            ...serviceForm,
+                            percentage: event.target.value
+                          })
                         }
                       />
                     </label>
@@ -4959,7 +5842,10 @@ export function App() {
                         onChange={() =>
                           setServiceForm({
                             ...serviceForm,
-                            acceptedMethods: toggleArrayValue(serviceForm.acceptedMethods, method)
+                            acceptedMethods: toggleArrayValue(
+                              serviceForm.acceptedMethods,
+                              method
+                            )
                           })
                         }
                       />
@@ -4973,16 +5859,26 @@ export function App() {
                     {!isCreatingService && selectedService ? (
                       <button
                         className="secondary-button"
-                        onClick={() => openServiceWorkspace("view", selectedService.id)}
+                        onClick={() =>
+                          openServiceWorkspace("view", selectedService.id)
+                        }
                         type="button"
                       >
                         Visualizar
                       </button>
                     ) : null}
-                    <button className="secondary-button" onClick={() => closeServiceWorkspace()} type="button">
+                    <button
+                      className="secondary-button"
+                      onClick={() => closeServiceWorkspace()}
+                      type="button"
+                    >
                       Cancelar
                     </button>
-                    <button className="primary-button" disabled={isBusy} type="submit">
+                    <button
+                      className="primary-button"
+                      disabled={isBusy}
+                      type="submit"
+                    >
                       {selectedService ? "Salvar servico" : "Criar servico"}
                     </button>
                   </div>
@@ -5018,10 +5914,12 @@ export function App() {
             onClose={() => setIsServiceDeleteDialogOpen(false)}
           >
             <div className="workspace-record-delete-copy">
-              <strong>{selectedService.codigo} | {selectedService.nome}</strong>
+              <strong>
+                {selectedService.codigo} | {selectedService.nome}
+              </strong>
               <p>
-                O servico sera removido do catalogo. Se ele estiver vinculado a profissionais,
-                revise a equipe depois da exclusao.
+                O servico sera removido do catalogo. Se ele estiver vinculado a
+                profissionais, revise a equipe depois da exclusao.
               </p>
             </div>
           </WorkspaceRecordModal>
@@ -5031,24 +5929,52 @@ export function App() {
   }
 
   function renderProfessionalProfileWorkspace(): JSX.Element {
-    const selectedProfessional = professionals.find((professional) => professional.id === selectedProfessionalId);
-    const linkedServiceNames = selectedProfessional ?
-        resolveProfessionalServiceNames(selectedProfessional, services)
+    const selectedProfessional = professionals.find(
+      (professional) => professional.id === selectedProfessionalId
+    );
+    const linkedServiceNames = selectedProfessional
+      ? resolveProfessionalServiceNames(selectedProfessional, services)
       : professionalForm.especialidades
-          .map((serviceId) => services.find((service) => service.id === serviceId)?.nome)
+          .map(
+            (serviceId) =>
+              services.find((service) => service.id === serviceId)?.nome
+          )
           .filter((value): value is string => Boolean(value));
-    const availabilitySummary = selectedProfessionalId ?
-      resolveAvailabilitySummary(weeklyAvailabilityByProfessional[selectedProfessionalId] ?? [])
-    : "Sem horarios configurados";
+    const availabilitySummary = selectedProfessionalId
+      ? resolveAvailabilitySummary(
+          weeklyAvailabilityByProfessional[selectedProfessionalId] ?? []
+        )
+      : "Sem horarios configurados";
     const formId = "professional-profile-form";
-    const linkedServicesLabel = linkedServiceNames.length ?
-      linkedServiceNames.join(" | ")
-    : "Sem especialidades vinculadas ainda.";
-    const linkedServicesPreview = linkedServiceNames.length ?
-      linkedServiceNames.slice(0, 2).join(" | ")
-    : "Sem especialidades ainda";
+    const linkedServicesLabel = linkedServiceNames.length
+      ? linkedServiceNames.join(" | ")
+      : "Sem especialidades vinculadas ainda.";
+    const linkedServicesPreview = linkedServiceNames.length
+      ? linkedServiceNames.slice(0, 2).join(" | ")
+      : "Sem especialidades ainda";
     const selectedProfessionalBank =
-      banks.find((bank) => bank.id === professionalForm.bankId || bank.id === selectedProfessional?.bankId) ?? null;
+      banks.find(
+        (bank) =>
+          bank.id === professionalForm.bankId ||
+          bank.id === selectedProfessional?.bankId
+      ) ?? null;
+    const serviceLinkSummary = [
+      {
+        id: "linked-count",
+        label: "Servicos vinculados",
+        value: String(linkedServiceNames.length)
+      },
+      {
+        id: "linked-preview",
+        label: "Resumo operacional",
+        value: linkedServicesPreview
+      },
+      {
+        id: "availability",
+        label: "Disponibilidade",
+        value: availabilitySummary
+      }
+    ] as const;
 
     return (
       <>
@@ -5063,7 +5989,10 @@ export function App() {
               {
                 id: "professional-name",
                 label: "Nome",
-                value: professionalForm.nome || selectedProfessional?.nome || "Novo profissional"
+                value:
+                  professionalForm.nome ||
+                  selectedProfessional?.nome ||
+                  "Novo profissional"
               },
               {
                 id: "professional-status",
@@ -5088,29 +6017,11 @@ export function App() {
             ]}
           />
 
-          <div aria-label="Detalhe do profissional" className="dashboard-tabbar professional-detail-tabbar" role="tablist">
-            <button
-              aria-selected={professionalWorkspaceMode === "profile"}
-              className={professionalWorkspaceMode === "profile" ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
-              onClick={() => setProfessionalWorkspaceMode("profile")}
-              role="tab"
-              type="button"
-            >
-              Cadastro e servicos
-            </button>
-            <button
-              aria-selected={false}
-              className="dashboard-tab-button"
-              disabled={!selectedProfessionalId}
-              onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
-              role="tab"
-              type="button"
-            >
-              Horarios
-            </button>
-          </div>
-
-          <form className="professional-editor-form professional-master-detail-form" id={formId} onSubmit={handleSaveProfessional}>
+          <form
+            className="professional-editor-form professional-master-detail-form"
+            id={formId}
+            onSubmit={handleSaveProfessional}
+          >
             <EntitySection
               title="Cadastro base"
               description="Dados principais do profissional selecionado."
@@ -5123,7 +6034,10 @@ export function App() {
                     type="text"
                     value={professionalForm.nome}
                     onChange={(event) =>
-                      setProfessionalForm({ ...professionalForm, nome: event.target.value })
+                      setProfessionalForm({
+                        ...professionalForm,
+                        nome: event.target.value
+                      })
                     }
                   />
                 </label>
@@ -5157,13 +6071,22 @@ export function App() {
                           : "Sem banco vinculado"
                       }
                     />
-                    <button className="secondary-button" onClick={() => setIsProfessionalBankLookupOpen(true)} type="button">
+                    <button
+                      className="secondary-button"
+                      onClick={() => setIsProfessionalBankLookupOpen(true)}
+                      type="button"
+                    >
                       Buscar
                     </button>
                     <button
                       className="secondary-button"
                       disabled={!professionalForm.bankId}
-                      onClick={() => setProfessionalForm((current) => ({ ...current, bankId: "" }))}
+                      onClick={() =>
+                        setProfessionalForm((current) => ({
+                          ...current,
+                          bankId: ""
+                        }))
+                      }
                       type="button"
                     >
                       Limpar
@@ -5174,41 +6097,33 @@ export function App() {
             </EntitySection>
 
             <EntitySection
-              title="Servicos vinculados"
-              description="Relacione os servicos que esse profissional pode atender."
+              title="Amarracao com servicos"
+              description="Os vinculos operacionais ficam na frente dedicada Profissionais x Servicos, sem misturar o cadastro base."
             >
-              <fieldset className="professional-services-fieldset">
-                <legend>Servicos vinculados</legend>
-                {services.length ? (
-                  <div className="professional-services-grid">
-                    {services.map((service) => (
-                      <label className="professional-service-option" key={service.id}>
-                        <input
-                          checked={professionalForm.especialidades.includes(service.id)}
-                          type="checkbox"
-                          onChange={() =>
-                            setProfessionalForm({
-                              ...professionalForm,
-                              especialidades: toggleArrayValue(
-                                professionalForm.especialidades,
-                                service.id
-                              )
-                            })
-                          }
-                        />
-                        <div>
-                          <strong>{service.codigo} | {service.nome}</strong>
-                          <span>
-                            {formatMinutesAsHours(service.duracaoMin)} | {formatCurrency(service.precoBase)}
-                          </span>
-                        </div>
-                      </label>
-                    ))}
+              <div className="professional-link-summary-grid">
+                {serviceLinkSummary.map((item) => (
+                  <div className="catalog-preview-item" key={item.id}>
+                    <span className="catalog-preview-item-label">
+                      {item.label}
+                    </span>
+                    <strong className="catalog-preview-item-value">
+                      {item.value}
+                    </strong>
                   </div>
-                ) : (
-                  <p className="helper">Cadastre servicos no catalogo antes de montar a equipe.</p>
-                )}
-              </fieldset>
+                ))}
+              </div>
+              <div className="button-row">
+                <button
+                  className="secondary-button"
+                  disabled={!selectedProfessionalId}
+                  onClick={() =>
+                    openProfessionalServicesWorkspace(selectedProfessionalId)
+                  }
+                  type="button"
+                >
+                  Profissionais x Servicos
+                </button>
+              </div>
             </EntitySection>
 
             <div className="professional-editor-footer">
@@ -5220,7 +6135,9 @@ export function App() {
                 {!isCreatingProfessional && selectedProfessionalId ? (
                   <button
                     className="secondary-button"
-                    onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                    onClick={() =>
+                      openProfessionalAgenda(selectedProfessionalId)
+                    }
                     type="button"
                   >
                     Ver agenda
@@ -5229,14 +6146,25 @@ export function App() {
                 {!isCreatingProfessional && selectedProfessionalId ? (
                   <button
                     className="secondary-button"
-                    onClick={() => openProfessionalAvailabilityWorkspace(selectedProfessionalId)}
+                    onClick={() =>
+                      openProfessionalAvailabilityWorkspace(
+                        selectedProfessionalId
+                      )
+                    }
                     type="button"
                   >
                     Horarios
                   </button>
                 ) : null}
-                <button className="primary-button" disabled={isBusy} form={formId} type="submit">
-                  {isCreatingProfessional ? "Criar profissional" : "Salvar profissional"}
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  form={formId}
+                  type="submit"
+                >
+                  {isCreatingProfessional
+                    ? "Criar profissional"
+                    : "Salvar profissional"}
                 </button>
               </div>
             </div>
@@ -5261,7 +6189,10 @@ export function App() {
                   id: bank.id,
                   selected: bank.id === professionalForm.bankId,
                   onClick: () => {
-                    setProfessionalForm((current) => ({ ...current, bankId: bank.id }));
+                    setProfessionalForm((current) => ({
+                      ...current,
+                      bankId: bank.id
+                    }));
                     setIsProfessionalBankLookupOpen(false);
                   },
                   cells: [
@@ -5278,19 +6209,22 @@ export function App() {
         ) : null}
       </>
     );
-
   }
 
   function renderProfessionalAvailabilityWorkspace(): JSX.Element {
-    const selectedProfessional = professionals.find((professional) => professional.id === selectedProfessionalId);
-    const availabilitySummary = resolveAvailabilitySummary(weeklyAvailabilityByProfessional[selectedProfessionalId] ?? []);
-    const linkedServiceNames = selectedProfessional ?
-      resolveProfessionalServiceNames(selectedProfessional, services)
-    : [];
+    const selectedProfessional = professionals.find(
+      (professional) => professional.id === selectedProfessionalId
+    );
+    const availabilitySummary = resolveAvailabilitySummary(
+      weeklyAvailabilityByProfessional[selectedProfessionalId] ?? []
+    );
+    const linkedServiceNames = selectedProfessional
+      ? resolveProfessionalServiceNames(selectedProfessional, services)
+      : [];
     const formId = "professional-availability-form";
-    const linkedServicesLabel = linkedServiceNames.length ?
-      linkedServiceNames.join(" | ")
-    : "Sem servicos vinculados";
+    const linkedServicesLabel = linkedServiceNames.length
+      ? linkedServiceNames.join(" | ")
+      : "Sem servicos vinculados";
 
     return (
       <div className="professionals-detail-stack">
@@ -5309,7 +6243,9 @@ export function App() {
             {
               id: "availability-professional-status",
               label: "Status",
-              value: selectedProfessional ? formatProfessionalStatus(selectedProfessional.status) : "Nao definido"
+              value: selectedProfessional
+                ? formatProfessionalStatus(selectedProfessional.status)
+                : "Nao definido"
             },
             {
               id: "availability-services",
@@ -5324,35 +6260,21 @@ export function App() {
           ]}
         />
 
-        <div aria-label="Detalhe do profissional" className="dashboard-tabbar professional-detail-tabbar" role="tablist">
-          <button
-            aria-selected={false}
-            className="dashboard-tab-button"
-            onClick={() => setProfessionalWorkspaceMode("profile")}
-            role="tab"
-            type="button"
-          >
-            Cadastro e servicos
-          </button>
-          <button
-            aria-selected={professionalWorkspaceMode === "availability"}
-            className={professionalWorkspaceMode === "availability" ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
-            onClick={() => setProfessionalWorkspaceMode("availability")}
-            role="tab"
-            type="button"
-          >
-            Horarios
-          </button>
-        </div>
-
-        <form className="professional-availability-form professional-master-detail-form" id={formId} onSubmit={handleSaveAvailability}>
+        <form
+          className="professional-availability-form professional-master-detail-form"
+          id={formId}
+          onSubmit={handleSaveAvailability}
+        >
           <EntitySection
             title="Janela semanal"
             description="Cada linha altera a disponibilidade semanal persistida para o profissional selecionado."
           >
             <div className="professional-availability-grid">
               {availabilityDays.map((day) => (
-                <div className="professional-availability-row" key={day.weekday}>
+                <div
+                  className="professional-availability-row"
+                  key={day.weekday}
+                >
                   <label className="professional-availability-day">
                     <input
                       checked={day.enabled}
@@ -5426,6 +6348,17 @@ export function App() {
                   Ver agenda
                 </button>
               ) : null}
+              {selectedProfessionalId ? (
+                <button
+                  className="secondary-button"
+                  onClick={() =>
+                    openProfessionalServicesWorkspace(selectedProfessionalId)
+                  }
+                  type="button"
+                >
+                  Profissionais x Servicos
+                </button>
+              ) : null}
               <button
                 className="primary-button"
                 disabled={isBusy || !selectedProfessionalId}
@@ -5439,121 +6372,668 @@ export function App() {
         </form>
       </div>
     );
-
   }
 
-  function renderProfessionalsPanel(): JSX.Element {
-    const hasDetail = isCreatingProfessional || Boolean(selectedProfessionalId);
+  function renderProfessionalServicesWorkspace(): JSX.Element {
+    const selectedProfessional =
+      professionals.find(
+        (professional) => professional.id === selectedProfessionalId
+      ) ?? null;
+    const linkedServiceNames = selectedProfessional
+      ? resolveProfessionalServiceNames(selectedProfessional, services)
+      : [];
+    const selectedProfessionalBank =
+      banks.find(
+        (bank) =>
+          bank.id === professionalForm.bankId ||
+          bank.id === selectedProfessional?.bankId
+      ) ?? null;
+    const normalizedQuery = professionalServicesSearch.trim().toLowerCase();
+    const filteredServices = services.filter((service) => {
+      if (
+        professionalServicesStatusFilter !== "all" &&
+        service.status !== professionalServicesStatusFilter
+      ) {
+        return false;
+      }
+
+      if (!normalizedQuery) {
+        return true;
+      }
+
+      const searchable = [
+        service.codigo,
+        service.nome,
+        formatServiceStatus(service.status),
+        String(service.duracaoMin),
+        formatCurrency(service.precoBase)
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return searchable.includes(normalizedQuery);
+    });
 
     return (
-      <MasterDetailLayout
-        className="professionals-master-detail"
-        eyebrow="Equipe"
-        title="Profissionais"
-        subtitle="Cadastro principal da equipe com detalhe relacional de servicos e horarios."
-        toolbar={
-          <button
-            className="admin-primary-action"
-            onClick={() => openProfessionalProfileWorkspace()}
-            type="button"
-          >
-            <Plus className="w-4 h-4" />
-            Novo profissional
-          </button>
-        }
-        masterTitle="Equipe cadastrada"
-        masterDescription="Selecione um profissional para editar cadastro, servicos vinculados e horarios."
-        master={
-          professionals.length ? (
-            <div className="entity-record-list professionals-master-list" role="list">
-              {professionals.map((professional) => {
-                const linkedServiceNames = resolveProfessionalServiceNames(professional, services);
-                const isSelected = !isCreatingProfessional && professional.id === selectedProfessionalId;
+      <div className="professionals-detail-stack">
+        <DocumentHeader
+          fields={[
+            {
+              id: "service-links-code",
+              label: "Codigo",
+              value: selectedProfessional?.codigo ?? "Selecione um profissional"
+            },
+            {
+              id: "service-links-professional",
+              label: "Profissional",
+              value: selectedProfessional?.nome ?? "Sem profissional carregado"
+            },
+            {
+              id: "service-links-count",
+              label: "Servicos vinculados",
+              value: String(professionalForm.especialidades.length)
+            },
+            {
+              id: "service-links-bank",
+              label: "Banco padrao",
+              value: selectedProfessionalBank?.nomeBanco ?? "Nao definido"
+            }
+          ]}
+        />
 
-                return (
+        <article className="ag-surface-card ag-view-panel professional-service-workspace">
+          <div className="ag-view-panel-header">
+            <div className="ag-view-panel-copy">
+              <h3 className="ag-view-panel-title">Profissionais x Servicos</h3>
+              <p className="ag-view-panel-description">
+                Use a consulta padrao para selecionar o profissional e marque os
+                servicos que ele pode atender.
+              </p>
+            </div>
+            <ViewBadge tone="info">
+              {filteredServices.length} servico(s)
+            </ViewBadge>
+          </div>
+
+          <div className="professional-service-toolbar">
+            <label className="dashboard-select field-wide">
+              <span>Profissional</span>
+              <div className="lookup-inline-field">
+                <input
+                  readOnly
+                  type="text"
+                  value={
+                    selectedProfessional
+                      ? `${selectedProfessional.codigo} | ${selectedProfessional.nome}`
+                      : "Selecione um profissional"
+                  }
+                />
+                <button
+                  className="secondary-button"
+                  onClick={() => setIsProfessionalLookupOpen(true)}
+                  type="button"
+                >
+                  <Search className="w-4 h-4" />
+                  Buscar
+                </button>
+                <button
+                  className="secondary-button"
+                  disabled={!selectedProfessionalId}
+                  onClick={() => clearSelectedProfessional()}
+                  type="button"
+                >
+                  Limpar
+                </button>
+              </div>
+            </label>
+
+            <label className="dashboard-select">
+              <span>Pesquisar servico</span>
+              <input
+                placeholder="Codigo, nome ou status"
+                type="search"
+                value={professionalServicesSearch}
+                onChange={(event) =>
+                  setProfessionalServicesSearch(event.target.value)
+                }
+              />
+            </label>
+
+            <label className="dashboard-select">
+              <span>Status</span>
+              <select
+                value={professionalServicesStatusFilter}
+                onChange={(event) =>
+                  setProfessionalServicesStatusFilter(
+                    event.target.value as ServiceStatus | "all"
+                  )
+                }
+              >
+                <option value="all">Todos</option>
+                {serviceStatusValues.map((status) => (
+                  <option key={status} value={status}>
+                    {formatServiceStatus(status)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {selectedProfessional ? (
+            <>
+              <div className="professional-service-summary">
+                <span>
+                  {linkedServiceNames.length} servico(s) atualmente vinculados
+                </span>
+                <span>
+                  {linkedServiceNames.length
+                    ? linkedServiceNames.join(" | ")
+                    : "Nenhum servico vinculado ainda."}
+                </span>
+              </div>
+
+              <div className="professional-service-browse-shell">
+                <div className="finance-browse-shell professional-service-browse">
+                  <div
+                    className="finance-browse-row finance-browse-header"
+                    role="row"
+                  >
+                    <span className="finance-browse-cell" role="columnheader">
+                      Vincular
+                    </span>
+                    <span className="finance-browse-cell" role="columnheader">
+                      Codigo
+                    </span>
+                    <span className="finance-browse-cell" role="columnheader">
+                      Servico
+                    </span>
+                    <span className="finance-browse-cell" role="columnheader">
+                      Duracao
+                    </span>
+                    <span className="finance-browse-cell" role="columnheader">
+                      Preco
+                    </span>
+                    <span className="finance-browse-cell" role="columnheader">
+                      Status
+                    </span>
+                  </div>
+                  <div className="finance-browse-body professional-service-browse-body">
+                    {filteredServices.length ? (
+                      filteredServices.map((service) => {
+                        const isLinked =
+                          professionalForm.especialidades.includes(service.id);
+
+                        return (
+                          <label
+                            className={
+                              isLinked
+                                ? "finance-browse-row professional-service-browse-row is-selected"
+                                : "finance-browse-row professional-service-browse-row"
+                            }
+                            key={service.id}
+                          >
+                            <span className="finance-browse-cell professional-service-toggle-cell">
+                              <input
+                                checked={isLinked}
+                                disabled={isBusy}
+                                type="checkbox"
+                                onChange={() =>
+                                  void handleToggleProfessionalServiceLink(
+                                    service.id
+                                  )
+                                }
+                              />
+                            </span>
+                            <span className="finance-browse-cell">
+                              {service.codigo}
+                            </span>
+                            <span className="finance-browse-cell">
+                              <strong>{service.nome}</strong>
+                            </span>
+                            <span className="finance-browse-cell">
+                              {formatMinutesAsHours(service.duracaoMin)}
+                            </span>
+                            <span className="finance-browse-cell">
+                              {formatCurrency(service.precoBase)}
+                            </span>
+                            <span className="finance-browse-cell">
+                              <span
+                                className={`status-pill is-${service.status === "active" ? "success" : "warning"}`}
+                              >
+                                {formatServiceStatus(service.status)}
+                              </span>
+                            </span>
+                          </label>
+                        );
+                      })
+                    ) : (
+                      <div className="empty-state finance-browse-empty">
+                        Nenhum servico encontrado para o filtro atual.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="professional-editor-footer">
+                <div className="professional-editor-summary">
+                  <span>
+                    Marcacao imediata salva o vinculo no backend atual.
+                  </span>
+                  <span>
+                    Use busca, status e rolagem para trabalhar lotes maiores sem
+                    sair da tela.
+                  </span>
+                </div>
+                <div className="button-row">
                   <button
-                    aria-pressed={isSelected}
-                    className={isSelected ? "entity-record-row is-selected" : "entity-record-row"}
-                    key={professional.id}
-                    onClick={() => openProfessionalProfileWorkspace(professional.id)}
+                    className="secondary-button"
+                    onClick={() => setProfessionalWorkspaceMode("profile")}
                     type="button"
                   >
-                    <span className="entity-record-row-index">{professional.codigo}</span>
-                    <div className="entity-record-row-main">
-                      <strong>{professional.nome}</strong>
-                      <span>{resolveProfessionalSummaryLine(linkedServiceNames)}</span>
-                    </div>
-                    <div className="entity-record-row-meta">
-                      <span>{linkedServiceNames.length} servico(s)</span>
-                      <span className={`status-pill is-${resolveProfessionalStatusTone(professional.status)}`}>
-                        {formatProfessionalStatus(professional.status)}
-                      </span>
-                    </div>
+                    Cadastro base
                   </button>
-                );
-              })}
-            </div>
-          ) : (
-            <article className="professional-empty-state">
-              <div>
-                <h3>Nenhum profissional cadastrado</h3>
-                <p>Crie o primeiro perfil da equipe para liberar agenda, horarios e vinculo com servicos.</p>
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      openProfessionalAvailabilityWorkspace(
+                        selectedProfessional.id
+                      )
+                    }
+                    type="button"
+                  >
+                    Horarios
+                  </button>
+                  <button
+                    className="secondary-button"
+                    onClick={() =>
+                      openProfessionalAgenda(selectedProfessional.id)
+                    }
+                    type="button"
+                  >
+                    Ver agenda
+                  </button>
+                </div>
               </div>
-            </article>
-          )
-        }
-        detailTitle={
-          professionalWorkspaceMode === "availability"
-            ? "Horarios e agenda"
-            : isCreatingProfessional
-              ? "Novo profissional"
-              : "Cadastro e servicos"
-        }
-        detailDescription={
-          professionalWorkspaceMode === "availability"
-            ? "Ajuste a janela semanal que alimenta agenda e slots."
-            : "Edite o cadastro do profissional e os servicos que ele pode atender."
-        }
-        detail={
-          hasDetail
-            ? professionalWorkspaceMode === "availability"
-              ? renderProfessionalAvailabilityWorkspace()
-              : renderProfessionalProfileWorkspace()
-            : undefined
-        }
-        emptyDetail={
-          <div className="empty-state">
-            Selecione um profissional para abrir o detalhe da equipe ou crie um novo cadastro.
+            </>
+          ) : (
+            <div className="empty-state professional-service-empty">
+              Use a lupa do cabecalho para escolher o profissional e abrir a
+              amarracao com servicos.
+            </div>
+          )}
+        </article>
+      </div>
+    );
+  }
+
+  function renderProfessionalBrowsePanel(): JSX.Element {
+    const professionalColumns = [
+      { key: "codigo", label: "Codigo" },
+      { key: "profissional", label: "Profissional" },
+      { key: "servicos", label: "Servicos" },
+      { key: "status", label: "Status" }
+    ] as const;
+    const professionalRows = professionals.map((professional) => {
+      const linkedServiceNames = resolveProfessionalServiceNames(
+        professional,
+        services
+      );
+
+      return {
+        id: professional.id,
+        selected:
+          !isCreatingProfessional && professional.id === selectedProfessionalId,
+        onClick: () => openProfessionalProfileWorkspace(professional.id),
+        cells: [
+          { key: "codigo", value: professional.codigo },
+          {
+            key: "profissional",
+            value: `${professional.nome} | ${resolveProfessionalSummaryLine(linkedServiceNames)}`
+          },
+          { key: "servicos", value: `${linkedServiceNames.length} vinculo(s)` },
+          {
+            key: "status",
+            value: (
+              <span
+                className={`status-pill is-${resolveProfessionalStatusTone(professional.status)}`}
+              >
+                {formatProfessionalStatus(professional.status)}
+              </span>
+            )
+          }
+        ]
+      };
+    });
+
+    return (
+      <article className="ag-surface-card ag-view-panel professional-browse-panel">
+        <div className="ag-view-panel-header">
+          <div className="ag-view-panel-copy">
+            <h3 className="ag-view-panel-title">Equipe cadastrada</h3>
+            <p className="ag-view-panel-description">
+              Selecione um profissional para editar cadastro, amarracoes e
+              horarios.
+            </p>
           </div>
-        }
-      />
+          <ViewBadge tone="info">{professionals.length} cadastro(s)</ViewBadge>
+        </div>
+
+        <div className="professionals-browse-shell">
+          {renderFinanceBrowseTable(
+            professionalColumns,
+            professionalRows,
+            "Nenhum profissional cadastrado."
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  function renderProfessionalLookupModal(): JSX.Element | null {
+    if (!isProfessionalLookupOpen) {
+      return null;
+    }
+
+    const lookupColumns = [
+      { key: "codigo", label: "Codigo" },
+      { key: "profissional", label: "Profissional" },
+      { key: "servicos", label: "Servicos" },
+      { key: "status", label: "Status" }
+    ] as const;
+    const lookupRows = professionals.map((professional) => {
+      const linkedServiceNames = resolveProfessionalServiceNames(
+        professional,
+        services
+      );
+
+      return {
+        id: professional.id,
+        selected: professional.id === selectedProfessionalId,
+        onClick: () => {
+          setIsCreatingProfessional(false);
+          setSelectedProfessionalId(professional.id);
+          setIsProfessionalLookupOpen(false);
+          scrollProfessionalsWorkspaceIntoView();
+        },
+        cells: [
+          { key: "codigo", value: professional.codigo },
+          { key: "profissional", value: professional.nome },
+          { key: "servicos", value: `${linkedServiceNames.length} vinculo(s)` },
+          {
+            key: "status",
+            value: (
+              <span
+                className={`status-pill is-${resolveProfessionalStatusTone(professional.status)}`}
+              >
+                {formatProfessionalStatus(professional.status)}
+              </span>
+            )
+          }
+        ]
+      };
+    });
+
+    return (
+      <WorkspaceRecordModal
+        subtitle="Escolha o profissional para editar cadastro, horarios ou amarracoes com servicos."
+        title="Selecionar profissional"
+        onClose={() => setIsProfessionalLookupOpen(false)}
+      >
+        <div className="stack-form professionals-browse-shell">
+          {renderFinanceBrowseTable(
+            lookupColumns,
+            lookupRows,
+            "Nenhum profissional disponivel."
+          )}
+        </div>
+      </WorkspaceRecordModal>
     );
   }
 
   function renderProfessionalsView(): JSX.Element {
-    return renderProfessionalsPanel();
+    const selectedProfessional =
+      professionals.find(
+        (professional) => professional.id === selectedProfessionalId
+      ) ?? null;
+    const linkedServiceNames = selectedProfessional
+      ? resolveProfessionalServiceNames(selectedProfessional, services)
+      : [];
+    const professionalsWithLinks = professionals.filter(
+      (professional) => professional.especialidades.length > 0
+    ).length;
+    const activeProfessionals = professionals.filter(
+      (professional) => professional.status === "active"
+    ).length;
+    const selectedProfessionalStatusTone = selectedProfessional
+      ? resolveProfessionalStatusTone(selectedProfessional.status)
+      : "neutral";
+    const workspaceTitle =
+      professionalWorkspaceMode === "services"
+        ? "Profissionais x Servicos"
+        : professionalWorkspaceMode === "availability"
+          ? "Horarios"
+          : isCreatingProfessional
+            ? "Novo profissional"
+            : "Cadastro base";
+
+    return (
+      <>
+        <DocumentViewLayout
+          className="professional-document-view"
+          eyebrow="Equipe"
+          header={null}
+          title="Profissionais"
+          subtitle="Cadastro base, amarracoes com servicos e horarios operacionais em uma unica frente de trabalho."
+          statusBadge={
+            <ViewBadge
+              tone={
+                selectedProfessionalStatusTone as
+                  | "neutral"
+                  | "info"
+                  | "success"
+                  | "warning"
+                  | "danger"
+              }
+            >
+              {selectedProfessional
+                ? `${selectedProfessional.nome} | ${workspaceTitle}`
+                : workspaceTitle}
+            </ViewBadge>
+          }
+          pageActions={
+            <div className="professionals-page-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setIsProfessionalLookupOpen(true)}
+                type="button"
+              >
+                Selecionar profissional
+              </button>
+              <button
+                className="secondary-button"
+                disabled={isBusy}
+                onClick={handleRefreshClick}
+                type="button"
+              >
+                Atualizar
+              </button>
+              {selectedProfessionalId ? (
+                <button
+                  className="secondary-button"
+                  onClick={() => openProfessionalAgenda(selectedProfessionalId)}
+                  type="button"
+                >
+                  Ver agenda
+                </button>
+              ) : null}
+              <button
+                className="primary-button"
+                onClick={() => openProfessionalProfileWorkspace()}
+                type="button"
+              >
+                Novo profissional
+              </button>
+            </div>
+          }
+          summary={
+            <DocumentSummaryCards
+              metrics={[
+                {
+                  id: "total",
+                  label: "Equipe cadastrada",
+                  value: professionals.length,
+                  helper: "Cadastros disponiveis para agenda e operacao.",
+                  tone: "info"
+                },
+                {
+                  id: "active",
+                  label: "Ativos",
+                  value: activeProfessionals,
+                  helper: "Profissionais ativos no cadastro principal.",
+                  tone: "success"
+                },
+                {
+                  id: "linked",
+                  label: "Com vinculos",
+                  value: professionalsWithLinks,
+                  helper: "Equipe com pelo menos um servico relacionado.",
+                  tone: "warning"
+                },
+                {
+                  id: "selected",
+                  label: "Selecionado",
+                  value: selectedProfessional?.codigo ?? "Sem foco",
+                  helper: selectedProfessional
+                    ? linkedServiceNames.join(" | ") ||
+                      "Sem servicos vinculados."
+                    : "Abra o browse ou a consulta padrao."
+                }
+              ]}
+            />
+          }
+          tabs={
+            <div
+              aria-label="Workspace de profissionais"
+              className="dashboard-tabbar professional-workspace-tabbar"
+              role="tablist"
+            >
+              <button
+                aria-selected={professionalWorkspaceMode === "profile"}
+                className={
+                  professionalWorkspaceMode === "profile"
+                    ? "dashboard-tab-button is-active"
+                    : "dashboard-tab-button"
+                }
+                onClick={() => setProfessionalWorkspaceMode("profile")}
+                role="tab"
+                type="button"
+              >
+                Cadastro base
+              </button>
+              <button
+                aria-selected={professionalWorkspaceMode === "services"}
+                className={
+                  professionalWorkspaceMode === "services"
+                    ? "dashboard-tab-button is-active"
+                    : "dashboard-tab-button"
+                }
+                onClick={() =>
+                  openProfessionalServicesWorkspace(
+                    selectedProfessionalId || undefined
+                  )
+                }
+                role="tab"
+                type="button"
+              >
+                Profissionais x Servicos
+              </button>
+              <button
+                aria-selected={professionalWorkspaceMode === "availability"}
+                className={
+                  professionalWorkspaceMode === "availability"
+                    ? "dashboard-tab-button is-active"
+                    : "dashboard-tab-button"
+                }
+                disabled={!selectedProfessionalId}
+                onClick={() =>
+                  selectedProfessionalId &&
+                  openProfessionalAvailabilityWorkspace(selectedProfessionalId)
+                }
+                role="tab"
+                type="button"
+              >
+                Horarios
+              </button>
+            </div>
+          }
+          items={
+            <div
+              className="professionals-document-grid"
+              id="professionals-workspace"
+            >
+              <div className="professionals-document-main">
+                {renderProfessionalBrowsePanel()}
+              </div>
+              <div className="professionals-document-detail">
+                {professionalWorkspaceMode === "services"
+                  ? renderProfessionalServicesWorkspace()
+                  : professionalWorkspaceMode === "availability" &&
+                      selectedProfessionalId
+                    ? renderProfessionalAvailabilityWorkspace()
+                    : renderProfessionalProfileWorkspace()}
+              </div>
+            </div>
+          }
+        />
+        {renderProfessionalLookupModal()}
+      </>
+    );
   }
 
   function renderOperationalView(): JSX.Element {
     const isTodayView = agendaDate === formatDateInputValue(new Date());
-    const pendingDayBookings = filteredDayAgendaBookings.filter((booking) => isPendingBookingStatus(booking.status));
-    const confirmedDayBookings = filteredDayAgendaBookings.filter((booking) => booking.status === "confirmado");
-    const completedDayBookings = filteredDayAgendaBookings.filter((booking) => booking.status === "concluido");
-    const noShowDayBookings = filteredDayAgendaBookings.filter((booking) => booking.status === "faltou");
-    const openDayBookings = filteredDayAgendaBookings.filter((booking) => isOpenBookingStatus(booking.status));
+    const pendingDayBookings = filteredDayAgendaBookings.filter((booking) =>
+      isPendingBookingStatus(booking.status)
+    );
+    const confirmedDayBookings = filteredDayAgendaBookings.filter(
+      (booking) => booking.status === "confirmado"
+    );
+    const completedDayBookings = filteredDayAgendaBookings.filter(
+      (booking) => booking.status === "concluido"
+    );
+    const noShowDayBookings = filteredDayAgendaBookings.filter(
+      (booking) => booking.status === "faltou"
+    );
+    const openDayBookings = filteredDayAgendaBookings.filter((booking) =>
+      isOpenBookingStatus(booking.status)
+    );
     const dayProjectedRevenue = filteredDayAgendaBookings.reduce(
-      (total, booking) => total + (services.find((service) => service.id === booking.serviceId)?.precoBase ?? 0),
+      (total, booking) =>
+        total +
+        (services.find((service) => service.id === booking.serviceId)
+          ?.precoBase ?? 0),
       0
     );
     const dayRecognizedRevenue = completedDayBookings.reduce(
-      (total, booking) => total + resolveRecognizedRevenueAmount(booking, services, cashEntries),
+      (total, booking) =>
+        total + resolveRecognizedRevenueAmount(booking, services, cashEntries),
       0
     );
-    const dayApprovedOnlineRevenue = completedDayBookings.reduce((total, booking) => {
-      const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-      return total + resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries);
-    }, 0);
-    const nextOperationalBooking = openDayBookings[0] ?? filteredDayAgendaBookings[0];
+    const dayApprovedOnlineRevenue = completedDayBookings.reduce(
+      (total, booking) => {
+        const paymentIntent = paymentIntents.find(
+          (item) => item.bookingId === booking.id
+        );
+        return (
+          total +
+          resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries)
+        );
+      },
+      0
+    );
+    const nextOperationalBooking =
+      openDayBookings[0] ?? filteredDayAgendaBookings[0];
     const operationalFilterLabel =
       agendaProfessionalFilter === "all"
         ? "Equipe inteira"
@@ -5564,19 +7044,53 @@ export function App() {
       readonly icon: LucideIcon;
       readonly count: number;
     }> = [
-      { id: "overview", label: "Resumo do dia", icon: ListTodo, count: filteredDayAgendaBookings.length },
-      { id: "pending", label: "Pendencias", icon: AlertCircle, count: pendingDayBookings.length },
-      { id: "confirmed", label: "Confirmados", icon: CheckCircle, count: confirmedDayBookings.length },
-      { id: "completed", label: "Concluidos", icon: Check, count: completedDayBookings.length },
-      { id: "noshow", label: "No-show", icon: XCircle, count: noShowDayBookings.length }
+      {
+        id: "overview",
+        label: "Resumo do dia",
+        icon: ListTodo,
+        count: filteredDayAgendaBookings.length
+      },
+      {
+        id: "pending",
+        label: "Pendencias",
+        icon: AlertCircle,
+        count: pendingDayBookings.length
+      },
+      {
+        id: "confirmed",
+        label: "Confirmados",
+        icon: CheckCircle,
+        count: confirmedDayBookings.length
+      },
+      {
+        id: "completed",
+        label: "Concluidos",
+        icon: Check,
+        count: completedDayBookings.length
+      },
+      {
+        id: "noshow",
+        label: "No-show",
+        icon: XCircle,
+        count: noShowDayBookings.length
+      }
     ];
-    const selectedOperationalProfessional = selectedAgendaBooking ?
-      professionals.find((professional) => professional.id === selectedAgendaBooking.professionalId)
-    : undefined;
-    const selectedOperationalService = selectedAgendaBooking ?
-      services.find((service) => service.id === selectedAgendaBooking.serviceId)
-    : undefined;
-    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry && !selectedAgendaBankMovement);
+    const selectedOperationalProfessional = selectedAgendaBooking
+      ? professionals.find(
+          (professional) =>
+            professional.id === selectedAgendaBooking.professionalId
+        )
+      : undefined;
+    const selectedOperationalService = selectedAgendaBooking
+      ? services.find(
+          (service) => service.id === selectedAgendaBooking.serviceId
+        )
+      : undefined;
+    const canReceiveSelectedBooking = Boolean(
+      selectedAgendaBooking &&
+      selectedAgendaCashEntry &&
+      !selectedAgendaBankMovement
+    );
     const canReverseSelectedBooking = Boolean(selectedAgendaBankMovement);
 
     const renderOperationalStatusBadge = (booking: Booking): JSX.Element => {
@@ -5623,10 +7137,16 @@ export function App() {
       return (
         <div className="records-column operational-records">
           {bookingsForTab.map((booking) => {
-            const service = services.find((item) => item.id === booking.serviceId);
-            const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+            const service = services.find(
+              (item) => item.id === booking.serviceId
+            );
+            const paymentIntent = paymentIntents.find(
+              (item) => item.bookingId === booking.id
+            );
             const actions = resolveBookingActions(booking);
-            const canSyncPayment = paymentIntent !== undefined && paymentIntent.status !== "approved";
+            const canSyncPayment =
+              paymentIntent !== undefined &&
+              paymentIntent.status !== "approved";
             const projectedAmount = service?.precoBase ?? 0;
             const recognizedAmount =
               booking.status === "concluido"
@@ -5655,16 +7175,24 @@ export function App() {
               >
                 <div className="record-card-header operational-record-heading">
                   <div className="record-stack operational-record-copy">
-                    <strong>{resolveClientName(booking.clientId, clients)}</strong>
+                    <strong>
+                      {resolveClientName(booking.clientId, clients)}
+                    </strong>
                     <span>
-                      {resolveServiceName(booking.serviceId, services)}  |  Prof.{" "}
-                      {resolveProfessionalName(booking.professionalId, professionals)}
+                      {resolveServiceName(booking.serviceId, services)} | Prof.{" "}
+                      {resolveProfessionalName(
+                        booking.professionalId,
+                        professionals
+                      )}
                     </span>
                   </div>
                   <div className="operational-record-badges">
-                    <span className="status-pill is-neutral">{formatTimeRange(booking.startAt, booking.endAt)}</span>
+                    <span className="status-pill is-neutral">
+                      {formatTimeRange(booking.startAt, booking.endAt)}
+                    </span>
                     {renderOperationalStatusBadge(booking)}
-                    {paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? (
+                    {paymentIntent &&
+                    isApprovedPaymentIntent(paymentIntent.status) ? (
                       <span className="status-pill is-success">
                         <CreditCard className="w-3 h-3" />
                         Pago antecipado
@@ -5689,28 +7217,51 @@ export function App() {
                       className={resolveActionButtonClassName(action.tone)}
                       disabled={isBusy}
                       key={action.label}
-                      onClick={() => void handleBookingStatusAction(booking.id, action.nextStatus)}
+                      onClick={() =>
+                        void handleBookingStatusAction(
+                          booking.id,
+                          action.nextStatus
+                        )
+                      }
                       type="button"
                     >
-                      {action.nextStatus === "concluido" ? <Check className="w-4 h-4" /> : null}
-                      {action.nextStatus === "confirmado" ? <CheckCircle className="w-4 h-4" /> : null}
-                      {action.nextStatus === "faltou" ? <XCircle className="w-4 h-4" /> : null}
+                      {action.nextStatus === "concluido" ? (
+                        <Check className="w-4 h-4" />
+                      ) : null}
+                      {action.nextStatus === "confirmado" ? (
+                        <CheckCircle className="w-4 h-4" />
+                      ) : null}
+                      {action.nextStatus === "faltou" ? (
+                        <XCircle className="w-4 h-4" />
+                      ) : null}
                       {action.label}
                     </button>
                   ))}
                   {canRescheduleBooking(booking) ? (
-                    <button className="secondary-button" onClick={() => handleOpenAgendaBooking(booking)} type="button">
+                    <button
+                      className="secondary-button"
+                      onClick={() => handleOpenAgendaBooking(booking)}
+                      type="button"
+                    >
                       <CalendarIcon className="w-4 h-4" />
                       Reagendar
                     </button>
                   ) : null}
                   {paymentIntent && canSyncPayment ? (
-                    <button className="secondary-button" onClick={() => void handlePaymentSync(paymentIntent)} type="button">
+                    <button
+                      className="secondary-button"
+                      onClick={() => void handlePaymentSync(paymentIntent)}
+                      type="button"
+                    >
                       <CreditCard className="w-4 h-4" />
                       Atualizar pagamento
                     </button>
                   ) : null}
-                  <button className="secondary-button" onClick={() => handleOpenAgendaBooking(booking)} type="button">
+                  <button
+                    className="secondary-button"
+                    onClick={() => handleOpenAgendaBooking(booking)}
+                    type="button"
+                  >
                     <CalendarDays className="w-4 h-4" />
                     Abrir agenda
                   </button>
@@ -5726,23 +7277,41 @@ export function App() {
       <DocumentViewLayout
         className="operational-document-view"
         eyebrow="Rotina do dia"
-        title={isTodayView ? "Operacao de hoje" : formatAgendaDayLabel(agendaDate)}
+        title={
+          isTodayView ? "Operacao de hoje" : formatAgendaDayLabel(agendaDate)
+        }
         subtitle="Pendencias, confirmacoes e encerramentos do dia organizados por visao, sem misturar toda a fila em uma unica superficie."
-        statusBadge={<ViewBadge tone={isTodayView ? "success" : "info"}>{operationalFilterLabel}</ViewBadge>}
+        statusBadge={
+          <ViewBadge tone={isTodayView ? "success" : "info"}>
+            {operationalFilterLabel}
+          </ViewBadge>
+        }
         pageActions={
           <div className="operational-document-actions">
             <div className="operational-day-switch">
-              <button className="secondary-button" onClick={() => handleAgendaDateShift(-1)} type="button">
+              <button
+                className="secondary-button"
+                onClick={() => handleAgendaDateShift(-1)}
+                type="button"
+              >
                 Ontem
               </button>
               <button
-                className={isTodayView ? "secondary-button is-active" : "secondary-button"}
+                className={
+                  isTodayView
+                    ? "secondary-button is-active"
+                    : "secondary-button"
+                }
                 onClick={() => setAgendaDate(formatDateInputValue(new Date()))}
                 type="button"
               >
                 Hoje
               </button>
-              <button className="secondary-button" onClick={() => handleAgendaDateShift(1)} type="button">
+              <button
+                className="secondary-button"
+                onClick={() => handleAgendaDateShift(1)}
+                type="button"
+              >
                 Amanha
               </button>
             </div>
@@ -5750,7 +7319,9 @@ export function App() {
             <label className="dashboard-select">
               <span>Profissional</span>
               <select
-                onChange={(event) => setAgendaProfessionalFilter(event.target.value)}
+                onChange={(event) =>
+                  setAgendaProfessionalFilter(event.target.value)
+                }
                 value={agendaProfessionalFilter}
               >
                 <option value="all">Equipe inteira</option>
@@ -5765,7 +7336,11 @@ export function App() {
             <button
               className="secondary-button"
               disabled={!selectedAgendaBooking}
-              onClick={() => selectedAgendaBooking ? handleOpenAgendaBooking(selectedAgendaBooking) : undefined}
+              onClick={() =>
+                selectedAgendaBooking
+                  ? handleOpenAgendaBooking(selectedAgendaBooking)
+                  : undefined
+              }
               type="button"
             >
               Visualizar
@@ -5783,7 +7358,13 @@ export function App() {
                 setFinanceModalMode("create");
                 setReceiveMovementForm({
                   bankIdDestino: selectedOperationalProfessional?.bankId ?? "",
-                  valor: String(resolveRecognizedRevenueAmount(selectedAgendaBooking, services, cashEntries)),
+                  valor: String(
+                    resolveRecognizedRevenueAmount(
+                      selectedAgendaBooking,
+                      services,
+                      cashEntries
+                    )
+                  ),
                   historico: `Recebimento ${selectedAgendaBooking.id.slice(-8).toUpperCase()} | ${selectedOperationalService?.nome ?? "Atendimento"}`,
                   dataMovimento: new Date().toISOString().slice(0, 16)
                 });
@@ -5811,10 +7392,19 @@ export function App() {
             >
               Estornar
             </button>
-            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+            <button
+              className="secondary-button"
+              disabled={isBusy}
+              onClick={handleRefreshClick}
+              type="button"
+            >
               Atualizar
             </button>
-            <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => navigateTo("agenda")}
+              type="button"
+            >
               Abrir agenda
             </button>
           </div>
@@ -5835,10 +7425,9 @@ export function App() {
               {
                 id: "next-action",
                 label: "Proxima acao",
-                value:
-                  nextOperationalBooking
-                    ? `${formatTimeRange(nextOperationalBooking.startAt, nextOperationalBooking.endAt)} · ${resolveClientName(nextOperationalBooking.clientId, clients)}`
-                    : "Sem fila em aberto"
+                value: nextOperationalBooking
+                  ? `${formatTimeRange(nextOperationalBooking.startAt, nextOperationalBooking.endAt)} · ${resolveClientName(nextOperationalBooking.clientId, clients)}`
+                  : "Sem fila em aberto"
               },
               {
                 id: "open",
@@ -5882,7 +7471,11 @@ export function App() {
           />
         }
         tabs={
-          <div aria-label="Visoes da operacao diaria" className="operational-tabbar" role="tablist">
+          <div
+            aria-label="Visoes da operacao diaria"
+            className="operational-tabbar"
+            role="tablist"
+          >
             {operationalTabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -5911,7 +7504,11 @@ export function App() {
             <EntitySection
               title="Pendencias da fila"
               description="Confirmacoes e cobranca pendentes para destravar o dia sem abrir a agenda completa."
-              actions={<ViewBadge tone="warning">{pendingDayBookings.length} na fila</ViewBadge>}
+              actions={
+                <ViewBadge tone="warning">
+                  {pendingDayBookings.length} na fila
+                </ViewBadge>
+              }
             >
               {renderOperationalRecords(
                 pendingDayBookings,
@@ -5922,7 +7519,11 @@ export function App() {
             <EntitySection
               title="Confirmados em preparo"
               description="Atendimentos confirmados prontos para execucao, reagendamento ou encerramento."
-              actions={<ViewBadge tone="info">{confirmedDayBookings.length} confirmados</ViewBadge>}
+              actions={
+                <ViewBadge tone="info">
+                  {confirmedDayBookings.length} confirmados
+                </ViewBadge>
+              }
             >
               {renderOperationalRecords(
                 confirmedDayBookings,
@@ -5933,7 +7534,11 @@ export function App() {
             <EntitySection
               title="Concluidos do dia"
               description="Fechamento operacional com leitura de receita reconhecida sem competir com relatorios."
-              actions={<ViewBadge tone="success">{completedDayBookings.length} concluidos</ViewBadge>}
+              actions={
+                <ViewBadge tone="success">
+                  {completedDayBookings.length} concluidos
+                </ViewBadge>
+              }
             >
               {renderOperationalRecords(
                 completedDayBookings,
@@ -5944,7 +7549,11 @@ export function App() {
             <EntitySection
               title="Ausencias registradas"
               description="No-shows do dia em uma visao propria para follow-up e contexto da equipe."
-              actions={<ViewBadge tone="danger">{noShowDayBookings.length} no-show</ViewBadge>}
+              actions={
+                <ViewBadge tone="danger">
+                  {noShowDayBookings.length} no-show
+                </ViewBadge>
+              }
             >
               {renderOperationalRecords(
                 noShowDayBookings,
@@ -5956,7 +7565,11 @@ export function App() {
               <EntitySection
                 title="Fila prioritaria"
                 description="Pendencias e confirmados mais proximos do dia, com acao direta e sem ruído de estados encerrados."
-                actions={<ViewBadge tone="info">{openDayBookings.length} em aberto</ViewBadge>}
+                actions={
+                  <ViewBadge tone="info">
+                    {openDayBookings.length} em aberto
+                  </ViewBadge>
+                }
               >
                 {renderOperationalRecords(
                   openDayBookings,
@@ -5987,7 +7600,8 @@ export function App() {
                       id: "approved-online",
                       label: "Entrada online aprovada",
                       value: formatCurrency(dayApprovedOnlineRevenue),
-                      helper: "Conciliacao minima ligada a bookings concluidas.",
+                      helper:
+                        "Conciliacao minima ligada a bookings concluidas.",
                       tone: "info"
                     },
                     {
@@ -6008,10 +7622,9 @@ export function App() {
     );
   }
 
-  function updateFinanceBrowseFilter<TTab extends keyof FinanceBrowseFiltersState>(
-    tab: TTab,
-    patch: Partial<FinanceBrowseFiltersState[TTab]>
-  ): void {
+  function updateFinanceBrowseFilter<
+    TTab extends keyof FinanceBrowseFiltersState
+  >(tab: TTab, patch: Partial<FinanceBrowseFiltersState[TTab]>): void {
     setFinanceBrowseFilters((current) => ({
       ...current,
       [tab]: {
@@ -6039,13 +7652,21 @@ export function App() {
         header={null}
         summary={null}
         tabs={
-          <div aria-label="Visoes do dashboard" className="dashboard-tabbar" role="tablist">
+          <div
+            aria-label="Visoes do dashboard"
+            className="dashboard-tabbar"
+            role="tablist"
+          >
             {dashboardTabs.map((tab) => {
               const Icon = tab.icon;
               return (
                 <button
                   aria-selected={dashboardWorkspaceTab === tab.id}
-                  className={dashboardWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                  className={
+                    dashboardWorkspaceTab === tab.id
+                      ? "dashboard-tab-button is-active"
+                      : "dashboard-tab-button"
+                  }
                   key={tab.id}
                   onClick={() => setDashboardWorkspaceTab(tab.id)}
                   role="tab"
@@ -6070,7 +7691,12 @@ export function App() {
                 <div className="dashboard-document-actions">
                   <label className="dashboard-select">
                     <span>Profissional</span>
-                    <select onChange={(event) => setDashboardProfessionalFilter(event.target.value)} value={dashboardProfessionalFilter}>
+                    <select
+                      onChange={(event) =>
+                        setDashboardProfessionalFilter(event.target.value)
+                      }
+                      value={dashboardProfessionalFilter}
+                    >
                       <option value="all">Todos</option>
                       {professionals.map((professional) => (
                         <option key={professional.id} value={professional.id}>
@@ -6079,7 +7705,11 @@ export function App() {
                       ))}
                     </select>
                   </label>
-                  <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+                  <button
+                    className="secondary-button"
+                    onClick={() => navigateTo("agenda")}
+                    type="button"
+                  >
                     Abrir agenda
                   </button>
                 </div>
@@ -6089,7 +7719,11 @@ export function App() {
                 <div className="dashboard-progress-block">
                   <div className="dashboard-progress-copy">
                     <span>Capacidade total</span>
-                    <strong>{formatMinutesAsHours(dashboardWeekCapacitySummary.totalMinutes)}</strong>
+                    <strong>
+                      {formatMinutesAsHours(
+                        dashboardWeekCapacitySummary.totalMinutes
+                      )}
+                    </strong>
                   </div>
                   <div className="dashboard-progress-bar">
                     <span style={{ width: "100%" }} />
@@ -6099,10 +7733,15 @@ export function App() {
                   <div className="dashboard-progress-copy">
                     <span>Horas ocupadas</span>
                     <strong>
-                      {formatMinutesAsHours(dashboardWeekCapacitySummary.bookedMinutes)} ({formatUtilization(
+                      {formatMinutesAsHours(
+                        dashboardWeekCapacitySummary.bookedMinutes
+                      )}{" "}
+                      (
+                      {formatUtilization(
                         dashboardWeekCapacitySummary.bookedMinutes,
                         dashboardWeekCapacitySummary.totalMinutes
-                      )})
+                      )}
+                      )
                     </strong>
                   </div>
                   <div className="dashboard-progress-bar">
@@ -6111,7 +7750,9 @@ export function App() {
                       style={{
                         width: `${Math.min(
                           dashboardWeekCapacitySummary.totalMinutes > 0
-                            ? (dashboardWeekCapacitySummary.bookedMinutes / dashboardWeekCapacitySummary.totalMinutes) * 100
+                            ? (dashboardWeekCapacitySummary.bookedMinutes /
+                                dashboardWeekCapacitySummary.totalMinutes) *
+                                100
                             : 0,
                           100
                         )}%`
@@ -6147,7 +7788,12 @@ export function App() {
                   <div className="dashboard-document-actions">
                     <label className="dashboard-select">
                       <span>Profissional</span>
-                      <select onChange={(event) => setDashboardProfessionalFilter(event.target.value)} value={dashboardProfessionalFilter}>
+                      <select
+                        onChange={(event) =>
+                          setDashboardProfessionalFilter(event.target.value)
+                        }
+                        value={dashboardProfessionalFilter}
+                      >
                         <option value="all">Todos</option>
                         {professionals.map((professional) => (
                           <option key={professional.id} value={professional.id}>
@@ -6156,7 +7802,11 @@ export function App() {
                         ))}
                       </select>
                     </label>
-                    <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
+                    <button
+                      className="secondary-button"
+                      onClick={() => navigateTo("relatorios")}
+                      type="button"
+                    >
                       Abrir relatorios
                     </button>
                   </div>
@@ -6167,18 +7817,24 @@ export function App() {
                     {
                       id: "radar-capacity",
                       label: "Capacidade total",
-                      value: formatMinutesAsHours(dashboardWeekCapacitySummary.totalMinutes)
+                      value: formatMinutesAsHours(
+                        dashboardWeekCapacitySummary.totalMinutes
+                      )
                     },
                     {
                       id: "radar-booked",
                       label: "Horas ocupadas",
-                      value: formatMinutesAsHours(dashboardWeekCapacitySummary.bookedMinutes),
+                      value: formatMinutesAsHours(
+                        dashboardWeekCapacitySummary.bookedMinutes
+                      ),
                       helper: `${dashboardWeekCapacitySummary.bookingsCount} booking(s)`
                     },
                     {
                       id: "radar-free",
                       label: "Horas livres",
-                      value: formatMinutesAsHours(dashboardWeekCapacitySummary.freeMinutes)
+                      value: formatMinutesAsHours(
+                        dashboardWeekCapacitySummary.freeMinutes
+                      )
                     },
                     {
                       id: "radar-open",
@@ -6192,14 +7848,24 @@ export function App() {
                 <EntitySection title="Capacidade por dia">
                   <div className="dashboard-kpi-list">
                     {dashboardWeekDaySummaries.map((summary) => (
-                      <article className="dashboard-kpi-item" key={summary.date}>
+                      <article
+                        className="dashboard-kpi-item"
+                        key={summary.date}
+                      >
                         <div className="dashboard-kpi-main">
                           <strong>{formatAgendaDayLabel(summary.date)}</strong>
                           <span>{summary.bookingsCount} booking(s)</span>
                         </div>
                         <div className="dashboard-kpi-side">
-                          <span>{formatMinutesAsHours(summary.bookedMinutes)} / {formatMinutesAsHours(summary.totalMinutes)}</span>
-                          <small>{summary.totalMinutes > 0 ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao` : "Sem capacidade"}</small>
+                          <span>
+                            {formatMinutesAsHours(summary.bookedMinutes)} /{" "}
+                            {formatMinutesAsHours(summary.totalMinutes)}
+                          </span>
+                          <small>
+                            {summary.totalMinutes > 0
+                              ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                              : "Sem capacidade"}
+                          </small>
                         </div>
                       </article>
                     ))}
@@ -6208,14 +7874,31 @@ export function App() {
                 <EntitySection title="Carga por profissional">
                   <div className="dashboard-kpi-list">
                     {dashboardWeekProfessionalSummaries.map((summary) => (
-                      <article className="dashboard-kpi-item" key={summary.professionalId}>
+                      <article
+                        className="dashboard-kpi-item"
+                        key={summary.professionalId}
+                      >
                         <div className="dashboard-kpi-main">
-                          <strong>{resolveProfessionalName(summary.professionalId, professionals)}</strong>
-                          <span>{formatMinutesAsHours(summary.bookedMinutes)} ocupadas</span>
+                          <strong>
+                            {resolveProfessionalName(
+                              summary.professionalId,
+                              professionals
+                            )}
+                          </strong>
+                          <span>
+                            {formatMinutesAsHours(summary.bookedMinutes)}{" "}
+                            ocupadas
+                          </span>
                         </div>
                         <div className="dashboard-kpi-side">
-                          <span>{formatMinutesAsHours(summary.totalMinutes)}</span>
-                          <small>{summary.totalMinutes > 0 ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao` : "Sem escala"}</small>
+                          <span>
+                            {formatMinutesAsHours(summary.totalMinutes)}
+                          </span>
+                          <small>
+                            {summary.totalMinutes > 0
+                              ? `${formatUtilization(summary.bookedMinutes, summary.totalMinutes)} ocupacao`
+                              : "Sem escala"}
+                          </small>
                         </div>
                       </article>
                     ))}
@@ -6231,7 +7914,10 @@ export function App() {
   }
 
   function renderFinanceiroView(): JSX.Element {
-    const financeTabs: ReadonlyArray<{ readonly id: FinanceWorkspaceTab; readonly label: string }> = [
+    const financeTabs: ReadonlyArray<{
+      readonly id: FinanceWorkspaceTab;
+      readonly label: string;
+    }> = [
       { id: "cashflow", label: "Fluxo de caixa" },
       { id: "banks", label: "Bancos" },
       { id: "balances", label: "Saldos iniciais" },
@@ -6248,11 +7934,19 @@ export function App() {
         header={null}
         summary={null}
         tabs={
-          <div aria-label="Abas do financeiro" className="dashboard-tabbar" role="tablist">
+          <div
+            aria-label="Abas do financeiro"
+            className="dashboard-tabbar"
+            role="tablist"
+          >
             {financeTabs.map((tab) => (
               <button
                 aria-selected={financeWorkspaceTab === tab.id}
-                className={financeWorkspaceTab === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                className={
+                  financeWorkspaceTab === tab.id
+                    ? "dashboard-tab-button is-active"
+                    : "dashboard-tab-button"
+                }
                 key={tab.id}
                 onClick={() => setFinanceWorkspaceTab(tab.id)}
                 role="tab"
@@ -6264,7 +7958,9 @@ export function App() {
           </div>
         }
         items={
-          financeWorkspaceTab === "cashflow" ? renderFinancialCashflowPanels({ showOpenFinanceButton: false }) : renderFinanceRegistryPanels()
+          financeWorkspaceTab === "cashflow"
+            ? renderFinancialCashflowPanels({ showOpenFinanceButton: false })
+            : renderFinanceRegistryPanels()
         }
         aside={null}
       />
@@ -6727,10 +8423,16 @@ export function App() {
     */
   }
 
-  function renderFinancialCashflowPanels(input: { readonly showOpenFinanceButton: boolean }): JSX.Element {
+  function renderFinancialCashflowPanels(input: {
+    readonly showOpenFinanceButton: boolean;
+  }): JSX.Element {
     const cashflowFilters = financeBrowseFilters.cashflow;
-    const visibleBankAccounts = (activeFinancialReadModel?.bankAccounts ?? []).filter((entry) =>
-      cashflowFilters.bankId === "all" ? true : entry.bankId === cashflowFilters.bankId
+    const visibleBankAccounts = (
+      activeFinancialReadModel?.bankAccounts ?? []
+    ).filter((entry) =>
+      cashflowFilters.bankId === "all"
+        ? true
+        : entry.bankId === cashflowFilters.bankId
     );
     const matchesCashflowDate = (value: string): boolean => {
       const dateValue = value.slice(0, 10);
@@ -6756,18 +8458,35 @@ export function App() {
         return movement.sourceType === "expense_schedule";
       }
       if (cashflowFilters.origin === "agenda") {
-        return movement.sourceType === "cash_entry" || movement.sourceType === "booking";
+        return (
+          movement.sourceType === "cash_entry" ||
+          movement.sourceType === "booking"
+        );
       }
       if (cashflowFilters.origin === "fechar_caixa") {
         return movement.sourceType === "cash_close";
       }
-      return ["manual_receipt", "manual_payment", "manual_adjustment", "fee", "transfer"].includes(movement.sourceType);
+      return [
+        "manual_receipt",
+        "manual_payment",
+        "manual_adjustment",
+        "fee",
+        "transfer"
+      ].includes(movement.sourceType);
     };
     const resolveMovementBankLabel = (movement: BankMovement): string => {
-      const originBank = banks.find((bank) => bank.id === movement.bankIdOrigem);
-      const destinationBank = banks.find((bank) => bank.id === movement.bankIdDestino);
-      const originLabel = originBank ? `${originBank.codigo} | ${originBank.nomeBanco}` : "";
-      const destinationLabel = destinationBank ? `${destinationBank.codigo} | ${destinationBank.nomeBanco}` : "";
+      const originBank = banks.find(
+        (bank) => bank.id === movement.bankIdOrigem
+      );
+      const destinationBank = banks.find(
+        (bank) => bank.id === movement.bankIdDestino
+      );
+      const originLabel = originBank
+        ? `${originBank.codigo} | ${originBank.nomeBanco}`
+        : "";
+      const destinationLabel = destinationBank
+        ? `${destinationBank.codigo} | ${destinationBank.nomeBanco}`
+        : "";
       if (originLabel && destinationLabel) {
         return `${originLabel} -> ${destinationLabel}`;
       }
@@ -6780,18 +8499,25 @@ export function App() {
           movement.bankIdOrigem === cashflowFilters.bankId ||
           movement.bankIdDestino === cashflowFilters.bankId;
         const matchesStatus =
-          cashflowFilters.movementStatus === "all" || movement.status === cashflowFilters.movementStatus;
-        const matchesType = cashflowFilters.type === "all" || movement.tipo === cashflowFilters.type;
+          cashflowFilters.movementStatus === "all" ||
+          movement.status === cashflowFilters.movementStatus;
+        const matchesType =
+          cashflowFilters.type === "all" ||
+          movement.tipo === cashflowFilters.type;
         return (
           matchesBank &&
           matchesStatus &&
           matchesType &&
           matchesCashflowOrigin(movement) &&
           matchesCashflowDate(movement.dataMovimento) &&
-          matchesCashflowQuery(`${movement.codigo} ${movement.historico} ${movement.beneficiarioNome ?? ""}`)
+          matchesCashflowQuery(
+            `${movement.codigo} ${movement.historico} ${movement.beneficiarioNome ?? ""}`
+          )
         );
       })
-      .sort((left, right) => right.dataMovimento.localeCompare(left.dataMovimento));
+      .sort((left, right) =>
+        right.dataMovimento.localeCompare(left.dataMovimento)
+      );
     const pendingCashEntryIds = new Set(
       cashEntries
         .filter((entry) => entry.status === "open")
@@ -6808,13 +8534,20 @@ export function App() {
         .map((entry) => entry.id)
     );
     const visibleReceivables =
-      cashflowFilters.movementStatus === "all" || cashflowFilters.movementStatus === "previsto"
+      cashflowFilters.movementStatus === "all" ||
+      cashflowFilters.movementStatus === "previsto"
         ? [
             ...revenueSchedules
               .filter((entry) => entry.status === "aberta")
-              .filter((entry) => (cashflowFilters.bankId === "all" ? true : entry.bankId === cashflowFilters.bankId))
+              .filter((entry) =>
+                cashflowFilters.bankId === "all"
+                  ? true
+                  : entry.bankId === cashflowFilters.bankId
+              )
               .filter((entry) => matchesCashflowDate(entry.dataVencimento))
-              .filter((entry) => matchesCashflowQuery(`${entry.codigo} ${entry.descricao}`))
+              .filter((entry) =>
+                matchesCashflowQuery(`${entry.codigo} ${entry.descricao}`)
+              )
               .map((entry) => ({
                 id: entry.id,
                 codigo: entry.codigo,
@@ -6827,7 +8560,9 @@ export function App() {
             ...cashEntries
               .filter((entry) => pendingCashEntryIds.has(entry.id))
               .filter((entry) => matchesCashflowDate(entry.occurredAt))
-              .filter((entry) => matchesCashflowQuery(`${entry.description} ${entry.id}`))
+              .filter((entry) =>
+                matchesCashflowQuery(`${entry.description} ${entry.id}`)
+              )
               .map((entry) => ({
                 id: entry.id,
                 codigo: entry.id.slice(0, 8).toUpperCase(),
@@ -6837,64 +8572,136 @@ export function App() {
                 origem: "agenda",
                 pessoa: resolveClientName(entry.clientId, clients)
               }))
-          ].sort((left, right) => left.dataVencimento.localeCompare(right.dataVencimento))
+          ].sort((left, right) =>
+            left.dataVencimento.localeCompare(right.dataVencimento)
+          )
         : [];
     const visiblePayables =
-      cashflowFilters.movementStatus === "all" || cashflowFilters.movementStatus === "previsto"
+      cashflowFilters.movementStatus === "all" ||
+      cashflowFilters.movementStatus === "previsto"
         ? expenseSchedules
             .filter((entry) => entry.status === "aberta")
-            .filter((entry) => (cashflowFilters.bankId === "all" ? true : entry.bankId === cashflowFilters.bankId))
+            .filter((entry) =>
+              cashflowFilters.bankId === "all"
+                ? true
+                : entry.bankId === cashflowFilters.bankId
+            )
             .filter((entry) => matchesCashflowDate(entry.dataVencimento))
             .filter((entry) =>
-              matchesCashflowQuery(`${entry.codigo} ${entry.descricao} ${entry.beneficiarioNome ?? ""}`)
+              matchesCashflowQuery(
+                `${entry.codigo} ${entry.descricao} ${entry.beneficiarioNome ?? ""}`
+              )
             )
-            .sort((left, right) => left.dataVencimento.localeCompare(right.dataVencimento))
+            .sort((left, right) =>
+              left.dataVencimento.localeCompare(right.dataVencimento)
+            )
         : [];
-    const consolidatedBalance = visibleBankAccounts.reduce((total, entry) => total + entry.saldoAtual, 0);
-    const receivableTotal = visibleReceivables.reduce((total, entry) => total + entry.valor, 0);
-    const payableTotal = visiblePayables.reduce((total, entry) => total + entry.valor, 0);
-    const projectedBalance = consolidatedBalance + receivableTotal - payableTotal;
+    const consolidatedBalance = visibleBankAccounts.reduce(
+      (total, entry) => total + entry.saldoAtual,
+      0
+    );
+    const receivableTotal = visibleReceivables.reduce(
+      (total, entry) => total + entry.valor,
+      0
+    );
+    const payableTotal = visiblePayables.reduce(
+      (total, entry) => total + entry.valor,
+      0
+    );
+    const projectedBalance =
+      consolidatedBalance + receivableTotal - payableTotal;
 
     return (
       <div className="dashboard-secondary-grid">
         <div className="financial-cashflow-toolbar">
           <div className="dashboard-document-actions">
-            <button className="secondary-button" onClick={openCashflowFilterModal} type="button">
+            <button
+              className="secondary-button"
+              onClick={openCashflowFilterModal}
+              type="button"
+            >
               Filtrar
             </button>
-            <button className="secondary-button" onClick={() => openBankModal()} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => openBankModal()}
+              type="button"
+            >
               Incluir banco
             </button>
-            <button className="secondary-button" onClick={() => openBankBalanceModal()} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => openBankBalanceModal()}
+              type="button"
+            >
               Saldo inicial
             </button>
-            <button className="secondary-button" onClick={openReceiveModal} type="button">
+            <button
+              className="secondary-button"
+              onClick={openReceiveModal}
+              type="button"
+            >
               Receber
             </button>
-            <button className="secondary-button" onClick={openPayModal} type="button">
+            <button
+              className="secondary-button"
+              onClick={openPayModal}
+              type="button"
+            >
               Pagar
             </button>
-            <button className="secondary-button" onClick={openTransferModal} type="button">
+            <button
+              className="secondary-button"
+              onClick={openTransferModal}
+              type="button"
+            >
               Transferir
             </button>
-            <button className="secondary-button" onClick={() => openCashCloseModal()} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => openCashCloseModal()}
+              type="button"
+            >
               Fechar caixa
             </button>
             {input.showOpenFinanceButton ? (
-              <button className="primary-button" onClick={() => navigateTo("financeiro")} type="button">
+              <button
+                className="primary-button"
+                onClick={() => navigateTo("financeiro")}
+                type="button"
+              >
                 Abrir financeiro
               </button>
             ) : null}
           </div>
         </div>
 
-        <EntitySection className="financial-cashflow-summary" title="Fluxo de caixa">
+        <EntitySection
+          className="financial-cashflow-summary"
+          title="Fluxo de caixa"
+        >
           <DocumentSummaryCards
             metrics={[
-              { id: "saldo-consolidado", label: "Saldo consolidado", value: formatCurrency(consolidatedBalance) },
-              { id: "total-receber", label: "Total a receber", value: formatCurrency(receivableTotal) },
-              { id: "total-pagar", label: "Total a pagar", value: formatCurrency(payableTotal) },
-              { id: "saldo-projetado", label: "Saldo projetado", value: formatCurrency(projectedBalance) }
+              {
+                id: "saldo-consolidado",
+                label: "Saldo consolidado",
+                value: formatCurrency(consolidatedBalance)
+              },
+              {
+                id: "total-receber",
+                label: "Total a receber",
+                value: formatCurrency(receivableTotal)
+              },
+              {
+                id: "total-pagar",
+                label: "Total a pagar",
+                value: formatCurrency(payableTotal)
+              },
+              {
+                id: "saldo-projetado",
+                label: "Saldo projetado",
+                value: formatCurrency(projectedBalance)
+              }
             ]}
           />
         </EntitySection>
@@ -6915,7 +8722,9 @@ export function App() {
               >
                 <strong>{entry.codigo}</strong>
                 <span>{entry.nomeBanco}</span>
-                <span>{entry.agencia}/{entry.conta}</span>
+                <span>
+                  {entry.agencia}/{entry.conta}
+                </span>
                 <span>{formatCurrency(entry.saldoAtual)}</span>
               </button>
             ))}
@@ -6935,7 +8744,9 @@ export function App() {
                     <strong>{formatCurrency(entry.valor)}</strong>
                   </div>
                   <div className="record-meta">
-                    <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
+                    <span>
+                      Vence em {formatDateShort(entry.dataVencimento)}
+                    </span>
                     <span>{entry.origem}</span>
                   </div>
                 </article>
@@ -6959,7 +8770,9 @@ export function App() {
                     <strong>{formatCurrency(entry.valor)}</strong>
                   </div>
                   <div className="record-meta">
-                    <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
+                    <span>
+                      Vence em {formatDateShort(entry.dataVencimento)}
+                    </span>
                     <span>{entry.beneficiarioNome ?? "Sem beneficiario"}</span>
                   </div>
                 </article>
@@ -7008,12 +8821,18 @@ export function App() {
                       <div className="record-card-header">
                         <div className="record-stack">
                           <strong>{entry.codigo}</strong>
-                          <span>{bank?.nomeBanco ?? "Banco"} {bank?.agencia}/{bank?.conta}</span>
+                          <span>
+                            {bank?.nomeBanco ?? "Banco"} {bank?.agencia}/
+                            {bank?.conta}
+                          </span>
                         </div>
                         <strong>{formatCurrency(entry.saldoFechado)}</strong>
                       </div>
                       <div className="record-meta">
-                        <span>{formatDateShort(entry.dateFrom)} ate {formatDateShort(entry.dateTo)}</span>
+                        <span>
+                          {formatDateShort(entry.dateFrom)} ate{" "}
+                          {formatDateShort(entry.dateTo)}
+                        </span>
                         <span>{entry.status}</span>
                       </div>
                     </article>
@@ -7029,11 +8848,19 @@ export function App() {
   }
 
   function renderFinanceBrowseTable(
-    columns: readonly { readonly key: string; readonly label: string; readonly className?: string }[],
+    columns: readonly {
+      readonly key: string;
+      readonly label: string;
+      readonly className?: string;
+    }[],
     rows: readonly {
       readonly id: string;
       readonly selected?: boolean;
-      readonly cells: readonly { readonly key: string; readonly value: JSX.Element | string; readonly className?: string }[];
+      readonly cells: readonly {
+        readonly key: string;
+        readonly value: JSX.Element | string;
+        readonly className?: string;
+      }[];
       readonly onClick: () => void;
     }[],
     emptyMessage: string
@@ -7046,7 +8873,11 @@ export function App() {
       <div className="finance-browse-shell" style={browseStyle}>
         <div className="finance-browse-row finance-browse-header" role="row">
           {columns.map((column) => (
-            <span className={column.className ?? "finance-browse-cell"} key={column.key} role="columnheader">
+            <span
+              className={column.className ?? "finance-browse-cell"}
+              key={column.key}
+              role="columnheader"
+            >
               {column.label}
             </span>
           ))}
@@ -7055,20 +8886,29 @@ export function App() {
           {rows.length ? (
             rows.map((row) => (
               <button
-                className={row.selected ? "finance-browse-row is-selected" : "finance-browse-row"}
+                className={
+                  row.selected
+                    ? "finance-browse-row is-selected"
+                    : "finance-browse-row"
+                }
                 key={row.id}
                 onClick={row.onClick}
                 type="button"
               >
                 {row.cells.map((cell) => (
-                  <span className={cell.className ?? "finance-browse-cell"} key={cell.key}>
+                  <span
+                    className={cell.className ?? "finance-browse-cell"}
+                    key={cell.key}
+                  >
                     {cell.value}
                   </span>
                 ))}
               </button>
             ))
           ) : (
-            <div className="empty-state finance-browse-empty">{emptyMessage}</div>
+            <div className="empty-state finance-browse-empty">
+              {emptyMessage}
+            </div>
           )}
         </div>
       </div>
@@ -7084,8 +8924,14 @@ export function App() {
     const settledPreviewItems = cashClosePreview?.settled ?? [];
 
     return (
-      <EntitySection className="finance-cash-close-workspace" title="Conferencia do caixa">
-        <form className="stack-form" onSubmit={(event) => void handleCreateCashClose(event)}>
+      <EntitySection
+        className="finance-cash-close-workspace"
+        title="Conferencia do caixa"
+      >
+        <form
+          className="stack-form"
+          onSubmit={(event) => void handleCreateCashClose(event)}
+        >
           <div className="finance-toolbar-row">
             <div className="finance-filter-row">
               <label className="dashboard-select">
@@ -7093,12 +8939,18 @@ export function App() {
                 <select
                   required
                   value={cashCloseForm.bankId}
-                  onChange={(event) => setCashCloseForm((current) => ({ ...current, bankId: event.target.value }))}
+                  onChange={(event) =>
+                    setCashCloseForm((current) => ({
+                      ...current,
+                      bankId: event.target.value
+                    }))
+                  }
                 >
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
                     <option key={bank.id} value={bank.id}>
-                      {bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}
+                      {bank.codigo} | {bank.nomeBanco} {bank.agencia}/
+                      {bank.conta}
                     </option>
                   ))}
                 </select>
@@ -7109,7 +8961,12 @@ export function App() {
                   required
                   type="date"
                   value={cashCloseForm.dateFrom}
-                  onChange={(event) => setCashCloseForm((current) => ({ ...current, dateFrom: event.target.value }))}
+                  onChange={(event) =>
+                    setCashCloseForm((current) => ({
+                      ...current,
+                      dateFrom: event.target.value
+                    }))
+                  }
                 />
               </label>
               <label className="dashboard-select">
@@ -7118,22 +8975,37 @@ export function App() {
                   required
                   type="date"
                   value={cashCloseForm.dateTo}
-                  onChange={(event) => setCashCloseForm((current) => ({ ...current, dateTo: event.target.value }))}
+                  onChange={(event) =>
+                    setCashCloseForm((current) => ({
+                      ...current,
+                      dateTo: event.target.value
+                    }))
+                  }
                 />
               </label>
             </div>
             <div className="finance-toolbar-actions">
               <button
                 className="secondary-button"
-                onClick={() => setCashClosePreviewRequestKey((current) => current + 1)}
+                onClick={() =>
+                  setCashClosePreviewRequestKey((current) => current + 1)
+                }
                 type="button"
               >
                 Atualizar conferencia
               </button>
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">
+              <button
+                className="secondary-button"
+                onClick={closeFinanceModal}
+                type="button"
+              >
                 Cancelar
               </button>
-              <button className="primary-button" disabled={isBusy || !selectedCashClosePreviewKeys.length} type="submit">
+              <button
+                className="primary-button"
+                disabled={isBusy || !selectedCashClosePreviewKeys.length}
+                type="submit"
+              >
                 Fechar caixa
               </button>
             </div>
@@ -7142,7 +9014,10 @@ export function App() {
           {isLoadingCashClosePreview ? (
             <div className="dashboard-mini-card">
               <strong>Carregando conferencia</strong>
-              <span>Aguarde enquanto os pendentes e os itens ja baixados sao consolidados.</span>
+              <span>
+                Aguarde enquanto os pendentes e os itens ja baixados sao
+                consolidados.
+              </span>
             </div>
           ) : (
             <div className="cash-close-preview-grid is-expanded">
@@ -7150,16 +9025,25 @@ export function App() {
                 <div className="cash-close-preview-header">
                   <div>
                     <strong>Pendentes de baixa</strong>
-                    <span>{selectedCashClosePreviewKeys.length} marcado(s)</span>
+                    <span>
+                      {selectedCashClosePreviewKeys.length} marcado(s)
+                    </span>
                   </div>
                 </div>
                 {pendingPreviewItems.length ? (
                   <div className="cash-close-preview-list">
                     {pendingPreviewItems.map((entry) => {
-                      const key = buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId);
-                      const isChecked = selectedCashClosePreviewKeys.includes(key);
+                      const key = buildCashClosePreviewSelectionKey(
+                        entry.sourceType,
+                        entry.sourceId
+                      );
+                      const isChecked =
+                        selectedCashClosePreviewKeys.includes(key);
                       return (
-                        <label className="cash-close-preview-item is-pending" key={key}>
+                        <label
+                          className="cash-close-preview-item is-pending"
+                          key={key}
+                        >
                           <input
                             checked={isChecked}
                             type="checkbox"
@@ -7174,16 +9058,21 @@ export function App() {
                           <div className="cash-close-preview-copy">
                             <strong>{entry.descricao}</strong>
                             <span>
-                              {entry.tipo === "entrada" ? "Receita" : "Despesa"} · {formatDateShort(entry.dataReferencia)}
+                              {entry.tipo === "entrada" ? "Receita" : "Despesa"}{" "}
+                              · {formatDateShort(entry.dataReferencia)}
                             </span>
                           </div>
-                          <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                          <span className="cash-close-preview-value">
+                            {formatCurrency(entry.valor)}
+                          </span>
                         </label>
                       );
                     })}
                   </div>
                 ) : (
-                  <p className="empty-state">Nenhum item pendente para este banco e periodo.</p>
+                  <p className="empty-state">
+                    Nenhum item pendente para este banco e periodo.
+                  </p>
                 )}
               </section>
 
@@ -7204,15 +9093,20 @@ export function App() {
                         <div className="cash-close-preview-copy">
                           <strong>{entry.descricao}</strong>
                           <span>
-                            {entry.tipo === "entrada" ? "Recebido" : "Pago"} · {formatDateShort(entry.dataReferencia)}
+                            {entry.tipo === "entrada" ? "Recebido" : "Pago"} ·{" "}
+                            {formatDateShort(entry.dataReferencia)}
                           </span>
                         </div>
-                        <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                        <span className="cash-close-preview-value">
+                          {formatCurrency(entry.valor)}
+                        </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="empty-state">Nenhum item baixado neste periodo.</p>
+                  <p className="empty-state">
+                    Nenhum item baixado neste periodo.
+                  </p>
                 )}
               </section>
             </div>
@@ -7227,20 +9121,27 @@ export function App() {
     const filteredBanks = banks.filter((bank) => {
       const matchesQuery =
         bankQuery.length === 0 ||
-        `${bank.codigo} ${bank.nomeBanco} ${bank.bacenCode} ${bank.agencia} ${bank.conta}`.toLowerCase().includes(bankQuery);
+        `${bank.codigo} ${bank.nomeBanco} ${bank.bacenCode} ${bank.agencia} ${bank.conta}`
+          .toLowerCase()
+          .includes(bankQuery);
       const matchesStatus =
         financeBrowseFilters.banks.status === "all" ||
-        (financeBrowseFilters.banks.status === "active" ? bank.ativo : !bank.ativo);
+        (financeBrowseFilters.banks.status === "active"
+          ? bank.ativo
+          : !bank.ativo);
       return matchesQuery && matchesStatus;
     });
     const filteredBalances = bankBalances.filter((balance) => {
       const bank = banks.find((entry) => entry.id === balance.bankId);
       const matchesBank =
-        financeBrowseFilters.balances.bankId === "all" || balance.bankId === financeBrowseFilters.balances.bankId;
+        financeBrowseFilters.balances.bankId === "all" ||
+        balance.bankId === financeBrowseFilters.balances.bankId;
       const query = financeBrowseFilters.balances.query.trim().toLowerCase();
       const matchesQuery =
         query.length === 0 ||
-        `${balance.codigo} ${bank?.nomeBanco ?? ""} ${bank?.agencia ?? ""} ${bank?.conta ?? ""}`.toLowerCase().includes(query);
+        `${balance.codigo} ${bank?.nomeBanco ?? ""} ${bank?.agencia ?? ""} ${bank?.conta ?? ""}`
+          .toLowerCase()
+          .includes(query);
       return matchesBank && matchesQuery;
     });
     const filteredRevenues = revenueSchedules.filter((entry) => {
@@ -7249,53 +9150,76 @@ export function App() {
         query.length === 0 ||
         `${entry.codigo} ${entry.descricao}`.toLowerCase().includes(query);
       const matchesBank =
-        financeBrowseFilters.revenues.bankId === "all" || entry.bankId === financeBrowseFilters.revenues.bankId;
+        financeBrowseFilters.revenues.bankId === "all" ||
+        entry.bankId === financeBrowseFilters.revenues.bankId;
       const matchesStatus =
-        financeBrowseFilters.revenues.status === "all" || entry.status === financeBrowseFilters.revenues.status;
+        financeBrowseFilters.revenues.status === "all" ||
+        entry.status === financeBrowseFilters.revenues.status;
       const matchesFrom =
-        !financeBrowseFilters.revenues.dateFrom || entry.dataVencimento >= financeBrowseFilters.revenues.dateFrom;
+        !financeBrowseFilters.revenues.dateFrom ||
+        entry.dataVencimento >= financeBrowseFilters.revenues.dateFrom;
       const matchesTo =
-        !financeBrowseFilters.revenues.dateTo || entry.dataVencimento <= financeBrowseFilters.revenues.dateTo;
-      return matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo;
+        !financeBrowseFilters.revenues.dateTo ||
+        entry.dataVencimento <= financeBrowseFilters.revenues.dateTo;
+      return (
+        matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo
+      );
     });
     const filteredExpenses = expenseSchedules.filter((entry) => {
       const query = financeBrowseFilters.expenses.query.trim().toLowerCase();
       const matchesQuery =
         query.length === 0 ||
-        `${entry.codigo} ${entry.descricao} ${entry.beneficiarioNome ?? ""}`.toLowerCase().includes(query);
+        `${entry.codigo} ${entry.descricao} ${entry.beneficiarioNome ?? ""}`
+          .toLowerCase()
+          .includes(query);
       const matchesBank =
-        financeBrowseFilters.expenses.bankId === "all" || entry.bankId === financeBrowseFilters.expenses.bankId;
+        financeBrowseFilters.expenses.bankId === "all" ||
+        entry.bankId === financeBrowseFilters.expenses.bankId;
       const matchesStatus =
-        financeBrowseFilters.expenses.status === "all" || entry.status === financeBrowseFilters.expenses.status;
+        financeBrowseFilters.expenses.status === "all" ||
+        entry.status === financeBrowseFilters.expenses.status;
       const matchesFrom =
-        !financeBrowseFilters.expenses.dateFrom || entry.dataVencimento >= financeBrowseFilters.expenses.dateFrom;
+        !financeBrowseFilters.expenses.dateFrom ||
+        entry.dataVencimento >= financeBrowseFilters.expenses.dateFrom;
       const matchesTo =
-        !financeBrowseFilters.expenses.dateTo || entry.dataVencimento <= financeBrowseFilters.expenses.dateTo;
-      return matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo;
+        !financeBrowseFilters.expenses.dateTo ||
+        entry.dataVencimento <= financeBrowseFilters.expenses.dateTo;
+      return (
+        matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo
+      );
     });
     const filteredMovements = bankMovements.filter((entry) => {
       const query = financeBrowseFilters.movements.query.trim().toLowerCase();
       const matchesQuery =
         query.length === 0 ||
-        `${entry.codigo} ${entry.historico} ${entry.beneficiarioNome ?? ""}`.toLowerCase().includes(query);
+        `${entry.codigo} ${entry.historico} ${entry.beneficiarioNome ?? ""}`
+          .toLowerCase()
+          .includes(query);
       const matchesBank =
         financeBrowseFilters.movements.bankId === "all" ||
         entry.bankIdOrigem === financeBrowseFilters.movements.bankId ||
         entry.bankIdDestino === financeBrowseFilters.movements.bankId;
       const matchesStatus =
-        financeBrowseFilters.movements.status === "all" || entry.status === financeBrowseFilters.movements.status;
+        financeBrowseFilters.movements.status === "all" ||
+        entry.status === financeBrowseFilters.movements.status;
       const movementDate = entry.dataMovimento.slice(0, 10);
       const matchesFrom =
-        !financeBrowseFilters.movements.dateFrom || movementDate >= financeBrowseFilters.movements.dateFrom;
+        !financeBrowseFilters.movements.dateFrom ||
+        movementDate >= financeBrowseFilters.movements.dateFrom;
       const matchesTo =
-        !financeBrowseFilters.movements.dateTo || movementDate <= financeBrowseFilters.movements.dateTo;
-      return matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo;
+        !financeBrowseFilters.movements.dateTo ||
+        movementDate <= financeBrowseFilters.movements.dateTo;
+      return (
+        matchesQuery && matchesBank && matchesStatus && matchesFrom && matchesTo
+      );
     });
     const filteredCashCloses = cashCloses.filter((entry) => {
       const matchesBank =
-        financeBrowseFilters.close.bankId === "all" || entry.bankId === financeBrowseFilters.close.bankId;
+        financeBrowseFilters.close.bankId === "all" ||
+        entry.bankId === financeBrowseFilters.close.bankId;
       const matchesStatus =
-        financeBrowseFilters.close.status === "all" || entry.status === financeBrowseFilters.close.status;
+        financeBrowseFilters.close.status === "all" ||
+        entry.status === financeBrowseFilters.close.status;
       const matchesFrom = entry.dateFrom >= financeBrowseFilters.close.dateFrom;
       const matchesTo = entry.dateTo <= financeBrowseFilters.close.dateTo;
       return matchesBank && matchesStatus && matchesFrom && matchesTo;
@@ -7306,19 +9230,73 @@ export function App() {
         <div className="finance-document-stack">
           <div className="finance-toolbar-row">
             <div className="finance-toolbar-actions">
-              <button className="primary-button" onClick={() => openBankModal(undefined, "create")} type="button">Incluir</button>
-              <button className="secondary-button" disabled={!selectedBank} onClick={() => selectedBank ? openBankModal(selectedBank, "view") : undefined} type="button">Visualizar</button>
-              <button className="secondary-button" disabled={!selectedBank} onClick={() => selectedBank ? openBankModal(selectedBank, "edit") : undefined} type="button">Alterar</button>
-              <button className="secondary-button" disabled={!selectedBank} onClick={() => selectedBank ? setDeleteTarget({ kind: "bank", id: selectedBank.id, label: `${selectedBank.codigo} | ${selectedBank.nomeBanco}` }) : undefined} type="button">Excluir</button>
+              <button
+                className="primary-button"
+                onClick={() => openBankModal(undefined, "create")}
+                type="button"
+              >
+                Incluir
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedBank}
+                onClick={() =>
+                  selectedBank ? openBankModal(selectedBank, "view") : undefined
+                }
+                type="button"
+              >
+                Visualizar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedBank}
+                onClick={() =>
+                  selectedBank ? openBankModal(selectedBank, "edit") : undefined
+                }
+                type="button"
+              >
+                Alterar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedBank}
+                onClick={() =>
+                  selectedBank
+                    ? setDeleteTarget({
+                        kind: "bank",
+                        id: selectedBank.id,
+                        label: `${selectedBank.codigo} | ${selectedBank.nomeBanco}`
+                      })
+                    : undefined
+                }
+                type="button"
+              >
+                Excluir
+              </button>
             </div>
             <div className="finance-filter-row">
               <label className="dashboard-select">
                 <span>Buscar</span>
-                <input value={financeBrowseFilters.banks.query} onChange={(event) => updateFinanceBrowseFilter("banks", { query: event.target.value })} />
+                <input
+                  value={financeBrowseFilters.banks.query}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("banks", {
+                      query: event.target.value
+                    })
+                  }
+                />
               </label>
               <label className="dashboard-select">
                 <span>Situacao</span>
-                <select value={financeBrowseFilters.banks.status} onChange={(event) => updateFinanceBrowseFilter("banks", { status: event.target.value as FinanceBrowseFiltersState["banks"]["status"] })}>
+                <select
+                  value={financeBrowseFilters.banks.status}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("banks", {
+                      status: event.target
+                        .value as FinanceBrowseFiltersState["banks"]["status"]
+                    })
+                  }
+                >
                   <option value="all">Todos</option>
                   <option value="active">Ativos</option>
                   <option value="inactive">Inativos</option>
@@ -7359,22 +9337,81 @@ export function App() {
         <div className="finance-document-stack">
           <div className="finance-toolbar-row">
             <div className="finance-toolbar-actions">
-              <button className="primary-button" onClick={() => openBankBalanceModal(undefined, "create")} type="button">Incluir</button>
-              <button className="secondary-button" disabled={!selectedBalance} onClick={() => selectedBalance ? openBankBalanceModal(selectedBalance, "view") : undefined} type="button">Visualizar</button>
-              <button className="secondary-button" disabled={!selectedBalance} onClick={() => selectedBalance ? openBankBalanceModal(selectedBalance, "edit") : undefined} type="button">Alterar</button>
-              <button className="secondary-button" disabled={!selectedBalance} onClick={() => selectedBalance ? setDeleteTarget({ kind: "balance", id: selectedBalance.id, label: `${selectedBalance.codigo} | ${formatCurrency(selectedBalance.saldoInicial)}` }) : undefined} type="button">Excluir</button>
+              <button
+                className="primary-button"
+                onClick={() => openBankBalanceModal(undefined, "create")}
+                type="button"
+              >
+                Incluir
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedBalance}
+                onClick={() =>
+                  selectedBalance
+                    ? openBankBalanceModal(selectedBalance, "view")
+                    : undefined
+                }
+                type="button"
+              >
+                Visualizar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedBalance}
+                onClick={() =>
+                  selectedBalance
+                    ? openBankBalanceModal(selectedBalance, "edit")
+                    : undefined
+                }
+                type="button"
+              >
+                Alterar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedBalance}
+                onClick={() =>
+                  selectedBalance
+                    ? setDeleteTarget({
+                        kind: "balance",
+                        id: selectedBalance.id,
+                        label: `${selectedBalance.codigo} | ${formatCurrency(selectedBalance.saldoInicial)}`
+                      })
+                    : undefined
+                }
+                type="button"
+              >
+                Excluir
+              </button>
             </div>
             <div className="finance-filter-row">
               <label className="dashboard-select">
                 <span>Buscar</span>
-                <input value={financeBrowseFilters.balances.query} onChange={(event) => updateFinanceBrowseFilter("balances", { query: event.target.value })} />
+                <input
+                  value={financeBrowseFilters.balances.query}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("balances", {
+                      query: event.target.value
+                    })
+                  }
+                />
               </label>
               <label className="dashboard-select">
                 <span>Banco</span>
-                <select value={financeBrowseFilters.balances.bankId} onChange={(event) => updateFinanceBrowseFilter("balances", { bankId: event.target.value })}>
+                <select
+                  value={financeBrowseFilters.balances.bankId}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("balances", {
+                      bankId: event.target.value
+                    })
+                  }
+                >
                   <option value="all">Todos</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -7397,10 +9434,22 @@ export function App() {
                   onClick: () => setSelectedBalanceId(balance.id),
                   cells: [
                     { key: "codigo", value: balance.codigo },
-                    { key: "banco", value: `${bank?.nomeBanco ?? "Banco"} ${bank?.agencia ?? ""}/${bank?.conta ?? ""}` },
-                    { key: "saldoInicial", value: formatCurrency(balance.saldoInicial) },
-                    { key: "saldoAtual", value: formatCurrency(balance.saldoAtual) },
-                    { key: "data", value: formatDateShort(balance.dataSaldoInicial) }
+                    {
+                      key: "banco",
+                      value: `${bank?.nomeBanco ?? "Banco"} ${bank?.agencia ?? ""}/${bank?.conta ?? ""}`
+                    },
+                    {
+                      key: "saldoInicial",
+                      value: formatCurrency(balance.saldoInicial)
+                    },
+                    {
+                      key: "saldoAtual",
+                      value: formatCurrency(balance.saldoAtual)
+                    },
+                    {
+                      key: "data",
+                      value: formatDateShort(balance.dataSaldoInicial)
+                    }
                   ]
                 };
               }),
@@ -7416,34 +9465,165 @@ export function App() {
         <div className="finance-document-stack">
           <div className="finance-toolbar-row">
             <div className="finance-toolbar-actions">
-              <button className="primary-button" onClick={() => openRevenueModal(undefined, "create")} type="button">Incluir</button>
-              <button className="secondary-button" disabled={!selectedRevenue} onClick={() => selectedRevenue ? openRevenueModal(selectedRevenue, "view") : undefined} type="button">Visualizar</button>
-              <button className="secondary-button" disabled={!selectedRevenue} onClick={() => selectedRevenue ? openRevenueModal(selectedRevenue, "edit") : undefined} type="button">Alterar</button>
-              <button className="secondary-button" disabled={!selectedRevenue || selectedRevenue.status !== "aberta"} onClick={() => {
-                if (!selectedRevenue) return;
-                setReceiveTarget({ revenueId: selectedRevenue.id });
-                setAgendaSettlementTarget(null);
-                setReceiveMovementForm({
-                  bankIdDestino: selectedRevenue.bankId ?? banks[0]?.id ?? "",
-                  valor: String(selectedRevenue.valor),
-                  historico: selectedRevenue.descricao,
-                  dataMovimento: new Date().toISOString().slice(0, 16)
-                });
-                setFinanceModalMode("create");
-                setFinanceModal("receive");
-              }} type="button">Receber</button>
-              <button className="secondary-button" disabled={!selectedRevenue?.baixaMovementId} onClick={() => {
-                if (!selectedRevenue?.baixaMovementId) return;
-                setReverseTarget({ kind: "movement", movementId: selectedRevenue.baixaMovementId, label: `${selectedRevenue.codigo} | ${selectedRevenue.descricao}` });
-              }} type="button">Estornar</button>
-              <button className="secondary-button" disabled={!selectedRevenue || selectedRevenue.status !== "aberta"} onClick={() => selectedRevenue ? setDeleteTarget({ kind: "revenue", id: selectedRevenue.id, label: `${selectedRevenue.codigo} | ${selectedRevenue.descricao}` }) : undefined} type="button">Excluir</button>
+              <button
+                className="primary-button"
+                onClick={() => openRevenueModal(undefined, "create")}
+                type="button"
+              >
+                Incluir
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedRevenue}
+                onClick={() =>
+                  selectedRevenue
+                    ? openRevenueModal(selectedRevenue, "view")
+                    : undefined
+                }
+                type="button"
+              >
+                Visualizar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedRevenue}
+                onClick={() =>
+                  selectedRevenue
+                    ? openRevenueModal(selectedRevenue, "edit")
+                    : undefined
+                }
+                type="button"
+              >
+                Alterar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={
+                  !selectedRevenue || selectedRevenue.status !== "aberta"
+                }
+                onClick={() => {
+                  if (!selectedRevenue) return;
+                  setReceiveTarget({ revenueId: selectedRevenue.id });
+                  setAgendaSettlementTarget(null);
+                  setReceiveMovementForm({
+                    bankIdDestino: selectedRevenue.bankId ?? banks[0]?.id ?? "",
+                    valor: String(selectedRevenue.valor),
+                    historico: selectedRevenue.descricao,
+                    dataMovimento: new Date().toISOString().slice(0, 16)
+                  });
+                  setFinanceModalMode("create");
+                  setFinanceModal("receive");
+                }}
+                type="button"
+              >
+                Receber
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedRevenue?.baixaMovementId}
+                onClick={() => {
+                  if (!selectedRevenue?.baixaMovementId) return;
+                  setReverseTarget({
+                    kind: "movement",
+                    movementId: selectedRevenue.baixaMovementId,
+                    label: `${selectedRevenue.codigo} | ${selectedRevenue.descricao}`
+                  });
+                }}
+                type="button"
+              >
+                Estornar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={
+                  !selectedRevenue || selectedRevenue.status !== "aberta"
+                }
+                onClick={() =>
+                  selectedRevenue
+                    ? setDeleteTarget({
+                        kind: "revenue",
+                        id: selectedRevenue.id,
+                        label: `${selectedRevenue.codigo} | ${selectedRevenue.descricao}`
+                      })
+                    : undefined
+                }
+                type="button"
+              >
+                Excluir
+              </button>
             </div>
             <div className="finance-filter-row">
-              <label className="dashboard-select"><span>Buscar</span><input value={financeBrowseFilters.revenues.query} onChange={(event) => updateFinanceBrowseFilter("revenues", { query: event.target.value })} /></label>
-              <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.revenues.bankId} onChange={(event) => updateFinanceBrowseFilter("revenues", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
-              <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.revenues.status} onChange={(event) => updateFinanceBrowseFilter("revenues", { status: event.target.value as FinanceBrowseFiltersState["revenues"]["status"] })}><option value="all">Todas</option><option value="aberta">Aberta</option><option value="recebida">Recebida</option><option value="estornada">Estornada</option><option value="cancelada">Cancelada</option></select></label>
-              <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.revenues.dateFrom} onChange={(event) => updateFinanceBrowseFilter("revenues", { dateFrom: event.target.value })} /></label>
-              <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.revenues.dateTo} onChange={(event) => updateFinanceBrowseFilter("revenues", { dateTo: event.target.value })} /></label>
+              <label className="dashboard-select">
+                <span>Buscar</span>
+                <input
+                  value={financeBrowseFilters.revenues.query}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("revenues", {
+                      query: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="dashboard-select">
+                <span>Banco</span>
+                <select
+                  value={financeBrowseFilters.revenues.bankId}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("revenues", {
+                      bankId: event.target.value
+                    })
+                  }
+                >
+                  <option value="all">Todos</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="dashboard-select">
+                <span>Situacao</span>
+                <select
+                  value={financeBrowseFilters.revenues.status}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("revenues", {
+                      status: event.target
+                        .value as FinanceBrowseFiltersState["revenues"]["status"]
+                    })
+                  }
+                >
+                  <option value="all">Todas</option>
+                  <option value="aberta">Aberta</option>
+                  <option value="recebida">Recebida</option>
+                  <option value="estornada">Estornada</option>
+                  <option value="cancelada">Cancelada</option>
+                </select>
+              </label>
+              <label className="dashboard-select">
+                <span>Data de</span>
+                <input
+                  type="date"
+                  value={financeBrowseFilters.revenues.dateFrom}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("revenues", {
+                      dateFrom: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="dashboard-select">
+                <span>Data ate</span>
+                <input
+                  type="date"
+                  value={financeBrowseFilters.revenues.dateTo}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("revenues", {
+                      dateTo: event.target.value
+                    })
+                  }
+                />
+              </label>
             </div>
           </div>
           <EntitySection title="Receitas">
@@ -7465,9 +9645,20 @@ export function App() {
                   { key: "codigo", value: entry.codigo },
                   { key: "descricao", value: entry.descricao },
                   { key: "valor", value: formatCurrency(entry.valor) },
-                  { key: "vencimento", value: formatDateShort(entry.dataVencimento) },
-                  { key: "parcelas", value: `${entry.ocorrenciaIndice ?? 1}/${entry.ocorrenciaTotal ?? 1}` },
-                  { key: "banco", value: banks.find((bank) => bank.id === entry.bankId)?.codigo ?? "-" },
+                  {
+                    key: "vencimento",
+                    value: formatDateShort(entry.dataVencimento)
+                  },
+                  {
+                    key: "parcelas",
+                    value: `${entry.ocorrenciaIndice ?? 1}/${entry.ocorrenciaTotal ?? 1}`
+                  },
+                  {
+                    key: "banco",
+                    value:
+                      banks.find((bank) => bank.id === entry.bankId)?.codigo ??
+                      "-"
+                  },
                   { key: "situacao", value: entry.status }
                 ]
               })),
@@ -7483,34 +9674,165 @@ export function App() {
         <div className="finance-document-stack">
           <div className="finance-toolbar-row">
             <div className="finance-toolbar-actions">
-              <button className="primary-button" onClick={() => openExpenseModal(undefined, "create")} type="button">Incluir</button>
-              <button className="secondary-button" disabled={!selectedExpense} onClick={() => selectedExpense ? openExpenseModal(selectedExpense, "view") : undefined} type="button">Visualizar</button>
-              <button className="secondary-button" disabled={!selectedExpense} onClick={() => selectedExpense ? openExpenseModal(selectedExpense, "edit") : undefined} type="button">Alterar</button>
-              <button className="secondary-button" disabled={!selectedExpense || selectedExpense.status !== "aberta"} onClick={() => {
-                if (!selectedExpense) return;
-                setPayTarget({ expenseId: selectedExpense.id });
-                setPayMovementForm({
-                  bankIdOrigem: selectedExpense.bankId ?? banks[0]?.id ?? "",
-                  valor: String(selectedExpense.valor),
-                  historico: selectedExpense.descricao,
-                  dataMovimento: new Date().toISOString().slice(0, 16),
-                  beneficiarioNome: selectedExpense.beneficiarioNome ?? ""
-                });
-                setFinanceModalMode("create");
-                setFinanceModal("pay");
-              }} type="button">Pagar</button>
-              <button className="secondary-button" disabled={!selectedExpense?.baixaMovementId} onClick={() => {
-                if (!selectedExpense?.baixaMovementId) return;
-                setReverseTarget({ kind: "movement", movementId: selectedExpense.baixaMovementId, label: `${selectedExpense.codigo} | ${selectedExpense.descricao}` });
-              }} type="button">Estornar</button>
-              <button className="secondary-button" disabled={!selectedExpense || selectedExpense.status !== "aberta"} onClick={() => selectedExpense ? setDeleteTarget({ kind: "expense", id: selectedExpense.id, label: `${selectedExpense.codigo} | ${selectedExpense.descricao}` }) : undefined} type="button">Excluir</button>
+              <button
+                className="primary-button"
+                onClick={() => openExpenseModal(undefined, "create")}
+                type="button"
+              >
+                Incluir
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedExpense}
+                onClick={() =>
+                  selectedExpense
+                    ? openExpenseModal(selectedExpense, "view")
+                    : undefined
+                }
+                type="button"
+              >
+                Visualizar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedExpense}
+                onClick={() =>
+                  selectedExpense
+                    ? openExpenseModal(selectedExpense, "edit")
+                    : undefined
+                }
+                type="button"
+              >
+                Alterar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={
+                  !selectedExpense || selectedExpense.status !== "aberta"
+                }
+                onClick={() => {
+                  if (!selectedExpense) return;
+                  setPayTarget({ expenseId: selectedExpense.id });
+                  setPayMovementForm({
+                    bankIdOrigem: selectedExpense.bankId ?? banks[0]?.id ?? "",
+                    valor: String(selectedExpense.valor),
+                    historico: selectedExpense.descricao,
+                    dataMovimento: new Date().toISOString().slice(0, 16),
+                    beneficiarioNome: selectedExpense.beneficiarioNome ?? ""
+                  });
+                  setFinanceModalMode("create");
+                  setFinanceModal("pay");
+                }}
+                type="button"
+              >
+                Pagar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedExpense?.baixaMovementId}
+                onClick={() => {
+                  if (!selectedExpense?.baixaMovementId) return;
+                  setReverseTarget({
+                    kind: "movement",
+                    movementId: selectedExpense.baixaMovementId,
+                    label: `${selectedExpense.codigo} | ${selectedExpense.descricao}`
+                  });
+                }}
+                type="button"
+              >
+                Estornar
+              </button>
+              <button
+                className="secondary-button"
+                disabled={
+                  !selectedExpense || selectedExpense.status !== "aberta"
+                }
+                onClick={() =>
+                  selectedExpense
+                    ? setDeleteTarget({
+                        kind: "expense",
+                        id: selectedExpense.id,
+                        label: `${selectedExpense.codigo} | ${selectedExpense.descricao}`
+                      })
+                    : undefined
+                }
+                type="button"
+              >
+                Excluir
+              </button>
             </div>
             <div className="finance-filter-row">
-              <label className="dashboard-select"><span>Buscar</span><input value={financeBrowseFilters.expenses.query} onChange={(event) => updateFinanceBrowseFilter("expenses", { query: event.target.value })} /></label>
-              <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.expenses.bankId} onChange={(event) => updateFinanceBrowseFilter("expenses", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
-              <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.expenses.status} onChange={(event) => updateFinanceBrowseFilter("expenses", { status: event.target.value as FinanceBrowseFiltersState["expenses"]["status"] })}><option value="all">Todas</option><option value="aberta">Aberta</option><option value="paga">Paga</option><option value="estornada">Estornada</option><option value="cancelada">Cancelada</option></select></label>
-              <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.expenses.dateFrom} onChange={(event) => updateFinanceBrowseFilter("expenses", { dateFrom: event.target.value })} /></label>
-              <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.expenses.dateTo} onChange={(event) => updateFinanceBrowseFilter("expenses", { dateTo: event.target.value })} /></label>
+              <label className="dashboard-select">
+                <span>Buscar</span>
+                <input
+                  value={financeBrowseFilters.expenses.query}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("expenses", {
+                      query: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="dashboard-select">
+                <span>Banco</span>
+                <select
+                  value={financeBrowseFilters.expenses.bankId}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("expenses", {
+                      bankId: event.target.value
+                    })
+                  }
+                >
+                  <option value="all">Todos</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="dashboard-select">
+                <span>Situacao</span>
+                <select
+                  value={financeBrowseFilters.expenses.status}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("expenses", {
+                      status: event.target
+                        .value as FinanceBrowseFiltersState["expenses"]["status"]
+                    })
+                  }
+                >
+                  <option value="all">Todas</option>
+                  <option value="aberta">Aberta</option>
+                  <option value="paga">Paga</option>
+                  <option value="estornada">Estornada</option>
+                  <option value="cancelada">Cancelada</option>
+                </select>
+              </label>
+              <label className="dashboard-select">
+                <span>Data de</span>
+                <input
+                  type="date"
+                  value={financeBrowseFilters.expenses.dateFrom}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("expenses", {
+                      dateFrom: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="dashboard-select">
+                <span>Data ate</span>
+                <input
+                  type="date"
+                  value={financeBrowseFilters.expenses.dateTo}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("expenses", {
+                      dateTo: event.target.value
+                    })
+                  }
+                />
+              </label>
             </div>
           </div>
           <EntitySection title="Despesas">
@@ -7532,9 +9854,20 @@ export function App() {
                   { key: "codigo", value: entry.codigo },
                   { key: "descricao", value: entry.descricao },
                   { key: "valor", value: formatCurrency(entry.valor) },
-                  { key: "vencimento", value: formatDateShort(entry.dataVencimento) },
-                  { key: "parcelas", value: `${entry.ocorrenciaIndice ?? 1}/${entry.ocorrenciaTotal ?? 1}` },
-                  { key: "banco", value: banks.find((bank) => bank.id === entry.bankId)?.codigo ?? "-" },
+                  {
+                    key: "vencimento",
+                    value: formatDateShort(entry.dataVencimento)
+                  },
+                  {
+                    key: "parcelas",
+                    value: `${entry.ocorrenciaIndice ?? 1}/${entry.ocorrenciaTotal ?? 1}`
+                  },
+                  {
+                    key: "banco",
+                    value:
+                      banks.find((bank) => bank.id === entry.bankId)?.codigo ??
+                      "-"
+                  },
                   { key: "situacao", value: entry.status }
                 ]
               })),
@@ -7550,14 +9883,85 @@ export function App() {
         <div className="finance-document-stack">
           <div className="finance-toolbar-row">
             <div className="finance-toolbar-actions">
-              <button className="primary-button" onClick={() => openCashCloseModal()} type="button">Fechar caixa</button>
-              <button className="secondary-button" disabled={!selectedCashClose} onClick={() => selectedCashClose ? openCashCloseModal(selectedCashClose, "view") : undefined} type="button">Visualizar</button>
+              <button
+                className="primary-button"
+                onClick={() => openCashCloseModal()}
+                type="button"
+              >
+                Fechar caixa
+              </button>
+              <button
+                className="secondary-button"
+                disabled={!selectedCashClose}
+                onClick={() =>
+                  selectedCashClose
+                    ? openCashCloseModal(selectedCashClose, "view")
+                    : undefined
+                }
+                type="button"
+              >
+                Visualizar
+              </button>
             </div>
             <div className="finance-filter-row">
-              <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.close.bankId} onChange={(event) => updateFinanceBrowseFilter("close", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
-              <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.close.dateFrom} onChange={(event) => updateFinanceBrowseFilter("close", { dateFrom: event.target.value })} /></label>
-              <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.close.dateTo} onChange={(event) => updateFinanceBrowseFilter("close", { dateTo: event.target.value })} /></label>
-              <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.close.status} onChange={(event) => updateFinanceBrowseFilter("close", { status: event.target.value as FinanceBrowseFiltersState["close"]["status"] })}><option value="all">Todas</option><option value="fechado">Fechado</option><option value="estornado">Estornado</option></select></label>
+              <label className="dashboard-select">
+                <span>Banco</span>
+                <select
+                  value={financeBrowseFilters.close.bankId}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("close", {
+                      bankId: event.target.value
+                    })
+                  }
+                >
+                  <option value="all">Todos</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="dashboard-select">
+                <span>Data de</span>
+                <input
+                  type="date"
+                  value={financeBrowseFilters.close.dateFrom}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("close", {
+                      dateFrom: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="dashboard-select">
+                <span>Data ate</span>
+                <input
+                  type="date"
+                  value={financeBrowseFilters.close.dateTo}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("close", {
+                      dateTo: event.target.value
+                    })
+                  }
+                />
+              </label>
+              <label className="dashboard-select">
+                <span>Situacao</span>
+                <select
+                  value={financeBrowseFilters.close.status}
+                  onChange={(event) =>
+                    updateFinanceBrowseFilter("close", {
+                      status: event.target
+                        .value as FinanceBrowseFiltersState["close"]["status"]
+                    })
+                  }
+                >
+                  <option value="all">Todas</option>
+                  <option value="fechado">Fechado</option>
+                  <option value="estornado">Estornado</option>
+                </select>
+              </label>
             </div>
           </div>
           {renderCashCloseComposer()}
@@ -7580,9 +9984,20 @@ export function App() {
                   onClick: () => setSelectedCashCloseId(entry.id),
                   cells: [
                     { key: "codigo", value: entry.codigo },
-                    { key: "banco", value: bank ? `${bank.codigo} | ${bank.nomeBanco}` : "Banco nao encontrado" },
-                    { key: "periodo", value: `${formatDateShort(entry.dateFrom)} ate ${formatDateShort(entry.dateTo)}` },
-                    { key: "recebido", value: formatCurrency(entry.totalEntradas) },
+                    {
+                      key: "banco",
+                      value: bank
+                        ? `${bank.codigo} | ${bank.nomeBanco}`
+                        : "Banco nao encontrado"
+                    },
+                    {
+                      key: "periodo",
+                      value: `${formatDateShort(entry.dateFrom)} ate ${formatDateShort(entry.dateTo)}`
+                    },
+                    {
+                      key: "recebido",
+                      value: formatCurrency(entry.totalEntradas)
+                    },
                     { key: "pago", value: formatCurrency(entry.totalSaidas) },
                     { key: "saldo", value: formatCurrency(entry.saldoFechado) },
                     { key: "situacao", value: entry.status }
@@ -7600,17 +10015,130 @@ export function App() {
       <div className="finance-document-stack">
         <div className="finance-toolbar-row">
           <div className="finance-toolbar-actions">
-            <button className="primary-button" onClick={() => openManualMovementModal(undefined, "create")} type="button">Incluir</button>
-            <button className="secondary-button" disabled={!selectedMovement} onClick={() => selectedMovement ? openManualMovementModal(selectedMovement, "view") : undefined} type="button">Visualizar</button>
-            <button className="secondary-button" disabled={!selectedMovement} onClick={() => selectedMovement ? openManualMovementModal(selectedMovement, "edit") : undefined} type="button">Alterar</button>
-            <button className="secondary-button" disabled={!selectedMovement || selectedMovement.status === "estornado" || Boolean(selectedMovement.reversedMovementId)} onClick={() => selectedMovement ? setReverseTarget({ kind: "movement", movementId: selectedMovement.id, label: `${selectedMovement.codigo} | ${selectedMovement.historico}` }) : undefined} type="button">Estornar</button>
+            <button
+              className="primary-button"
+              onClick={() => openManualMovementModal(undefined, "create")}
+              type="button"
+            >
+              Incluir
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!selectedMovement}
+              onClick={() =>
+                selectedMovement
+                  ? openManualMovementModal(selectedMovement, "view")
+                  : undefined
+              }
+              type="button"
+            >
+              Visualizar
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!selectedMovement}
+              onClick={() =>
+                selectedMovement
+                  ? openManualMovementModal(selectedMovement, "edit")
+                  : undefined
+              }
+              type="button"
+            >
+              Alterar
+            </button>
+            <button
+              className="secondary-button"
+              disabled={
+                !selectedMovement ||
+                selectedMovement.status === "estornado" ||
+                Boolean(selectedMovement.reversedMovementId)
+              }
+              onClick={() =>
+                selectedMovement
+                  ? setReverseTarget({
+                      kind: "movement",
+                      movementId: selectedMovement.id,
+                      label: `${selectedMovement.codigo} | ${selectedMovement.historico}`
+                    })
+                  : undefined
+              }
+              type="button"
+            >
+              Estornar
+            </button>
           </div>
           <div className="finance-filter-row">
-            <label className="dashboard-select"><span>Buscar</span><input value={financeBrowseFilters.movements.query} onChange={(event) => updateFinanceBrowseFilter("movements", { query: event.target.value })} /></label>
-            <label className="dashboard-select"><span>Banco</span><select value={financeBrowseFilters.movements.bankId} onChange={(event) => updateFinanceBrowseFilter("movements", { bankId: event.target.value })}><option value="all">Todos</option>{banks.map((bank) => <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco}</option>)}</select></label>
-            <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.movements.status} onChange={(event) => updateFinanceBrowseFilter("movements", { status: event.target.value as FinanceBrowseFiltersState["movements"]["status"] })}><option value="all">Todas</option><option value="previsto">Previsto</option><option value="lancado">Lancado</option><option value="estornado">Estornado</option><option value="cancelado">Cancelado</option></select></label>
-            <label className="dashboard-select"><span>Data de</span><input type="date" value={financeBrowseFilters.movements.dateFrom} onChange={(event) => updateFinanceBrowseFilter("movements", { dateFrom: event.target.value })} /></label>
-            <label className="dashboard-select"><span>Data ate</span><input type="date" value={financeBrowseFilters.movements.dateTo} onChange={(event) => updateFinanceBrowseFilter("movements", { dateTo: event.target.value })} /></label>
+            <label className="dashboard-select">
+              <span>Buscar</span>
+              <input
+                value={financeBrowseFilters.movements.query}
+                onChange={(event) =>
+                  updateFinanceBrowseFilter("movements", {
+                    query: event.target.value
+                  })
+                }
+              />
+            </label>
+            <label className="dashboard-select">
+              <span>Banco</span>
+              <select
+                value={financeBrowseFilters.movements.bankId}
+                onChange={(event) =>
+                  updateFinanceBrowseFilter("movements", {
+                    bankId: event.target.value
+                  })
+                }
+              >
+                <option value="all">Todos</option>
+                {banks.map((bank) => (
+                  <option key={bank.id} value={bank.id}>
+                    {bank.codigo} | {bank.nomeBanco}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="dashboard-select">
+              <span>Situacao</span>
+              <select
+                value={financeBrowseFilters.movements.status}
+                onChange={(event) =>
+                  updateFinanceBrowseFilter("movements", {
+                    status: event.target
+                      .value as FinanceBrowseFiltersState["movements"]["status"]
+                  })
+                }
+              >
+                <option value="all">Todas</option>
+                <option value="previsto">Previsto</option>
+                <option value="lancado">Lancado</option>
+                <option value="estornado">Estornado</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </label>
+            <label className="dashboard-select">
+              <span>Data de</span>
+              <input
+                type="date"
+                value={financeBrowseFilters.movements.dateFrom}
+                onChange={(event) =>
+                  updateFinanceBrowseFilter("movements", {
+                    dateFrom: event.target.value
+                  })
+                }
+              />
+            </label>
+            <label className="dashboard-select">
+              <span>Data ate</span>
+              <input
+                type="date"
+                value={financeBrowseFilters.movements.dateTo}
+                onChange={(event) =>
+                  updateFinanceBrowseFilter("movements", {
+                    dateTo: event.target.value
+                  })
+                }
+              />
+            </label>
           </div>
         </div>
         <EntitySection title="Movimentos bancarios">
@@ -7627,8 +10155,12 @@ export function App() {
               { key: "source", label: "Origem" }
             ],
             filteredMovements.map((entry) => {
-              const originBank = banks.find((item) => item.id === entry.bankIdOrigem);
-              const destinationBank = banks.find((item) => item.id === entry.bankIdDestino);
+              const originBank = banks.find(
+                (item) => item.id === entry.bankIdOrigem
+              );
+              const destinationBank = banks.find(
+                (item) => item.id === entry.bankIdDestino
+              );
 
               return {
                 id: entry.id,
@@ -7639,11 +10171,27 @@ export function App() {
                   { key: "data", value: formatDateTime(entry.dataMovimento) },
                   { key: "tipo", value: formatBankMovementType(entry.tipo) },
                   { key: "historico", value: entry.historico },
-                  { key: "origem", value: originBank ? `${originBank.codigo} | ${originBank.nomeBanco}` : "-" },
-                  { key: "destino", value: destinationBank ? `${destinationBank.codigo} | ${destinationBank.nomeBanco}` : "-" },
+                  {
+                    key: "origem",
+                    value: originBank
+                      ? `${originBank.codigo} | ${originBank.nomeBanco}`
+                      : "-"
+                  },
+                  {
+                    key: "destino",
+                    value: destinationBank
+                      ? `${destinationBank.codigo} | ${destinationBank.nomeBanco}`
+                      : "-"
+                  },
                   { key: "valor", value: formatCurrency(entry.valor) },
-                  { key: "situacao", value: formatBankMovementStatus(entry.status) },
-                  { key: "source", value: formatBankMovementSource(entry.sourceType) }
+                  {
+                    key: "situacao",
+                    value: formatBankMovementStatus(entry.status)
+                  },
+                  {
+                    key: "source",
+                    value: formatBankMovementSource(entry.sourceType)
+                  }
                 ]
               };
             }),
@@ -7667,7 +10215,11 @@ export function App() {
           onClick={() => setIsShellContextOpen(false)}
           type="button"
         />
-        <aside className="shell-context-sheet" role="dialog" aria-label="Contexto do tenant">
+        <aside
+          className="shell-context-sheet"
+          role="dialog"
+          aria-label="Contexto do tenant"
+        >
           <div className="shell-context-sheet-header">
             <div>
               <p className="eyebrow">Contexto do tenant</p>
@@ -7687,7 +10239,9 @@ export function App() {
             <article className="dashboard-kpi-item">
               <div className="dashboard-kpi-main">
                 <strong>Slug publica</strong>
-                <span>{tenant?.slug ? `/${tenant.slug}` : "Nao publicada"}</span>
+                <span>
+                  {tenant?.slug ? `/${tenant.slug}` : "Nao publicada"}
+                </span>
               </div>
               <div className="dashboard-kpi-side">
                 <span>Booking publico</span>
@@ -7718,17 +10272,35 @@ export function App() {
 
           <div className="shell-context-sheet-actions">
             {publicBookingUrl ? (
-              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+              <a
+                className="secondary-button button-link"
+                href={publicBookingUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
                 Abrir booking
               </a>
             ) : null}
-            <button className="secondary-button" onClick={() => navigateTo("configuracoes")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => navigateTo("configuracoes")}
+              type="button"
+            >
               Abrir configuracoes
             </button>
-            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+            <button
+              className="secondary-button"
+              disabled={isBusy}
+              onClick={handleRefreshClick}
+              type="button"
+            >
               Atualizar painel
             </button>
-            <button className="secondary-button" onClick={() => setSessionToken("")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => setSessionToken("")}
+              type="button"
+            >
               Sair
             </button>
           </div>
@@ -7750,13 +10322,18 @@ export function App() {
           onClick={() => setIsShellPulseOpen(false)}
           type="button"
         />
-        <aside className="shell-context-sheet shell-pulse-sheet" role="dialog" aria-label="Painel rapido do shell">
+        <aside
+          className="shell-context-sheet shell-pulse-sheet"
+          role="dialog"
+          aria-label="Painel rapido do shell"
+        >
           <div className="shell-context-sheet-header">
             <div>
               <p className="eyebrow">Painel rapido</p>
               <h2>Atenções e atalhos</h2>
               <p className="description">
-                Leitura curta do que pede ação agora, sem abrir outra tela só para descobrir prioridade.
+                Leitura curta do que pede ação agora, sem abrir outra tela só
+                para descobrir prioridade.
               </p>
             </div>
             <button
@@ -7790,7 +10367,10 @@ export function App() {
                 label: "Clientes sem retorno",
                 value: clientPortfolioSummary.inactiveCount,
                 helper: `Janela atual: ${resolveClientReturnWindowLabel(clientReturnWindow)}.`,
-                tone: clientPortfolioSummary.inactiveCount > 0 ? "warning" : undefined
+                tone:
+                  clientPortfolioSummary.inactiveCount > 0
+                    ? "warning"
+                    : undefined
               },
               {
                 id: "shell-open-bookings",
@@ -7828,22 +10408,40 @@ export function App() {
               </div>
               <div className="dashboard-kpi-side">
                 <span>{clientPortfolioSummary.returningCount} com retorno</span>
-                <small>{resolveClientReturnWindowLabel(clientReturnWindow)}</small>
+                <small>
+                  {resolveClientReturnWindowLabel(clientReturnWindow)}
+                </small>
               </div>
             </article>
           </div>
 
           <div className="shell-context-sheet-actions shell-pulse-actions">
-            <button className="secondary-button" onClick={() => navigateTo("operacional")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => navigateTo("operacional")}
+              type="button"
+            >
               Abrir operacao
             </button>
-            <button className="secondary-button" onClick={() => navigateTo("agenda")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => navigateTo("agenda")}
+              type="button"
+            >
               Abrir agenda
             </button>
-            <button className="secondary-button" onClick={openClientsDirectoryFromShell} type="button">
+            <button
+              className="secondary-button"
+              onClick={openClientsDirectoryFromShell}
+              type="button"
+            >
               Abrir clientes
             </button>
-            <button className="secondary-button" onClick={() => navigateTo("relatorios")} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => navigateTo("relatorios")}
+              type="button"
+            >
               Abrir relatorios
             </button>
           </div>
@@ -7877,15 +10475,24 @@ export function App() {
         step: "03",
         label: "Horario",
         complete: Boolean(counterBookingSelectedSlot),
-        available: Boolean(counterBookingSelectedService && counterBookingSelectedProfessional)
+        available: Boolean(
+          counterBookingSelectedService && counterBookingSelectedProfessional
+        )
       },
       {
         id: "client" as CounterBookingStep,
         step: "04",
         label: "Cliente",
-        complete:
-          Boolean(counterBookingForm.nome && counterBookingForm.telefone && counterBookingForm.email),
-        available: Boolean(counterBookingSelectedService && counterBookingSelectedProfessional && counterBookingSelectedSlot)
+        complete: Boolean(
+          counterBookingForm.nome &&
+          counterBookingForm.telefone &&
+          counterBookingForm.email
+        ),
+        available: Boolean(
+          counterBookingSelectedService &&
+          counterBookingSelectedProfessional &&
+          counterBookingSelectedSlot
+        )
       }
     ];
 
@@ -7898,13 +10505,21 @@ export function App() {
             onClick={closeCounterBookingModal}
             type="button"
           />
-          <section className="counter-booking-modal" role="dialog" aria-label="Novo agendamento">
+          <section
+            className="counter-booking-modal"
+            role="dialog"
+            aria-label="Novo agendamento"
+          >
             <div className="counter-booking-modal-header">
               <div>
                 <p className="eyebrow">Novo agendamento</p>
                 <h2>Reserva criada no balcão</h2>
               </div>
-              <button className="admin-icon-button" onClick={closeCounterBookingModal} type="button">
+              <button
+                className="admin-icon-button"
+                onClick={closeCounterBookingModal}
+                type="button"
+              >
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -7922,13 +10537,17 @@ export function App() {
                     id: "receipt-professional",
                     label: "Profissional",
                     value: counterBookingReceipt.professional.nome,
-                    helper: formatBookingStatus(counterBookingReceipt.booking.status),
+                    helper: formatBookingStatus(
+                      counterBookingReceipt.booking.status
+                    ),
                     tone: "success"
                   },
                   {
                     id: "receipt-schedule",
                     label: "Horario",
-                    value: formatDateTime(counterBookingReceipt.booking.startAt),
+                    value: formatDateTime(
+                      counterBookingReceipt.booking.startAt
+                    ),
                     helper: formatTimeRange(
                       counterBookingReceipt.booking.startAt,
                       counterBookingReceipt.booking.endAt
@@ -7943,10 +10562,18 @@ export function App() {
                 ]}
               />
               <div className="counter-booking-footer">
-                <button className="secondary-button" onClick={() => openCounterBookingModal()} type="button">
+                <button
+                  className="secondary-button"
+                  onClick={() => openCounterBookingModal()}
+                  type="button"
+                >
                   Novo agendamento
                 </button>
-                <button className="admin-primary-action" onClick={handleOpenCounterBookingInAgenda} type="button">
+                <button
+                  className="admin-primary-action"
+                  onClick={handleOpenCounterBookingInAgenda}
+                  type="button"
+                >
                   Abrir agenda
                 </button>
               </div>
@@ -7964,25 +10591,42 @@ export function App() {
           onClick={closeCounterBookingModal}
           type="button"
         />
-        <section className="counter-booking-modal" role="dialog" aria-label="Novo agendamento">
+        <section
+          className="counter-booking-modal"
+          role="dialog"
+          aria-label="Novo agendamento"
+        >
           <div className="counter-booking-modal-header">
             <div>
               <p className="eyebrow">Novo agendamento</p>
               <h2>Agendar cliente no balcão</h2>
               <p className="description">
-                Mesma jornada do booking publico, mas persistida pelo admin com contrato interno.
+                Mesma jornada do booking publico, mas persistida pelo admin com
+                contrato interno.
               </p>
             </div>
-            <button className="admin-icon-button" onClick={closeCounterBookingModal} type="button">
+            <button
+              className="admin-icon-button"
+              onClick={closeCounterBookingModal}
+              type="button"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <form className="counter-booking-form" onSubmit={(event) => void handleSubmitCounterBooking(event)}>
-            <div className="counter-booking-progress" aria-label="Etapas do agendamento">
+          <form
+            className="counter-booking-form"
+            onSubmit={(event) => void handleSubmitCounterBooking(event)}
+          >
+            <div
+              className="counter-booking-progress"
+              aria-label="Etapas do agendamento"
+            >
               {progressSteps.map((step) => (
                 <button
-                  aria-current={counterBookingStep === step.id ? "step" : undefined}
+                  aria-current={
+                    counterBookingStep === step.id ? "step" : undefined
+                  }
                   className={
                     counterBookingStep === step.id
                       ? "counter-booking-progress-pill is-active"
@@ -8009,7 +10653,9 @@ export function App() {
                       <span>01</span>
                       <div>
                         <h3>Escolha o serviço</h3>
-                        <p>Comece pelo atendimento que será marcado no balcão.</p>
+                        <p>
+                          Comece pelo atendimento que será marcado no balcão.
+                        </p>
                       </div>
                     </div>
 
@@ -8023,7 +10669,9 @@ export function App() {
                                 : "counter-booking-choice-card"
                             }
                             key={service.id}
-                            onClick={() => setCounterBookingServiceId(service.id)}
+                            onClick={() =>
+                              setCounterBookingServiceId(service.id)
+                            }
                             type="button"
                           >
                             <strong>{service.nome}</strong>
@@ -8032,7 +10680,9 @@ export function App() {
                           </button>
                         ))
                       ) : (
-                        <p className="empty-state">Publique ao menos um servico ativo no catalogo.</p>
+                        <p className="empty-state">
+                          Publique ao menos um servico ativo no catalogo.
+                        </p>
                       )}
                     </div>
                   </section>
@@ -8044,7 +10694,10 @@ export function App() {
                       <span>02</span>
                       <div>
                         <h3>Escolha o profissional</h3>
-                        <p>Mostramos apenas a equipe compativel com o servico selecionado.</p>
+                        <p>
+                          Mostramos apenas a equipe compativel com o servico
+                          selecionado.
+                        </p>
                       </div>
                     </div>
 
@@ -8058,16 +10711,29 @@ export function App() {
                                 : "counter-booking-choice-card"
                             }
                             key={professional.id}
-                            onClick={() => setCounterBookingProfessionalId(professional.id)}
+                            onClick={() =>
+                              setCounterBookingProfessionalId(professional.id)
+                            }
                             type="button"
                           >
                             <strong>{professional.nome}</strong>
-                            <span>{resolveProfessionalSummaryLine(resolveProfessionalServiceNames(professional, services))}</span>
-                            <small>{formatProfessionalStatus(professional.status)}</small>
+                            <span>
+                              {resolveProfessionalSummaryLine(
+                                resolveProfessionalServiceNames(
+                                  professional,
+                                  services
+                                )
+                              )}
+                            </span>
+                            <small>
+                              {formatProfessionalStatus(professional.status)}
+                            </small>
                           </button>
                         ))
                       ) : (
-                        <p className="empty-state">Nenhum profissional ativo atende esse servico.</p>
+                        <p className="empty-state">
+                          Nenhum profissional ativo atende esse servico.
+                        </p>
                       )}
                     </div>
                   </section>
@@ -8079,7 +10745,10 @@ export function App() {
                       <span>03</span>
                       <div>
                         <h3>Escolha o horario</h3>
-                        <p>Os slots saem da disponibilidade real do profissional no admin.</p>
+                        <p>
+                          Os slots saem da disponibilidade real do profissional
+                          no admin.
+                        </p>
                       </div>
                     </div>
 
@@ -8089,12 +10758,16 @@ export function App() {
                         min={formatDateInputValue(new Date())}
                         type="date"
                         value={counterBookingDate}
-                        onChange={(event) => setCounterBookingDate(event.target.value)}
+                        onChange={(event) =>
+                          setCounterBookingDate(event.target.value)
+                        }
                       />
                     </label>
 
                     {isLoadingCounterBookingSlots ? (
-                      <p className="helper">Carregando horarios disponiveis...</p>
+                      <p className="helper">
+                        Carregando horarios disponiveis...
+                      </p>
                     ) : counterBookingSlots.length ? (
                       <div className="slot-grid">
                         {counterBookingSlots.map((slot) => (
@@ -8105,7 +10778,9 @@ export function App() {
                                 : "secondary-button"
                             }
                             key={slot.startAt}
-                            onClick={() => setCounterBookingSlotStartAt(slot.startAt)}
+                            onClick={() =>
+                              setCounterBookingSlotStartAt(slot.startAt)
+                            }
                             type="button"
                           >
                             {slot.startTime}
@@ -8113,7 +10788,9 @@ export function App() {
                         ))}
                       </div>
                     ) : (
-                      <p className="empty-state">Nenhum slot disponivel para esta data.</p>
+                      <p className="empty-state">
+                        Nenhum slot disponivel para esta data.
+                      </p>
                     )}
                   </section>
                 ) : null}
@@ -8124,7 +10801,10 @@ export function App() {
                       <span>04</span>
                       <div>
                         <h3>Dados do cliente</h3>
-                        <p>Se a base ja tiver esse cliente, o admin reutiliza o cadastro automaticamente.</p>
+                        <p>
+                          Se a base ja tiver esse cliente, o admin reutiliza o
+                          cadastro automaticamente.
+                        </p>
                       </div>
                     </div>
 
@@ -8136,7 +10816,10 @@ export function App() {
                           type="text"
                           value={counterBookingForm.nome}
                           onChange={(event) =>
-                            setCounterBookingForm({ ...counterBookingForm, nome: event.target.value })
+                            setCounterBookingForm({
+                              ...counterBookingForm,
+                              nome: event.target.value
+                            })
                           }
                         />
                       </label>
@@ -8147,7 +10830,10 @@ export function App() {
                           type="tel"
                           value={counterBookingForm.telefone}
                           onChange={(event) =>
-                            setCounterBookingForm({ ...counterBookingForm, telefone: event.target.value })
+                            setCounterBookingForm({
+                              ...counterBookingForm,
+                              telefone: event.target.value
+                            })
                           }
                         />
                       </label>
@@ -8158,7 +10844,10 @@ export function App() {
                           type="email"
                           value={counterBookingForm.email}
                           onChange={(event) =>
-                            setCounterBookingForm({ ...counterBookingForm, email: event.target.value })
+                            setCounterBookingForm({
+                              ...counterBookingForm,
+                              email: event.target.value
+                            })
                           }
                         />
                       </label>
@@ -8169,7 +10858,10 @@ export function App() {
                           type="text"
                           value={counterBookingForm.origem}
                           onChange={(event) =>
-                            setCounterBookingForm({ ...counterBookingForm, origem: event.target.value })
+                            setCounterBookingForm({
+                              ...counterBookingForm,
+                              origem: event.target.value
+                            })
                           }
                         />
                       </label>
@@ -8180,7 +10872,8 @@ export function App() {
                           onChange={(event) =>
                             setCounterBookingForm({
                               ...counterBookingForm,
-                              status: event.target.value as CounterBookingFormState["status"]
+                              status: event.target
+                                .value as CounterBookingFormState["status"]
                             })
                           }
                         >
@@ -8194,14 +10887,19 @@ export function App() {
                       <div className="counter-booking-match">
                         <ViewBadge tone="info">Cliente ja existe</ViewBadge>
                         <span>
-                          O cadastro de {counterBookingClientMatch.nome} sera reutilizado para evitar duplicidade.
+                          O cadastro de {counterBookingClientMatch.nome} sera
+                          reutilizado para evitar duplicidade.
                         </span>
                       </div>
                     ) : null}
                   </section>
                 ) : null}
 
-                {counterBookingError ? <div className="feedback-banner is-error">{counterBookingError}</div> : null}
+                {counterBookingError ? (
+                  <div className="feedback-banner is-error">
+                    {counterBookingError}
+                  </div>
+                ) : null}
                 {counterBookingConflictSuggestion ? (
                   <div className="feedback-banner is-warning counter-booking-conflict-banner">
                     <span>{counterBookingConflictSuggestion.message}</span>
@@ -8209,7 +10907,9 @@ export function App() {
                       <button
                         className="secondary-button"
                         onClick={() => {
-                          setCounterBookingSlotStartAt(counterBookingConflictSuggestion.slot.startAt);
+                          setCounterBookingSlotStartAt(
+                            counterBookingConflictSuggestion.slot.startAt
+                          );
                           setCounterBookingConflictSuggestion(null);
                           setCounterBookingError(
                             `Horario ajustado para ${formatTimeRange(
@@ -8224,7 +10924,9 @@ export function App() {
                       </button>
                       <button
                         className="secondary-button"
-                        onClick={() => setCounterBookingConflictSuggestion(null)}
+                        onClick={() =>
+                          setCounterBookingConflictSuggestion(null)
+                        }
                         type="button"
                       >
                         Nao
@@ -8234,22 +10936,40 @@ export function App() {
                 ) : null}
 
                 <div className="counter-booking-footer">
-                  <button className="secondary-button" onClick={closeCounterBookingModal} type="button">
+                  <button
+                    className="secondary-button"
+                    onClick={closeCounterBookingModal}
+                    type="button"
+                  >
                     Cancelar
                   </button>
                   <div className="counter-booking-footer-actions">
                     {counterBookingStep !== "service" ? (
-                      <button className="secondary-button" onClick={handleCounterBookingPreviousStep} type="button">
+                      <button
+                        className="secondary-button"
+                        onClick={handleCounterBookingPreviousStep}
+                        type="button"
+                      >
                         Voltar
                       </button>
                     ) : null}
                     {counterBookingStep !== "client" ? (
-                      <button className="admin-primary-action" onClick={handleCounterBookingNextStep} type="button">
+                      <button
+                        className="admin-primary-action"
+                        onClick={handleCounterBookingNextStep}
+                        type="button"
+                      >
                         Continuar
                       </button>
                     ) : (
-                      <button className="admin-primary-action" disabled={isSubmittingCounterBooking} type="submit">
-                        {isSubmittingCounterBooking ? "Salvando..." : "Salvar agendamento"}
+                      <button
+                        className="admin-primary-action"
+                        disabled={isSubmittingCounterBooking}
+                        type="submit"
+                      >
+                        {isSubmittingCounterBooking
+                          ? "Salvando..."
+                          : "Salvar agendamento"}
                       </button>
                     )}
                   </div>
@@ -8273,7 +10993,10 @@ export function App() {
                       value: counterBookingSelectedProfessional?.nome ?? "--",
                       helper: counterBookingSelectedProfessional
                         ? resolveProfessionalSummaryLine(
-                            resolveProfessionalServiceNames(counterBookingSelectedProfessional, services)
+                            resolveProfessionalServiceNames(
+                              counterBookingSelectedProfessional,
+                              services
+                            )
                           )
                         : "Selecione quem vai atender."
                     },
@@ -8284,7 +11007,10 @@ export function App() {
                         ? formatDateTime(counterBookingSelectedSlot.startAt)
                         : "--",
                       helper: counterBookingSelectedSlot
-                        ? formatTimeRange(counterBookingSelectedSlot.startAt, counterBookingSelectedSlot.endAt)
+                        ? formatTimeRange(
+                            counterBookingSelectedSlot.startAt,
+                            counterBookingSelectedSlot.endAt
+                          )
                         : "Defina data e slot disponivel."
                     },
                     {
@@ -8298,7 +11024,10 @@ export function App() {
 
                 <div className="counter-booking-aside-card">
                   <strong>Regras deste fluxo</strong>
-                  <p>O agendamento nasce pelo admin sem abrir checkout publico e continua respeitando disponibilidade e conflito de slot.</p>
+                  <p>
+                    O agendamento nasce pelo admin sem abrir checkout publico e
+                    continua respeitando disponibilidade e conflito de slot.
+                  </p>
                 </div>
               </aside>
             </div>
@@ -8313,8 +11042,12 @@ export function App() {
       return null;
     }
 
-    const selectedService = services.find((item) => item.id === selectedAgendaBooking.serviceId);
-    const selectedClient = clients.find((item) => item.id === selectedAgendaBooking.clientId);
+    const selectedService = services.find(
+      (item) => item.id === selectedAgendaBooking.serviceId
+    );
+    const selectedClient = clients.find(
+      (item) => item.id === selectedAgendaBooking.clientId
+    );
 
     return (
       <>
@@ -8324,21 +11057,36 @@ export function App() {
           onClick={closeAgendaBookingModal}
           type="button"
         />
-        <section className="agenda-booking-modal" role="dialog" aria-label="Detalhe da booking">
+        <section
+          className="agenda-booking-modal"
+          role="dialog"
+          aria-label="Detalhe da booking"
+        >
           <div className="agenda-booking-modal-header">
             <div>
               <p className="eyebrow">Detalhe da booking</p>
               <h2>{selectedService?.nome ?? "Booking selecionada"}</h2>
               <p className="description">
-                {selectedClient?.nome ?? "Cliente"} em {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}.
+                {selectedClient?.nome ?? "Cliente"} em{" "}
+                {formatTimeRange(
+                  selectedAgendaBooking.startAt,
+                  selectedAgendaBooking.endAt
+                )}
+                .
               </p>
             </div>
-            <button className="admin-icon-button" onClick={closeAgendaBookingModal} type="button">
+            <button
+              className="admin-icon-button"
+              onClick={closeAgendaBookingModal}
+              type="button"
+            >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="agenda-booking-modal-body">{renderAgendaBookingDocument()}</div>
+          <div className="agenda-booking-modal-body">
+            {renderAgendaBookingDocument()}
+          </div>
         </section>
       </>
     );
@@ -8350,15 +11098,21 @@ export function App() {
     }
 
     const filteredBankRows = banks
-      .filter((bank) =>
-        cashflowFilterDraft.query.trim().length === 0 ||
-        `${bank.codigo} ${bank.nomeBanco} ${bank.agencia} ${bank.conta}`.toLowerCase().includes(cashflowFilterDraft.query.trim().toLowerCase())
+      .filter(
+        (bank) =>
+          cashflowFilterDraft.query.trim().length === 0 ||
+          `${bank.codigo} ${bank.nomeBanco} ${bank.agencia} ${bank.conta}`
+            .toLowerCase()
+            .includes(cashflowFilterDraft.query.trim().toLowerCase())
       )
       .map((bank) => ({
         id: bank.id,
         selected: cashflowFilterDraft.bankId === bank.id,
         onClick: () => {
-          setCashflowFilterDraft((current) => ({ ...current, bankId: bank.id }));
+          setCashflowFilterDraft((current) => ({
+            ...current,
+            bankId: bank.id
+          }));
           setIsCashflowBankLookupOpen(false);
         },
         cells: [
@@ -8369,7 +11123,10 @@ export function App() {
       }));
 
     return (
-      <WorkspaceRecordModal onClose={() => setIsCashflowFilterModalOpen(false)} title="Filtros do fluxo de caixa">
+      <WorkspaceRecordModal
+        onClose={() => setIsCashflowFilterModalOpen(false)}
+        title="Filtros do fluxo de caixa"
+      >
         <div className="stack-form">
           <div className="form-grid">
             <label className="field">
@@ -8377,7 +11134,12 @@ export function App() {
               <input
                 type="date"
                 value={cashflowFilterDraft.dateFrom}
-                onChange={(event) => setCashflowFilterDraft((current) => ({ ...current, dateFrom: event.target.value }))}
+                onChange={(event) =>
+                  setCashflowFilterDraft((current) => ({
+                    ...current,
+                    dateFrom: event.target.value
+                  }))
+                }
               />
             </label>
             <label className="field">
@@ -8385,7 +11147,12 @@ export function App() {
               <input
                 type="date"
                 value={cashflowFilterDraft.dateTo}
-                onChange={(event) => setCashflowFilterDraft((current) => ({ ...current, dateTo: event.target.value }))}
+                onChange={(event) =>
+                  setCashflowFilterDraft((current) => ({
+                    ...current,
+                    dateTo: event.target.value
+                  }))
+                }
               />
             </label>
             <label className="field field-wide">
@@ -8396,16 +11163,26 @@ export function App() {
                   value={
                     cashflowFilterDraft.bankId === "all"
                       ? "Todos"
-                      : resolveBankLabel(cashflowFilterDraft.bankId, banks) ?? "Banco nao encontrado"
+                      : (resolveBankLabel(cashflowFilterDraft.bankId, banks) ??
+                        "Banco nao encontrado")
                   }
                 />
-                <button className="secondary-button" onClick={() => setIsCashflowBankLookupOpen(true)} type="button">
+                <button
+                  className="secondary-button"
+                  onClick={() => setIsCashflowBankLookupOpen(true)}
+                  type="button"
+                >
                   Buscar
                 </button>
                 {cashflowFilterDraft.bankId !== "all" ? (
                   <button
                     className="secondary-button"
-                    onClick={() => setCashflowFilterDraft((current) => ({ ...current, bankId: "all" }))}
+                    onClick={() =>
+                      setCashflowFilterDraft((current) => ({
+                        ...current,
+                        bankId: "all"
+                      }))
+                    }
                     type="button"
                   >
                     Limpar
@@ -8420,7 +11197,8 @@ export function App() {
                 onChange={(event) =>
                   setCashflowFilterDraft((current) => ({
                     ...current,
-                    movementStatus: event.target.value as CashflowMovementStatusFilter
+                    movementStatus: event.target
+                      .value as CashflowMovementStatusFilter
                   }))
                 }
               >
@@ -8437,7 +11215,8 @@ export function App() {
                 onChange={(event) =>
                   setCashflowFilterDraft((current) => ({
                     ...current,
-                    type: event.target.value as FinanceBrowseFiltersState["cashflow"]["type"]
+                    type: event.target
+                      .value as FinanceBrowseFiltersState["cashflow"]["type"]
                   }))
                 }
               >
@@ -8472,23 +11251,43 @@ export function App() {
               <span>Buscar</span>
               <input
                 value={cashflowFilterDraft.query}
-                onChange={(event) => setCashflowFilterDraft((current) => ({ ...current, query: event.target.value }))}
+                onChange={(event) =>
+                  setCashflowFilterDraft((current) => ({
+                    ...current,
+                    query: event.target.value
+                  }))
+                }
               />
             </label>
           </div>
           <div className="button-row">
-            <button className="secondary-button" onClick={clearCashflowFilters} type="button">
+            <button
+              className="secondary-button"
+              onClick={clearCashflowFilters}
+              type="button"
+            >
               Limpar filtros
             </button>
-            <button className="secondary-button" onClick={() => setIsCashflowFilterModalOpen(false)} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => setIsCashflowFilterModalOpen(false)}
+              type="button"
+            >
               Cancelar
             </button>
-            <button className="primary-button" onClick={applyCashflowFilterDraft} type="button">
+            <button
+              className="primary-button"
+              onClick={applyCashflowFilterDraft}
+              type="button"
+            >
               Aplicar filtros
             </button>
           </div>
           {isCashflowBankLookupOpen ? (
-            <WorkspaceRecordModal onClose={() => setIsCashflowBankLookupOpen(false)} title="Selecionar banco">
+            <WorkspaceRecordModal
+              onClose={() => setIsCashflowBankLookupOpen(false)}
+              title="Selecionar banco"
+            >
               {renderFinanceBrowseTable(
                 [
                   { key: "codigo", label: "Codigo" },
@@ -8511,7 +11310,10 @@ export function App() {
     }
 
     return (
-      <WorkspaceRecordModal onClose={() => setIsAgendaFilterModalOpen(false)} title="Filtros da agenda">
+      <WorkspaceRecordModal
+        onClose={() => setIsAgendaFilterModalOpen(false)}
+        title="Filtros da agenda"
+      >
         <div className="stack-form">
           <div className="form-grid">
             <label className="field">
@@ -8519,7 +11321,12 @@ export function App() {
               <input
                 type="date"
                 value={agendaFilterDraft.date}
-                onChange={(event) => setAgendaFilterDraft((current) => ({ ...current, date: event.target.value }))}
+                onChange={(event) =>
+                  setAgendaFilterDraft((current) => ({
+                    ...current,
+                    date: event.target.value
+                  }))
+                }
               />
             </label>
             <label className="field">
@@ -8527,7 +11334,10 @@ export function App() {
               <select
                 value={agendaFilterDraft.professionalId}
                 onChange={(event) =>
-                  setAgendaFilterDraft((current) => ({ ...current, professionalId: event.target.value }))
+                  setAgendaFilterDraft((current) => ({
+                    ...current,
+                    professionalId: event.target.value
+                  }))
                 }
               >
                 <option value="all">Todos os profissionais</option>
@@ -8545,13 +11355,16 @@ export function App() {
                 onChange={(event) =>
                   setAgendaFilterDraft((current) => ({
                     ...current,
-                    status: event.target.value as AgendaFilterDraftState["status"]
+                    status: event.target
+                      .value as AgendaFilterDraftState["status"]
                   }))
                 }
               >
                 <option value="all">Todos</option>
                 <option value="pendente">Pendente</option>
-                <option value="aguardando pagamento">Aguardando pagamento</option>
+                <option value="aguardando pagamento">
+                  Aguardando pagamento
+                </option>
                 <option value="confirmado">Confirmado</option>
                 <option value="concluido">Concluido</option>
                 <option value="cancelado">Cancelado</option>
@@ -8562,7 +11375,12 @@ export function App() {
               <span>Servico</span>
               <select
                 value={agendaFilterDraft.serviceId}
-                onChange={(event) => setAgendaFilterDraft((current) => ({ ...current, serviceId: event.target.value }))}
+                onChange={(event) =>
+                  setAgendaFilterDraft((current) => ({
+                    ...current,
+                    serviceId: event.target.value
+                  }))
+                }
               >
                 <option value="all">Todos os servicos</option>
                 {services.map((service) => (
@@ -8577,20 +11395,35 @@ export function App() {
               <input
                 checked={agendaFilterDraft.pendingOnly}
                 onChange={(event) =>
-                  setAgendaFilterDraft((current) => ({ ...current, pendingOnly: event.target.checked }))
+                  setAgendaFilterDraft((current) => ({
+                    ...current,
+                    pendingOnly: event.target.checked
+                  }))
                 }
                 type="checkbox"
               />
             </label>
           </div>
           <div className="button-row">
-            <button className="secondary-button" onClick={clearAgendaFilters} type="button">
+            <button
+              className="secondary-button"
+              onClick={clearAgendaFilters}
+              type="button"
+            >
               Limpar filtros
             </button>
-            <button className="secondary-button" onClick={() => setIsAgendaFilterModalOpen(false)} type="button">
+            <button
+              className="secondary-button"
+              onClick={() => setIsAgendaFilterModalOpen(false)}
+              type="button"
+            >
               Cancelar
             </button>
-            <button className="primary-button" onClick={applyAgendaFilters} type="button">
+            <button
+              className="primary-button"
+              onClick={applyAgendaFilters}
+              type="button"
+            >
               Aplicar filtros
             </button>
           </div>
@@ -8619,7 +11452,10 @@ export function App() {
                 : "Incluir banco"
           }
         >
-          <form className="stack-form" onSubmit={(event) => void handleSaveBank(event)}>
+          <form
+            className="stack-form"
+            onSubmit={(event) => void handleSaveBank(event)}
+          >
             <div className="form-grid">
               <label className="field">
                 <span>Codigo</span>
@@ -8627,7 +11463,10 @@ export function App() {
                   disabled={isReadOnly}
                   value={bankForm.codigo}
                   onChange={(event) =>
-                    setBankForm((current) => ({ ...current, codigo: event.target.value }))
+                    setBankForm((current) => ({
+                      ...current,
+                      codigo: event.target.value
+                    }))
                   }
                 />
               </label>
@@ -8638,7 +11477,10 @@ export function App() {
                   required
                   value={bankForm.bacenCode}
                   onChange={(event) =>
-                    setBankForm((current) => ({ ...current, bacenCode: event.target.value }))
+                    setBankForm((current) => ({
+                      ...current,
+                      bacenCode: event.target.value
+                    }))
                   }
                 />
               </label>
@@ -8649,7 +11491,10 @@ export function App() {
                   required
                   value={bankForm.nomeBanco}
                   onChange={(event) =>
-                    setBankForm((current) => ({ ...current, nomeBanco: event.target.value }))
+                    setBankForm((current) => ({
+                      ...current,
+                      nomeBanco: event.target.value
+                    }))
                   }
                 />
               </label>
@@ -8660,7 +11505,10 @@ export function App() {
                   required
                   value={bankForm.agencia}
                   onChange={(event) =>
-                    setBankForm((current) => ({ ...current, agencia: event.target.value }))
+                    setBankForm((current) => ({
+                      ...current,
+                      agencia: event.target.value
+                    }))
                   }
                 />
               </label>
@@ -8671,17 +11519,30 @@ export function App() {
                   required
                   value={bankForm.conta}
                   onChange={(event) =>
-                    setBankForm((current) => ({ ...current, conta: event.target.value }))
+                    setBankForm((current) => ({
+                      ...current,
+                      conta: event.target.value
+                    }))
                   }
                 />
               </label>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">
+              <button
+                className="secondary-button"
+                onClick={closeFinanceModal}
+                type="button"
+              >
                 {isReadOnly ? "Fechar" : "Cancelar"}
               </button>
               {!isReadOnly ? (
-                <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  type="submit"
+                >
+                  Salvar
+                </button>
               ) : null}
             </div>
           </form>
@@ -8702,7 +11563,10 @@ export function App() {
                 : "Saldo inicial"
           }
         >
-          <form className="stack-form" onSubmit={(event) => void handleSaveBankBalance(event)}>
+          <form
+            className="stack-form"
+            onSubmit={(event) => void handleSaveBankBalance(event)}
+          >
             <div className="form-grid">
               <label className="field">
                 <span>Codigo</span>
@@ -8710,7 +11574,10 @@ export function App() {
                   disabled={isReadOnly}
                   value={bankBalanceForm.codigo}
                   onChange={(event) =>
-                    setBankBalanceForm((current) => ({ ...current, codigo: event.target.value }))
+                    setBankBalanceForm((current) => ({
+                      ...current,
+                      codigo: event.target.value
+                    }))
                   }
                 />
               </label>
@@ -8721,12 +11588,17 @@ export function App() {
                   required
                   value={bankBalanceForm.bankId}
                   onChange={(event) =>
-                    setBankBalanceForm((current) => ({ ...current, bankId: event.target.value }))
+                    setBankBalanceForm((current) => ({
+                      ...current,
+                      bankId: event.target.value
+                    }))
                   }
                 >
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.nomeBanco} {bank.agencia}/{bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -8737,7 +11609,10 @@ export function App() {
                   required
                   value={bankBalanceForm.saldoInicial}
                   onValueChange={(value) =>
-                    setBankBalanceForm((current) => ({ ...current, saldoInicial: value }))
+                    setBankBalanceForm((current) => ({
+                      ...current,
+                      saldoInicial: value
+                    }))
                   }
                 />
               </label>
@@ -8758,11 +11633,21 @@ export function App() {
               </label>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">
+              <button
+                className="secondary-button"
+                onClick={closeFinanceModal}
+                type="button"
+              >
                 {isReadOnly ? "Fechar" : "Cancelar"}
               </button>
               {!isReadOnly ? (
-                <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  type="submit"
+                >
+                  Salvar
+                </button>
               ) : null}
             </div>
           </form>
@@ -8776,7 +11661,11 @@ export function App() {
       return (
         <WorkspaceRecordModal
           onClose={closeFinanceModal}
-          subtitle={isRevenue ? "Descricao, vencimento, valor, banco e baixa automatica." : "Descricao, vencimento, valor, banco e baixa automatica."}
+          subtitle={
+            isRevenue
+              ? "Descricao, vencimento, valor, banco e baixa automatica."
+              : "Descricao, vencimento, valor, banco e baixa automatica."
+          }
           title={
             isRevenue
               ? financeModalMode === "view"
@@ -8791,15 +11680,51 @@ export function App() {
                   : "Incluir despesa"
           }
         >
-          <form className="stack-form" onSubmit={(event) => void (isRevenue ? handleSaveRevenue(event) : handleSaveExpense(event))}>
+          <form
+            className="stack-form"
+            onSubmit={(event) =>
+              void (isRevenue
+                ? handleSaveRevenue(event)
+                : handleSaveExpense(event))
+            }
+          >
             <div className="form-grid">
               <label className="field">
                 <span>Codigo</span>
-                <input disabled={isReadOnly} value={form.codigo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, codigo: event.target.value }) : setExpenseForm({ ...expenseForm, codigo: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  value={form.codigo}
+                  onChange={(event) =>
+                    isRevenue
+                      ? setRevenueForm({
+                          ...revenueForm,
+                          codigo: event.target.value
+                        })
+                      : setExpenseForm({
+                          ...expenseForm,
+                          codigo: event.target.value
+                        })
+                  }
+                />
               </label>
               <label className="field field-wide">
                 <span>Descricao</span>
-                <input disabled={isReadOnly} required value={form.descricao} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, descricao: event.target.value }) : setExpenseForm({ ...expenseForm, descricao: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  value={form.descricao}
+                  onChange={(event) =>
+                    isRevenue
+                      ? setRevenueForm({
+                          ...revenueForm,
+                          descricao: event.target.value
+                        })
+                      : setExpenseForm({
+                          ...expenseForm,
+                          descricao: event.target.value
+                        })
+                  }
+                />
               </label>
               <label className="field">
                 <span>Valor</span>
@@ -8816,27 +11741,90 @@ export function App() {
               </label>
               <label className="field">
                 <span>Vencimento</span>
-                <input disabled={isReadOnly} required type="date" value={form.dataVencimento} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, dataVencimento: event.target.value }) : setExpenseForm({ ...expenseForm, dataVencimento: event.target.value })} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  type="date"
+                  value={form.dataVencimento}
+                  onChange={(event) =>
+                    isRevenue
+                      ? setRevenueForm({
+                          ...revenueForm,
+                          dataVencimento: event.target.value
+                        })
+                      : setExpenseForm({
+                          ...expenseForm,
+                          dataVencimento: event.target.value
+                        })
+                  }
+                />
               </label>
               <label className="field">
                 <span>Tipo</span>
-                <select disabled={isReadOnly} value={form.tipo} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, tipo: event.target.value as RevenueFormState["tipo"] }) : setExpenseForm({ ...expenseForm, tipo: event.target.value as ExpenseFormState["tipo"] })}>
+                <select
+                  disabled={isReadOnly}
+                  value={form.tipo}
+                  onChange={(event) =>
+                    isRevenue
+                      ? setRevenueForm({
+                          ...revenueForm,
+                          tipo: event.target.value as RevenueFormState["tipo"]
+                        })
+                      : setExpenseForm({
+                          ...expenseForm,
+                          tipo: event.target.value as ExpenseFormState["tipo"]
+                        })
+                  }
+                >
                   <option value="unica">Unica</option>
                   <option value="recorrente">Recorrente</option>
                 </select>
               </label>
               <label className="field">
                 <span>Banco</span>
-                <select disabled={isReadOnly} value={form.bankId} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, bankId: event.target.value }) : setExpenseForm({ ...expenseForm, bankId: event.target.value })}>
+                <select
+                  disabled={isReadOnly}
+                  value={form.bankId}
+                  onChange={(event) =>
+                    isRevenue
+                      ? setRevenueForm({
+                          ...revenueForm,
+                          bankId: event.target.value
+                        })
+                      : setExpenseForm({
+                          ...expenseForm,
+                          bankId: event.target.value
+                        })
+                  }
+                >
                   <option value="">Sem banco definido</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco} {bank.agencia}/
+                      {bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="field">
                 <span>Baixa automatica</span>
-                <select disabled={isReadOnly} value={form.baixaAutomatica} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, baixaAutomatica: event.target.value as RevenueFormState["baixaAutomatica"] }) : setExpenseForm({ ...expenseForm, baixaAutomatica: event.target.value as ExpenseFormState["baixaAutomatica"] })}>
+                <select
+                  disabled={isReadOnly}
+                  value={form.baixaAutomatica}
+                  onChange={(event) =>
+                    isRevenue
+                      ? setRevenueForm({
+                          ...revenueForm,
+                          baixaAutomatica: event.target
+                            .value as RevenueFormState["baixaAutomatica"]
+                        })
+                      : setExpenseForm({
+                          ...expenseForm,
+                          baixaAutomatica: event.target
+                            .value as ExpenseFormState["baixaAutomatica"]
+                        })
+                  }
+                >
                   <option value="nao">Nao</option>
                   <option value="sim">Sim</option>
                 </select>
@@ -8845,27 +11833,82 @@ export function App() {
                 <>
                   <label className="field">
                     <span>Recorrencia</span>
-                    <select disabled={isReadOnly} value={form.recorrencia} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, recorrencia: event.target.value as RevenueFormState["recorrencia"] }) : setExpenseForm({ ...expenseForm, recorrencia: event.target.value as ExpenseFormState["recorrencia"] })}>
+                    <select
+                      disabled={isReadOnly}
+                      value={form.recorrencia}
+                      onChange={(event) =>
+                        isRevenue
+                          ? setRevenueForm({
+                              ...revenueForm,
+                              recorrencia: event.target
+                                .value as RevenueFormState["recorrencia"]
+                            })
+                          : setExpenseForm({
+                              ...expenseForm,
+                              recorrencia: event.target
+                                .value as ExpenseFormState["recorrencia"]
+                            })
+                      }
+                    >
                       <option value="semanal">Semanal</option>
                       <option value="mensal">Mensal</option>
                     </select>
                   </label>
                   <label className="field">
                     <span>Ocorrencias</span>
-                    <input disabled={isReadOnly} min="1" type="number" value={form.quantidadeOcorrencias} onChange={(event) => isRevenue ? setRevenueForm({ ...revenueForm, quantidadeOcorrencias: event.target.value }) : setExpenseForm({ ...expenseForm, quantidadeOcorrencias: event.target.value })} />
+                    <input
+                      disabled={isReadOnly}
+                      min="1"
+                      type="number"
+                      value={form.quantidadeOcorrencias}
+                      onChange={(event) =>
+                        isRevenue
+                          ? setRevenueForm({
+                              ...revenueForm,
+                              quantidadeOcorrencias: event.target.value
+                            })
+                          : setExpenseForm({
+                              ...expenseForm,
+                              quantidadeOcorrencias: event.target.value
+                            })
+                      }
+                    />
                   </label>
                 </>
               ) : null}
               {!isRevenue ? (
                 <label className="field field-wide">
                   <span>Beneficiario</span>
-                  <input disabled={isReadOnly} value={expenseForm.beneficiarioNome} onChange={(event) => setExpenseForm({ ...expenseForm, beneficiarioNome: event.target.value })} />
+                  <input
+                    disabled={isReadOnly}
+                    value={expenseForm.beneficiarioNome}
+                    onChange={(event) =>
+                      setExpenseForm({
+                        ...expenseForm,
+                        beneficiarioNome: event.target.value
+                      })
+                    }
+                  />
                 </label>
               ) : null}
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">{isReadOnly ? "Fechar" : "Cancelar"}</button>
-              {!isReadOnly ? <button className="primary-button" disabled={isBusy} type="submit">Salvar</button> : null}
+              <button
+                className="secondary-button"
+                onClick={closeFinanceModal}
+                type="button"
+              >
+                {isReadOnly ? "Fechar" : "Cancelar"}
+              </button>
+              {!isReadOnly ? (
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  type="submit"
+                >
+                  Salvar
+                </button>
+              ) : null}
             </div>
           </form>
         </WorkspaceRecordModal>
@@ -8885,11 +11928,24 @@ export function App() {
                 : "Incluir movimento"
           }
         >
-          <form className="stack-form" onSubmit={(event) => void handleSaveManualMovement(event)}>
+          <form
+            className="stack-form"
+            onSubmit={(event) => void handleSaveManualMovement(event)}
+          >
             <div className="form-grid">
               <label className="field">
                 <span>Tipo</span>
-                <select disabled={isReadOnly} value={manualMovementForm.tipo} onChange={(event) => setManualMovementForm((current) => ({ ...current, tipo: event.target.value as ManualMovementFormState["tipo"] }))}>
+                <select
+                  disabled={isReadOnly}
+                  value={manualMovementForm.tipo}
+                  onChange={(event) =>
+                    setManualMovementForm((current) => ({
+                      ...current,
+                      tipo: event.target
+                        .value as ManualMovementFormState["tipo"]
+                    }))
+                  }
+                >
                   <option value="entrada">Entrada</option>
                   <option value="saida">Saida</option>
                   <option value="transferencia">Transferencia</option>
@@ -8899,19 +11955,43 @@ export function App() {
               </label>
               <label className="field">
                 <span>Banco origem</span>
-                <select disabled={isReadOnly} value={manualMovementForm.bankIdOrigem} onChange={(event) => setManualMovementForm((current) => ({ ...current, bankIdOrigem: event.target.value }))}>
+                <select
+                  disabled={isReadOnly}
+                  value={manualMovementForm.bankIdOrigem}
+                  onChange={(event) =>
+                    setManualMovementForm((current) => ({
+                      ...current,
+                      bankIdOrigem: event.target.value
+                    }))
+                  }
+                >
                   <option value="">Nao se aplica</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco} {bank.agencia}/
+                      {bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="field">
                 <span>Banco destino</span>
-                <select disabled={isReadOnly} value={manualMovementForm.bankIdDestino} onChange={(event) => setManualMovementForm((current) => ({ ...current, bankIdDestino: event.target.value }))}>
+                <select
+                  disabled={isReadOnly}
+                  value={manualMovementForm.bankIdDestino}
+                  onChange={(event) =>
+                    setManualMovementForm((current) => ({
+                      ...current,
+                      bankIdDestino: event.target.value
+                    }))
+                  }
+                >
                   <option value="">Nao se aplica</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco} {bank.agencia}/
+                      {bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -8922,26 +12002,73 @@ export function App() {
                   required
                   value={manualMovementForm.valor}
                   onValueChange={(value) =>
-                    setManualMovementForm((current) => ({ ...current, valor: value }))
+                    setManualMovementForm((current) => ({
+                      ...current,
+                      valor: value
+                    }))
                   }
                 />
               </label>
               <label className="field field-wide">
                 <span>Historico</span>
-                <input disabled={isReadOnly} required value={manualMovementForm.historico} onChange={(event) => setManualMovementForm((current) => ({ ...current, historico: event.target.value }))} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  value={manualMovementForm.historico}
+                  onChange={(event) =>
+                    setManualMovementForm((current) => ({
+                      ...current,
+                      historico: event.target.value
+                    }))
+                  }
+                />
               </label>
               <label className="field field-wide">
                 <span>Beneficiario</span>
-                <input disabled={isReadOnly} value={manualMovementForm.beneficiarioNome} onChange={(event) => setManualMovementForm((current) => ({ ...current, beneficiarioNome: event.target.value }))} />
+                <input
+                  disabled={isReadOnly}
+                  value={manualMovementForm.beneficiarioNome}
+                  onChange={(event) =>
+                    setManualMovementForm((current) => ({
+                      ...current,
+                      beneficiarioNome: event.target.value
+                    }))
+                  }
+                />
               </label>
               <label className="field">
                 <span>Data do movimento</span>
-                <input disabled={isReadOnly} required type="datetime-local" value={manualMovementForm.dataMovimento} onChange={(event) => setManualMovementForm((current) => ({ ...current, dataMovimento: event.target.value }))} />
+                <input
+                  disabled={isReadOnly}
+                  required
+                  type="datetime-local"
+                  value={manualMovementForm.dataMovimento}
+                  onChange={(event) =>
+                    setManualMovementForm((current) => ({
+                      ...current,
+                      dataMovimento: event.target.value
+                    }))
+                  }
+                />
               </label>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">{isReadOnly ? "Fechar" : "Cancelar"}</button>
-              {!isReadOnly ? <button className="primary-button" disabled={isBusy} type="submit">Salvar</button> : null}
+              <button
+                className="secondary-button"
+                onClick={closeFinanceModal}
+                type="button"
+              >
+                {isReadOnly ? "Fechar" : "Cancelar"}
+              </button>
+              {!isReadOnly ? (
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  type="submit"
+                >
+                  Salvar
+                </button>
+              ) : null}
             </div>
           </form>
         </WorkspaceRecordModal>
@@ -8960,9 +12087,16 @@ export function App() {
               ? "Leitura do fechamento ja realizado."
               : "Selecione banco e periodo para fechar o caixa."
           }
-          title={financeModalMode === "view" ? "Visualizar fechamento" : "Fechar caixa"}
+          title={
+            financeModalMode === "view"
+              ? "Visualizar fechamento"
+              : "Fechar caixa"
+          }
         >
-          <form className="stack-form" onSubmit={(event) => void handleCreateCashClose(event)}>
+          <form
+            className="stack-form"
+            onSubmit={(event) => void handleCreateCashClose(event)}
+          >
             {financeModalMode === "view" && selectedCashClose ? (
               <div className="dashboard-mini-grid">
                 <div className="dashboard-mini-card">
@@ -8970,15 +12104,21 @@ export function App() {
                   <span>Codigo</span>
                 </div>
                 <div className="dashboard-mini-card">
-                  <strong>{formatCurrency(selectedCashClose.totalEntradas)}</strong>
+                  <strong>
+                    {formatCurrency(selectedCashClose.totalEntradas)}
+                  </strong>
                   <span>Total recebido</span>
                 </div>
                 <div className="dashboard-mini-card">
-                  <strong>{formatCurrency(selectedCashClose.totalSaidas)}</strong>
+                  <strong>
+                    {formatCurrency(selectedCashClose.totalSaidas)}
+                  </strong>
                   <span>Total pago</span>
                 </div>
                 <div className="dashboard-mini-card">
-                  <strong>{formatCurrency(selectedCashClose.saldoFechado)}</strong>
+                  <strong>
+                    {formatCurrency(selectedCashClose.saldoFechado)}
+                  </strong>
                   <span>Saldo fechado</span>
                 </div>
               </div>
@@ -8986,27 +12126,65 @@ export function App() {
             <div className="form-grid">
               <label className="field field-wide">
                 <span>Banco</span>
-                <select disabled={financeModalMode === "view"} required value={cashCloseForm.bankId} onChange={(event) => setCashCloseForm((current) => ({ ...current, bankId: event.target.value }))}>
+                <select
+                  disabled={financeModalMode === "view"}
+                  required
+                  value={cashCloseForm.bankId}
+                  onChange={(event) =>
+                    setCashCloseForm((current) => ({
+                      ...current,
+                      bankId: event.target.value
+                    }))
+                  }
+                >
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco} {bank.agencia}/
+                      {bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="field">
                 <span>Data de</span>
-                <input disabled={financeModalMode === "view"} required type="date" value={cashCloseForm.dateFrom} onChange={(event) => setCashCloseForm((current) => ({ ...current, dateFrom: event.target.value }))} />
+                <input
+                  disabled={financeModalMode === "view"}
+                  required
+                  type="date"
+                  value={cashCloseForm.dateFrom}
+                  onChange={(event) =>
+                    setCashCloseForm((current) => ({
+                      ...current,
+                      dateFrom: event.target.value
+                    }))
+                  }
+                />
               </label>
               <label className="field">
                 <span>Data ate</span>
-                <input disabled={financeModalMode === "view"} required type="date" value={cashCloseForm.dateTo} onChange={(event) => setCashCloseForm((current) => ({ ...current, dateTo: event.target.value }))} />
+                <input
+                  disabled={financeModalMode === "view"}
+                  required
+                  type="date"
+                  value={cashCloseForm.dateTo}
+                  onChange={(event) =>
+                    setCashCloseForm((current) => ({
+                      ...current,
+                      dateTo: event.target.value
+                    }))
+                  }
+                />
               </label>
             </div>
             {financeModalMode !== "view" ? (
               isLoadingCashClosePreview ? (
                 <div className="dashboard-mini-card">
                   <strong>Carregando conferencia</strong>
-                  <span>Aguarde enquanto os pendentes e os itens ja baixados sao consolidados.</span>
+                  <span>
+                    Aguarde enquanto os pendentes e os itens ja baixados sao
+                    consolidados.
+                  </span>
                 </div>
               ) : (
                 <div className="cash-close-preview-grid">
@@ -9014,16 +12192,25 @@ export function App() {
                     <div className="cash-close-preview-header">
                       <div>
                         <strong>Pendentes</strong>
-                        <span>{selectedCashClosePreviewKeys.length} marcado(s)</span>
+                        <span>
+                          {selectedCashClosePreviewKeys.length} marcado(s)
+                        </span>
                       </div>
                     </div>
                     {pendingPreviewItems.length ? (
                       <div className="cash-close-preview-list">
                         {pendingPreviewItems.map((entry) => {
-                          const key = buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId);
-                          const isChecked = selectedCashClosePreviewKeys.includes(key);
+                          const key = buildCashClosePreviewSelectionKey(
+                            entry.sourceType,
+                            entry.sourceId
+                          );
+                          const isChecked =
+                            selectedCashClosePreviewKeys.includes(key);
                           return (
-                            <label className="cash-close-preview-item is-pending" key={key}>
+                            <label
+                              className="cash-close-preview-item is-pending"
+                              key={key}
+                            >
                               <input
                                 checked={isChecked}
                                 type="checkbox"
@@ -9038,16 +12225,23 @@ export function App() {
                               <div className="cash-close-preview-copy">
                                 <strong>{entry.descricao}</strong>
                                 <span>
-                                  {entry.tipo === "entrada" ? "Receita" : "Despesa"} · {formatDateShort(entry.dataReferencia)}
+                                  {entry.tipo === "entrada"
+                                    ? "Receita"
+                                    : "Despesa"}{" "}
+                                  · {formatDateShort(entry.dataReferencia)}
                                 </span>
                               </div>
-                              <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                              <span className="cash-close-preview-value">
+                                {formatCurrency(entry.valor)}
+                              </span>
                             </label>
                           );
                         })}
                       </div>
                     ) : (
-                      <p className="empty-state">Nenhum item pendente para este banco e periodo.</p>
+                      <p className="empty-state">
+                        Nenhum item pendente para este banco e periodo.
+                      </p>
                     )}
                   </section>
 
@@ -9068,24 +12262,41 @@ export function App() {
                             <div className="cash-close-preview-copy">
                               <strong>{entry.descricao}</strong>
                               <span>
-                                {entry.tipo === "entrada" ? "Recebido" : "Pago"} · {formatDateShort(entry.dataReferencia)}
+                                {entry.tipo === "entrada" ? "Recebido" : "Pago"}{" "}
+                                · {formatDateShort(entry.dataReferencia)}
                               </span>
                             </div>
-                            <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                            <span className="cash-close-preview-value">
+                              {formatCurrency(entry.valor)}
+                            </span>
                           </div>
                         ))}
                       </div>
                     ) : (
-                      <p className="empty-state">Nenhum item baixado neste periodo.</p>
+                      <p className="empty-state">
+                        Nenhum item baixado neste periodo.
+                      </p>
                     )}
                   </section>
                 </div>
               )
             ) : null}
             <div className="button-row">
-              <button className="secondary-button" onClick={closeFinanceModal} type="button">{financeModalMode === "view" ? "Fechar" : "Cancelar"}</button>
+              <button
+                className="secondary-button"
+                onClick={closeFinanceModal}
+                type="button"
+              >
+                {financeModalMode === "view" ? "Fechar" : "Cancelar"}
+              </button>
               {financeModalMode !== "view" ? (
-                <button className="primary-button" disabled={isBusy || !selectedCashClosePreviewKeys.length} type="submit">Fechar caixa</button>
+                <button
+                  className="primary-button"
+                  disabled={isBusy || !selectedCashClosePreviewKeys.length}
+                  type="submit"
+                >
+                  Fechar caixa
+                </button>
               ) : null}
             </div>
           </form>
@@ -9094,7 +12305,11 @@ export function App() {
     }
 
     const movementTitle =
-      financeModal === "receive" ? "Receber" : financeModal === "pay" ? "Pagar" : "Transferir";
+      financeModal === "receive"
+        ? "Receber"
+        : financeModal === "pay"
+          ? "Pagar"
+          : "Transferir";
 
     return (
       <WorkspaceRecordModal onClose={closeFinanceModal} title={movementTitle}>
@@ -9112,20 +12327,51 @@ export function App() {
             {financeModal === "receive" ? (
               <label className="field">
                 <span>Banco</span>
-                <select required value={receiveMovementForm.bankIdDestino} onChange={(event) => setReceiveMovementForm((current) => ({ ...current, bankIdDestino: event.target.value }))}>
+                <select
+                  required
+                  value={receiveMovementForm.bankIdDestino}
+                  onChange={(event) =>
+                    setReceiveMovementForm((current) => ({
+                      ...current,
+                      bankIdDestino: event.target.value
+                    }))
+                  }
+                >
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.nomeBanco} {bank.agencia}/{bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
             ) : (
               <label className="field">
                 <span>Banco origem</span>
-                <select required value={financeModal === "pay" ? payMovementForm.bankIdOrigem : transferMovementForm.bankIdOrigem} onChange={(event) => financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, bankIdOrigem: event.target.value })) : setTransferMovementForm((current) => ({ ...current, bankIdOrigem: event.target.value }))}>
+                <select
+                  required
+                  value={
+                    financeModal === "pay"
+                      ? payMovementForm.bankIdOrigem
+                      : transferMovementForm.bankIdOrigem
+                  }
+                  onChange={(event) =>
+                    financeModal === "pay"
+                      ? setPayMovementForm((current) => ({
+                          ...current,
+                          bankIdOrigem: event.target.value
+                        }))
+                      : setTransferMovementForm((current) => ({
+                          ...current,
+                          bankIdOrigem: event.target.value
+                        }))
+                  }
+                >
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.nomeBanco} {bank.agencia}/{bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -9133,10 +12379,21 @@ export function App() {
             {financeModal === "transfer" ? (
               <label className="field">
                 <span>Banco destino</span>
-                <select required value={transferMovementForm.bankIdDestino} onChange={(event) => setTransferMovementForm((current) => ({ ...current, bankIdDestino: event.target.value }))}>
+                <select
+                  required
+                  value={transferMovementForm.bankIdDestino}
+                  onChange={(event) =>
+                    setTransferMovementForm((current) => ({
+                      ...current,
+                      bankIdDestino: event.target.value
+                    }))
+                  }
+                >
                   <option value="">Selecione</option>
                   {banks.map((bank) => (
-                    <option key={bank.id} value={bank.id}>{bank.nomeBanco} {bank.agencia}/{bank.conta}</option>
+                    <option key={bank.id} value={bank.id}>
+                      {bank.nomeBanco} {bank.agencia}/{bank.conta}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -9154,31 +12411,107 @@ export function App() {
                 }
                 onValueChange={(value) =>
                   financeModal === "receive"
-                    ? setReceiveMovementForm((current) => ({ ...current, valor: value }))
+                    ? setReceiveMovementForm((current) => ({
+                        ...current,
+                        valor: value
+                      }))
                     : financeModal === "pay"
-                      ? setPayMovementForm((current) => ({ ...current, valor: value }))
-                      : setTransferMovementForm((current) => ({ ...current, valor: value }))
+                      ? setPayMovementForm((current) => ({
+                          ...current,
+                          valor: value
+                        }))
+                      : setTransferMovementForm((current) => ({
+                          ...current,
+                          valor: value
+                        }))
                 }
               />
             </label>
             <label className="field field-wide">
               <span>Historico</span>
-              <input required value={financeModal === "receive" ? receiveMovementForm.historico : financeModal === "pay" ? payMovementForm.historico : transferMovementForm.historico} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm((current) => ({ ...current, historico: event.target.value })) : financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, historico: event.target.value })) : setTransferMovementForm((current) => ({ ...current, historico: event.target.value }))} />
+              <input
+                required
+                value={
+                  financeModal === "receive"
+                    ? receiveMovementForm.historico
+                    : financeModal === "pay"
+                      ? payMovementForm.historico
+                      : transferMovementForm.historico
+                }
+                onChange={(event) =>
+                  financeModal === "receive"
+                    ? setReceiveMovementForm((current) => ({
+                        ...current,
+                        historico: event.target.value
+                      }))
+                    : financeModal === "pay"
+                      ? setPayMovementForm((current) => ({
+                          ...current,
+                          historico: event.target.value
+                        }))
+                      : setTransferMovementForm((current) => ({
+                          ...current,
+                          historico: event.target.value
+                        }))
+                }
+              />
             </label>
             {financeModal === "pay" ? (
               <label className="field field-wide">
                 <span>Beneficiario</span>
-                <input value={payMovementForm.beneficiarioNome} onChange={(event) => setPayMovementForm((current) => ({ ...current, beneficiarioNome: event.target.value }))} />
+                <input
+                  value={payMovementForm.beneficiarioNome}
+                  onChange={(event) =>
+                    setPayMovementForm((current) => ({
+                      ...current,
+                      beneficiarioNome: event.target.value
+                    }))
+                  }
+                />
               </label>
             ) : null}
             <label className="field">
               <span>Data do movimento</span>
-              <input required type="datetime-local" value={financeModal === "receive" ? receiveMovementForm.dataMovimento : financeModal === "pay" ? payMovementForm.dataMovimento : transferMovementForm.dataMovimento} onChange={(event) => financeModal === "receive" ? setReceiveMovementForm((current) => ({ ...current, dataMovimento: event.target.value })) : financeModal === "pay" ? setPayMovementForm((current) => ({ ...current, dataMovimento: event.target.value })) : setTransferMovementForm((current) => ({ ...current, dataMovimento: event.target.value }))} />
+              <input
+                required
+                type="datetime-local"
+                value={
+                  financeModal === "receive"
+                    ? receiveMovementForm.dataMovimento
+                    : financeModal === "pay"
+                      ? payMovementForm.dataMovimento
+                      : transferMovementForm.dataMovimento
+                }
+                onChange={(event) =>
+                  financeModal === "receive"
+                    ? setReceiveMovementForm((current) => ({
+                        ...current,
+                        dataMovimento: event.target.value
+                      }))
+                    : financeModal === "pay"
+                      ? setPayMovementForm((current) => ({
+                          ...current,
+                          dataMovimento: event.target.value
+                        }))
+                      : setTransferMovementForm((current) => ({
+                          ...current,
+                          dataMovimento: event.target.value
+                        }))
+                }
+              />
             </label>
           </div>
           <div className="button-row">
-            <button className="secondary-button" onClick={closeFinanceModal} type="button">Cancelar</button>
-            <button className="primary-button" disabled={isBusy} type="submit">Salvar</button>
+            <button
+              className="secondary-button"
+              onClick={closeFinanceModal}
+              type="button"
+            >
+              Cancelar
+            </button>
+            <button className="primary-button" disabled={isBusy} type="submit">
+              Salvar
+            </button>
           </div>
         </form>
       </WorkspaceRecordModal>
@@ -9196,13 +12529,25 @@ export function App() {
           <div className="stack-form">
             <div className="workspace-record-delete-copy">
               <strong>{deleteTarget.label}</strong>
-              <p>Se houver reflexo financeiro consolidado, a acao correta passa a ser estornar.</p>
+              <p>
+                Se houver reflexo financeiro consolidado, a acao correta passa a
+                ser estornar.
+              </p>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={() => setDeleteTarget(null)} type="button">
+              <button
+                className="secondary-button"
+                onClick={() => setDeleteTarget(null)}
+                type="button"
+              >
                 Cancelar
               </button>
-              <button className="primary-button" disabled={isBusy} onClick={() => void handleDeleteFinanceRecord()} type="button">
+              <button
+                className="primary-button"
+                disabled={isBusy}
+                onClick={() => void handleDeleteFinanceRecord()}
+                type="button"
+              >
                 Confirmar exclusao
               </button>
             </div>
@@ -9218,10 +12563,13 @@ export function App() {
           subtitle="O estorno gera um movimento inverso e preserva o historico original."
           title="Estornar movimento"
         >
-          <form className="stack-form" onSubmit={(event) => {
-            event.preventDefault();
-            void handleReverseMovement();
-          }}>
+          <form
+            className="stack-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void handleReverseMovement();
+            }}
+          >
             <div className="workspace-record-delete-copy">
               <strong>{reverseTarget.label}</strong>
             </div>
@@ -9231,7 +12579,10 @@ export function App() {
                 <input
                   value={reverseMovementForm.historico}
                   onChange={(event) =>
-                    setReverseMovementForm((current) => ({ ...current, historico: event.target.value }))
+                    setReverseMovementForm((current) => ({
+                      ...current,
+                      historico: event.target.value
+                    }))
                   }
                 />
               </label>
@@ -9242,16 +12593,27 @@ export function App() {
                   type="datetime-local"
                   value={reverseMovementForm.dataMovimento}
                   onChange={(event) =>
-                    setReverseMovementForm((current) => ({ ...current, dataMovimento: event.target.value }))
+                    setReverseMovementForm((current) => ({
+                      ...current,
+                      dataMovimento: event.target.value
+                    }))
                   }
                 />
               </label>
             </div>
             <div className="button-row">
-              <button className="secondary-button" onClick={() => setReverseTarget(null)} type="button">
+              <button
+                className="secondary-button"
+                onClick={() => setReverseTarget(null)}
+                type="button"
+              >
                 Cancelar
               </button>
-              <button className="primary-button" disabled={isBusy} type="submit">
+              <button
+                className="primary-button"
+                disabled={isBusy}
+                type="submit"
+              >
                 Confirmar estorno
               </button>
             </div>
@@ -9268,9 +12630,15 @@ export function App() {
       return null;
     }
 
-    const selectedService = services.find((item) => item.id === selectedAgendaBooking.serviceId);
-    const selectedProfessional = professionals.find((item) => item.id === selectedAgendaBooking.professionalId);
-    const selectedClient = clients.find((item) => item.id === selectedAgendaBooking.clientId);
+    const selectedService = services.find(
+      (item) => item.id === selectedAgendaBooking.serviceId
+    );
+    const selectedProfessional = professionals.find(
+      (item) => item.id === selectedAgendaBooking.professionalId
+    );
+    const selectedClient = clients.find(
+      (item) => item.id === selectedAgendaBooking.clientId
+    );
 
     return (
       <DocumentViewLayout
@@ -9280,7 +12648,16 @@ export function App() {
         subtitle={`${selectedClient?.nome ?? "Cliente"} com ${selectedProfessional?.nome ?? "profissional nao encontrado"}`}
         documentNumber={selectedAgendaBooking.id.slice(-8).toUpperCase()}
         statusBadge={
-          <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
+          <ViewBadge
+            tone={
+              resolveBookingStatusTone(selectedAgendaBooking.status) as
+                | "neutral"
+                | "info"
+                | "success"
+                | "warning"
+                | "danger"
+            }
+          >
             {formatBookingStatus(selectedAgendaBooking.status)}
           </ViewBadge>
         }
@@ -9290,12 +12667,17 @@ export function App() {
               {
                 id: "schedule",
                 label: "Horario",
-                value: formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)
+                value: formatTimeRange(
+                  selectedAgendaBooking.startAt,
+                  selectedAgendaBooking.endAt
+                )
               },
               {
                 id: "date",
                 label: "Data",
-                value: formatAgendaDayLabel(extractDatePart(selectedAgendaBooking.startAt))
+                value: formatAgendaDayLabel(
+                  extractDatePart(selectedAgendaBooking.startAt)
+                )
               },
               {
                 id: "client",
@@ -9305,7 +12687,8 @@ export function App() {
               {
                 id: "professional",
                 label: "Profissional",
-                value: selectedProfessional?.nome ?? "Profissional nao encontrado"
+                value:
+                  selectedProfessional?.nome ?? "Profissional nao encontrado"
               }
             ]}
           />
@@ -9316,31 +12699,36 @@ export function App() {
               {
                 id: "service-value",
                 label: "Valor bruto",
-                value: selectedService ? formatCurrency(selectedService.precoBase) : "--",
+                value: selectedService
+                  ? formatCurrency(selectedService.precoBase)
+                  : "--",
                 helper: "Preco base derivado do catalogo ativo.",
                 tone: "success"
               },
               {
                 id: "service-duration",
                 label: "Duracao",
-                value: selectedService ? formatMinutesAsHours(selectedService.duracaoMin) : "--",
+                value: selectedService
+                  ? formatMinutesAsHours(selectedService.duracaoMin)
+                  : "--",
                 helper: "Tempo previsto para a agenda."
               },
               {
                 id: "payment-status",
                 label: "Pagamento",
-                value:
-                  selectedAgendaPaymentIntent
-                    ? formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
-                    : "Sem payment intent",
-                helper:
-                  selectedAgendaPaymentIntent?.paymentId
-                    ? `MP ${selectedAgendaPaymentIntent.paymentId}`
-                    : "Nao existe pagamento vinculado para esta booking.",
-                tone:
-                  selectedAgendaPaymentIntent
-                    ? (resolvePaymentIntentTone(selectedAgendaPaymentIntent.status) as "info" | "success" | "warning" | "danger")
-                    : undefined
+                value: selectedAgendaPaymentIntent
+                  ? formatPaymentIntentStatus(
+                      selectedAgendaPaymentIntent.status
+                    )
+                  : "Sem payment intent",
+                helper: selectedAgendaPaymentIntent?.paymentId
+                  ? `MP ${selectedAgendaPaymentIntent.paymentId}`
+                  : "Nao existe pagamento vinculado para esta booking.",
+                tone: selectedAgendaPaymentIntent
+                  ? (resolvePaymentIntentTone(
+                      selectedAgendaPaymentIntent.status
+                    ) as "info" | "success" | "warning" | "danger")
+                  : undefined
               },
               {
                 id: "client-phone",
@@ -9367,15 +12755,25 @@ export function App() {
               description="Leitura operacional minima da booking selecionada."
             >
               <div className="record-meta">
-                <span className={`status-pill is-${resolveBookingStatusTone(selectedAgendaBooking.status)}`}>
+                <span
+                  className={`status-pill is-${resolveBookingStatusTone(selectedAgendaBooking.status)}`}
+                >
                   {formatBookingStatus(selectedAgendaBooking.status)}
                 </span>
                 <span className="status-pill is-neutral">
-                  {formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}
+                  {formatTimeRange(
+                    selectedAgendaBooking.startAt,
+                    selectedAgendaBooking.endAt
+                  )}
                 </span>
                 {selectedAgendaPaymentIntent ? (
-                  <span className={`status-pill is-${resolvePaymentIntentTone(selectedAgendaPaymentIntent.status)}`}>
-                    Pagamento {formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)}
+                  <span
+                    className={`status-pill is-${resolvePaymentIntentTone(selectedAgendaPaymentIntent.status)}`}
+                  >
+                    Pagamento{" "}
+                    {formatPaymentIntentStatus(
+                      selectedAgendaPaymentIntent.status
+                    )}
                   </span>
                 ) : null}
               </div>
@@ -9403,12 +12801,14 @@ export function App() {
                     {agendaSlots.map((slot) => (
                       <button
                         className={
-                          slot.startAt === selectedAgendaSlotStartAt ?
-                            "secondary-button is-active"
-                          : "secondary-button"
+                          slot.startAt === selectedAgendaSlotStartAt
+                            ? "secondary-button is-active"
+                            : "secondary-button"
                         }
                         key={slot.startAt}
-                        onClick={() => setSelectedAgendaSlotStartAt(slot.startAt)}
+                        onClick={() =>
+                          setSelectedAgendaSlotStartAt(slot.startAt)
+                        }
                         type="button"
                       >
                         {slot.startTime}
@@ -9416,7 +12816,9 @@ export function App() {
                     ))}
                   </div>
                 ) : (
-                  <p className="helper">Nenhum slot disponivel para esta data.</p>
+                  <p className="helper">
+                    Nenhum slot disponivel para esta data.
+                  </p>
                 )}
 
                 <div className="button-row">
@@ -9426,7 +12828,8 @@ export function App() {
                       isBusy ||
                       isLoadingAgendaSlots ||
                       !selectedAgendaSlotStartAt ||
-                      selectedAgendaSlotStartAt === selectedAgendaBooking.startAt
+                      selectedAgendaSlotStartAt ===
+                        selectedAgendaBooking.startAt
                     }
                     onClick={() => void handleRescheduleBooking()}
                     type="button"
@@ -9455,10 +12858,11 @@ export function App() {
               {
                 id: "timeline-payment",
                 title: "Pagamento vinculado",
-                description:
-                  selectedAgendaPaymentIntent
-                    ? formatPaymentIntentStatus(selectedAgendaPaymentIntent.status)
-                    : "Sem payment intent nesta booking."
+                description: selectedAgendaPaymentIntent
+                  ? formatPaymentIntentStatus(
+                      selectedAgendaPaymentIntent.status
+                    )
+                  : "Sem payment intent nesta booking."
               }
             ]}
           />
@@ -9470,114 +12874,151 @@ export function App() {
   function renderAgendaListWorkspace(): JSX.Element {
     return (
       <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-workspace-panel-full agenda-bookings-panel">
-          <div className="agenda-panel-header">
-            <div>
-              <h3>{formatAgendaDayLabel(agendaDate)}</h3>
-            </div>
-            <ViewBadge tone="info">{filteredDayAgendaBookings.length} booking(s)</ViewBadge>
+        <div className="agenda-panel-header">
+          <div>
+            <h3>{formatAgendaDayLabel(agendaDate)}</h3>
           </div>
+          <ViewBadge tone="info">
+            {filteredDayAgendaBookings.length} booking(s)
+          </ViewBadge>
+        </div>
 
-          <div className="ag-master-detail-body agenda-bookings-body">
-            {filteredDayAgendaBookings.length ? (
-              <div className="records-column agenda-bookings-list">
-                {filteredDayAgendaBookings.map((booking) => {
-                  const service = services.find((item) => item.id === booking.serviceId);
-                  const professional = professionals.find((item) => item.id === booking.professionalId);
-                  const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+        <div className="ag-master-detail-body agenda-bookings-body">
+          {filteredDayAgendaBookings.length ? (
+            <div className="records-column agenda-bookings-list">
+              {filteredDayAgendaBookings.map((booking) => {
+                const service = services.find(
+                  (item) => item.id === booking.serviceId
+                );
+                const professional = professionals.find(
+                  (item) => item.id === booking.professionalId
+                );
+                const paymentIntent = paymentIntents.find(
+                  (item) => item.bookingId === booking.id
+                );
 
-                  return (
-                    <button
-                      className={
-                        booking.id === selectedAgendaBooking?.id ?
-                          "entity-card timeline-card is-active"
+                return (
+                  <button
+                    className={
+                      booking.id === selectedAgendaBooking?.id
+                        ? "entity-card timeline-card is-active"
                         : "entity-card timeline-card"
-                      }
-                      key={booking.id}
-                      onClick={() => handleAgendaBookingSelection(booking)}
-                      type="button"
-                    >
-                      <div className="timeline-card-header">
-                        <strong className="timeline-card-time">{formatTimeRange(booking.startAt, booking.endAt)}</strong>
-                        <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
-                          {formatBookingStatus(booking.status)}
+                    }
+                    key={booking.id}
+                    onClick={() => handleAgendaBookingSelection(booking)}
+                    type="button"
+                  >
+                    <div className="timeline-card-header">
+                      <strong className="timeline-card-time">
+                        {formatTimeRange(booking.startAt, booking.endAt)}
+                      </strong>
+                      <span
+                        className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}
+                      >
+                        {formatBookingStatus(booking.status)}
+                      </span>
+                    </div>
+                    <div className="record-stack">
+                      <strong>
+                        {resolveClientName(booking.clientId, clients)}
+                      </strong>
+                      <span>
+                        {service?.nome ?? "Servico"} |{" "}
+                        {professional?.nome ?? "Profissional nao encontrado"}
+                      </span>
+                    </div>
+                    <div className="record-meta">
+                      <span>
+                        {service
+                          ? formatCurrency(service.precoBase)
+                          : "Preco nao encontrado"}
+                      </span>
+                      {paymentIntent ? (
+                        <span
+                          className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}
+                        >
+                          Pagamento{" "}
+                          {formatPaymentIntentStatus(paymentIntent.status)}
                         </span>
-                      </div>
-                      <div className="record-stack">
-                        <strong>{resolveClientName(booking.clientId, clients)}</strong>
-                        <span>{service?.nome ?? "Servico"}  |  {professional?.nome ?? "Profissional nao encontrado"}</span>
-                      </div>
-                      <div className="record-meta">
-                        <span>{service ? formatCurrency(service.precoBase) : "Preco nao encontrado"}</span>
-                        {paymentIntent ? (
-                          <span className={`status-pill is-${resolvePaymentIntentTone(paymentIntent.status)}`}>
-                            Pagamento {formatPaymentIntentStatus(paymentIntent.status)}
-                          </span>
-                        ) : (
-                          <span className="status-pill is-neutral">Sem payment intent</span>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="empty-state">
-                Nenhum atendimento encontrado para {formatAgendaDayLabel(agendaDate)} neste recorte.
-              </p>
-            )}
-          </div>
+                      ) : (
+                        <span className="status-pill is-neutral">
+                          Sem payment intent
+                        </span>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="empty-state">
+              Nenhum atendimento encontrado para{" "}
+              {formatAgendaDayLabel(agendaDate)} neste recorte.
+            </p>
+          )}
+        </div>
       </article>
     );
   }
 
   function renderAgendaCalendarWorkspace(): JSX.Element {
-    const agendaCalendarDate = parseDateFns(agendaDate, "yyyy-MM-dd", new Date());
+    const agendaCalendarDate = parseDateFns(
+      agendaDate,
+      "yyyy-MM-dd",
+      new Date()
+    );
     const visibleCalendarLabel =
-      agendaViewMode === "day" ?
-        formatAgendaDayLabel(agendaDate)
-      : agendaViewMode === "week" ?
-        formatAgendaWeekLabel(agendaWeekDates)
-      : formatAgendaMonthLabel(agendaDate);
+      agendaViewMode === "day"
+        ? formatAgendaDayLabel(agendaDate)
+        : agendaViewMode === "week"
+          ? formatAgendaWeekLabel(agendaWeekDates)
+          : formatAgendaMonthLabel(agendaDate);
 
     return (
       <article className="ag-surface-card ag-view-panel agenda-workspace-panel agenda-calendar-panel agenda-workspace-panel-full">
-          <div className="agenda-panel-header">
-            <div>
-              <h3>{visibleCalendarLabel}</h3>
-            </div>
-            <ViewBadge tone="success">{agendaCalendarEvents.length} evento(s)</ViewBadge>
+        <div className="agenda-panel-header">
+          <div>
+            <h3>{visibleCalendarLabel}</h3>
           </div>
+          <ViewBadge tone="success">
+            {agendaCalendarEvents.length} evento(s)
+          </ViewBadge>
+        </div>
 
-          <div className="agenda-calendar-shell">
-            <BigCalendar
-              culture="pt-BR"
-              date={agendaCalendarDate}
-              endAccessor="end"
-              eventPropGetter={(event) => ({
-                className: `agenda-rbc-event is-${resolveBookingStatusTone(event.resource.status)}`
-              })}
-              events={agendaCalendarEvents}
-              localizer={agendaCalendarLocalizer}
-              max={new Date(1970, 0, 1, 22, 0, 0)}
-              messages={agendaCalendarMessages}
-              min={new Date(1970, 0, 1, 6, 0, 0)}
-              onNavigate={(nextDate) => setAgendaDate(formatDateFns(nextDate, "yyyy-MM-dd"))}
-              onSelectEvent={(event) => openAgendaBookingModal(event.resource)}
-              onSelectSlot={(slotInfo) => handleAgendaCalendarSlotSelection(slotInfo.start)}
-              onView={(view) => {
-                if (view === "day" || view === "week" || view === "month") {
-                  setAgendaViewMode(view);
-                }
-              }}
-              popup
-              selectable
-              selected={selectedAgendaCalendarEvent ?? undefined}
-              startAccessor="start"
-              toolbar={false}
-              view={agendaViewMode as BigCalendarView}
-              views={["day", "week", "month"]}
-            />
-          </div>
+        <div className="agenda-calendar-shell">
+          <BigCalendar
+            culture="pt-BR"
+            date={agendaCalendarDate}
+            endAccessor="end"
+            eventPropGetter={(event) => ({
+              className: `agenda-rbc-event is-${resolveBookingStatusTone(event.resource.status)}`
+            })}
+            events={agendaCalendarEvents}
+            localizer={agendaCalendarLocalizer}
+            max={new Date(1970, 0, 1, 22, 0, 0)}
+            messages={agendaCalendarMessages}
+            min={new Date(1970, 0, 1, 6, 0, 0)}
+            onNavigate={(nextDate) =>
+              setAgendaDate(formatDateFns(nextDate, "yyyy-MM-dd"))
+            }
+            onSelectEvent={(event) => openAgendaBookingModal(event.resource)}
+            onSelectSlot={(slotInfo) =>
+              handleAgendaCalendarSlotSelection(slotInfo.start)
+            }
+            onView={(view) => {
+              if (view === "day" || view === "week" || view === "month") {
+                setAgendaViewMode(view);
+              }
+            }}
+            popup
+            selectable
+            selected={selectedAgendaCalendarEvent ?? undefined}
+            startAccessor="start"
+            toolbar={false}
+            view={agendaViewMode as BigCalendarView}
+            views={["day", "week", "month"]}
+          />
+        </div>
       </article>
     );
   }
@@ -9592,32 +13033,59 @@ export function App() {
       { id: "month", label: "Mes" }
     ];
     const activeAgendaBookings =
-      agendaViewMode === "day" ? filteredDayAgendaBookings
-      : agendaViewMode === "week" ? filteredWeekBookings
-      : currentMonthCells.flatMap((cell) => cell.bookings);
+      agendaViewMode === "day"
+        ? filteredDayAgendaBookings
+        : agendaViewMode === "week"
+          ? filteredWeekBookings
+          : currentMonthCells.flatMap((cell) => cell.bookings);
     const activeAgendaSummary = {
       total: activeAgendaBookings.length,
-      open: activeAgendaBookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
-      confirmed: activeAgendaBookings.filter((booking) => booking.status === "confirmado").length,
-      completed: activeAgendaBookings.filter((booking) => booking.status === "concluido").length
+      open: activeAgendaBookings.filter((booking) =>
+        isOpenBookingStatus(booking.status)
+      ).length,
+      confirmed: activeAgendaBookings.filter(
+        (booking) => booking.status === "confirmado"
+      ).length,
+      completed: activeAgendaBookings.filter(
+        (booking) => booking.status === "concluido"
+      ).length
     };
     const activeAgendaLabel =
-      agendaViewMode === "day" ? formatAgendaDayLabel(agendaDate)
-      : agendaViewMode === "week" ? formatAgendaWeekLabel(agendaWeekDates)
-      : formatAgendaMonthLabel(agendaDate);
+      agendaViewMode === "day"
+        ? formatAgendaDayLabel(agendaDate)
+        : agendaViewMode === "week"
+          ? formatAgendaWeekLabel(agendaWeekDates)
+          : formatAgendaMonthLabel(agendaDate);
     const navigationLabels =
       agendaViewMode === "week"
-        ? { previous: "Semana anterior", current: "Esta semana", next: "Proxima semana" }
+        ? {
+            previous: "Semana anterior",
+            current: "Esta semana",
+            next: "Proxima semana"
+          }
         : agendaViewMode === "month"
-          ? { previous: "Mes anterior", current: "Este mes", next: "Proximo mes" }
+          ? {
+              previous: "Mes anterior",
+              current: "Este mes",
+              next: "Proximo mes"
+            }
           : { previous: "Dia anterior", current: "Hoje", next: "Proximo dia" };
-    const selectedOperationalProfessional = selectedAgendaBooking ?
-      professionals.find((professional) => professional.id === selectedAgendaBooking.professionalId)
-    : undefined;
-    const selectedOperationalService = selectedAgendaBooking ?
-      services.find((service) => service.id === selectedAgendaBooking.serviceId)
-    : undefined;
-    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry && !selectedAgendaBankMovement);
+    const selectedOperationalProfessional = selectedAgendaBooking
+      ? professionals.find(
+          (professional) =>
+            professional.id === selectedAgendaBooking.professionalId
+        )
+      : undefined;
+    const selectedOperationalService = selectedAgendaBooking
+      ? services.find(
+          (service) => service.id === selectedAgendaBooking.serviceId
+        )
+      : undefined;
+    const canReceiveSelectedBooking = Boolean(
+      selectedAgendaBooking &&
+      selectedAgendaCashEntry &&
+      !selectedAgendaBankMovement
+    );
     const canReverseSelectedBooking = Boolean(selectedAgendaBankMovement);
 
     return (
@@ -9629,7 +13097,11 @@ export function App() {
         pageActions={
           <div className="agenda-page-actions">
             <div className="mode-switch">
-              <button className="secondary-button" onClick={() => handleAgendaDateShift(-1)} type="button">
+              <button
+                className="secondary-button"
+                onClick={() => handleAgendaDateShift(-1)}
+                type="button"
+              >
                 {navigationLabels.previous}
               </button>
               <button
@@ -9639,16 +13111,28 @@ export function App() {
               >
                 {navigationLabels.current}
               </button>
-              <button className="secondary-button" onClick={() => handleAgendaDateShift(1)} type="button">
+              <button
+                className="secondary-button"
+                onClick={() => handleAgendaDateShift(1)}
+                type="button"
+              >
                 {navigationLabels.next}
               </button>
             </div>
 
-            <div aria-label="Visao da agenda" className="dashboard-tabbar agenda-subtabbar" role="tablist">
+            <div
+              aria-label="Visao da agenda"
+              className="dashboard-tabbar agenda-subtabbar"
+              role="tablist"
+            >
               {agendaViewTabs.map((tab) => (
                 <button
                   aria-selected={agendaViewMode === tab.id}
-                  className={agendaViewMode === tab.id ? "dashboard-tab-button is-active" : "dashboard-tab-button"}
+                  className={
+                    agendaViewMode === tab.id
+                      ? "dashboard-tab-button is-active"
+                      : "dashboard-tab-button"
+                  }
                   key={tab.id}
                   onClick={() => setAgendaViewMode(tab.id)}
                   role="tab"
@@ -9666,13 +13150,26 @@ export function App() {
             >
               {isAgendaDrawerOpen ? "Ocultar fila" : "Mostrar fila"}
             </button>
-            <button className="secondary-button" onClick={openAgendaFilterModal} type="button">
+            <button
+              className="secondary-button"
+              onClick={openAgendaFilterModal}
+              type="button"
+            >
               Filtrar
             </button>
-            <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
+            <button
+              className="secondary-button"
+              disabled={isBusy}
+              onClick={handleRefreshClick}
+              type="button"
+            >
               Atualizar
             </button>
-            <button className="primary-button" onClick={() => openCounterBookingModal()} type="button">
+            <button
+              className="primary-button"
+              onClick={() => openCounterBookingModal()}
+              type="button"
+            >
               Novo agendamento
             </button>
           </div>
@@ -9708,8 +13205,16 @@ export function App() {
           />
         }
         items={
-          <div className={isAgendaDrawerOpen ? "agenda-unified-layout" : "agenda-unified-layout is-drawer-hidden"}>
-            <div className="agenda-unified-main">{renderAgendaCalendarWorkspace()}</div>
+          <div
+            className={
+              isAgendaDrawerOpen
+                ? "agenda-unified-layout"
+                : "agenda-unified-layout is-drawer-hidden"
+            }
+          >
+            <div className="agenda-unified-main">
+              {renderAgendaCalendarWorkspace()}
+            </div>
             {isAgendaDrawerOpen ? (
               <aside className="agenda-unified-drawer">
                 <article className="ag-surface-card ag-view-panel agenda-selection-panel">
@@ -9718,7 +13223,18 @@ export function App() {
                       <h3>Selecionado</h3>
                     </div>
                     {selectedAgendaBooking ? (
-                      <ViewBadge tone={resolveBookingStatusTone(selectedAgendaBooking.status) as "neutral" | "info" | "success" | "warning" | "danger"}>
+                      <ViewBadge
+                        tone={
+                          resolveBookingStatusTone(
+                            selectedAgendaBooking.status
+                          ) as
+                            | "neutral"
+                            | "info"
+                            | "success"
+                            | "warning"
+                            | "danger"
+                        }
+                      >
                         {formatBookingStatus(selectedAgendaBooking.status)}
                       </ViewBadge>
                     ) : null}
@@ -9726,34 +13242,75 @@ export function App() {
                   {selectedAgendaBooking ? (
                     <div className="records-column">
                       <div className="record-stack">
-                        <strong>{resolveClientName(selectedAgendaBooking.clientId, clients)}</strong>
+                        <strong>
+                          {resolveClientName(
+                            selectedAgendaBooking.clientId,
+                            clients
+                          )}
+                        </strong>
                         <span>
-                          {selectedOperationalService?.nome ?? "Servico"} | {selectedOperationalProfessional?.nome ?? "Profissional"}
+                          {selectedOperationalService?.nome ?? "Servico"} |{" "}
+                          {selectedOperationalProfessional?.nome ??
+                            "Profissional"}
                         </span>
                       </div>
                       <div className="record-meta">
-                        <span>{formatTimeRange(selectedAgendaBooking.startAt, selectedAgendaBooking.endAt)}</span>
-                        <span>{formatCurrency(resolveRecognizedRevenueAmount(selectedAgendaBooking, services, cashEntries) || (selectedOperationalService?.precoBase ?? 0))}</span>
+                        <span>
+                          {formatTimeRange(
+                            selectedAgendaBooking.startAt,
+                            selectedAgendaBooking.endAt
+                          )}
+                        </span>
+                        <span>
+                          {formatCurrency(
+                            resolveRecognizedRevenueAmount(
+                              selectedAgendaBooking,
+                              services,
+                              cashEntries
+                            ) ||
+                              (selectedOperationalService?.precoBase ?? 0)
+                          )}
+                        </span>
                       </div>
                       <div className="button-row">
-                        <button className="secondary-button" onClick={() => openAgendaBookingModal(selectedAgendaBooking)} type="button">
+                        <button
+                          className="secondary-button"
+                          onClick={() =>
+                            openAgendaBookingModal(selectedAgendaBooking)
+                          }
+                          type="button"
+                        >
                           Visualizar
                         </button>
                         <button
                           className="secondary-button"
                           disabled={!canReceiveSelectedBooking}
                           onClick={() => {
-                            if (!selectedAgendaBooking || !selectedAgendaCashEntry) {
+                            if (
+                              !selectedAgendaBooking ||
+                              !selectedAgendaCashEntry
+                            ) {
                               return;
                             }
                             setAgendaSettlementTarget(selectedAgendaBooking);
-                            setReceiveTarget({ cashEntryId: selectedAgendaCashEntry.id });
+                            setReceiveTarget({
+                              cashEntryId: selectedAgendaCashEntry.id
+                            });
                             setFinanceModalMode("create");
                             setReceiveMovementForm({
-                              bankIdDestino: selectedOperationalProfessional?.bankId ?? "",
-                              valor: String(resolveRecognizedRevenueAmount(selectedAgendaBooking, services, cashEntries)),
+                              bankIdDestino:
+                                selectedOperationalProfessional?.bankId ?? "",
+                              valor: String(
+                                resolveRecognizedRevenueAmount(
+                                  selectedAgendaBooking,
+                                  services,
+                                  cashEntries
+                                )
+                              ),
                               historico: `Recebimento ${selectedAgendaBooking.id.slice(-8).toUpperCase()} | ${selectedOperationalService?.nome ?? "Atendimento"}`,
-                              dataMovimento: new Date().toISOString().slice(0, 16)
+                              dataMovimento: new Date()
+                                .toISOString()
+                                .slice(0, 16)
                             });
                             setFinanceModal("receive");
                           }}
@@ -9765,7 +13322,10 @@ export function App() {
                           className="secondary-button"
                           disabled={!canReverseSelectedBooking}
                           onClick={() => {
-                            if (!selectedAgendaBooking || !selectedAgendaBankMovement) {
+                            if (
+                              !selectedAgendaBooking ||
+                              !selectedAgendaBankMovement
+                            ) {
                               return;
                             }
                             setReverseTarget({
@@ -9781,7 +13341,9 @@ export function App() {
                       </div>
                     </div>
                   ) : (
-                    <p className="empty-state">Selecione um atendimento na fila para abrir as acoes.</p>
+                    <p className="empty-state">
+                      Selecione um atendimento na fila para abrir as acoes.
+                    </p>
                   )}
                 </article>
                 {renderAgendaListWorkspace()}
@@ -9794,7 +13356,8 @@ export function App() {
   }
 
   function renderCatalogView(): JSX.Element {
-    const selectedService = services.find((service) => service.id === selectedServiceId) ?? null;
+    const selectedService =
+      services.find((service) => service.id === selectedServiceId) ?? null;
     const isCreatingService = serviceWorkspaceMode === "new";
 
     return (
@@ -9890,7 +13453,11 @@ export function App() {
             <label className="dashboard-select">
               <span>Janela</span>
               <select
-                onChange={(event) => setClientReturnWindow(event.target.value as ClientReturnWindow)}
+                onChange={(event) =>
+                  setClientReturnWindow(
+                    event.target.value as ClientReturnWindow
+                  )
+                }
                 value={clientReturnWindow}
               >
                 <option value="30d">30 dias</option>
@@ -9901,28 +13468,44 @@ export function App() {
 
             <div className="mode-switch">
               <button
-                className={clientSegmentFilter === "all" ? "secondary-button is-active" : "secondary-button"}
+                className={
+                  clientSegmentFilter === "all"
+                    ? "secondary-button is-active"
+                    : "secondary-button"
+                }
                 onClick={() => setClientSegmentFilter("all")}
                 type="button"
               >
                 Todos
               </button>
               <button
-                className={clientSegmentFilter === "returning" ? "secondary-button is-active" : "secondary-button"}
+                className={
+                  clientSegmentFilter === "returning"
+                    ? "secondary-button is-active"
+                    : "secondary-button"
+                }
                 onClick={() => setClientSegmentFilter("returning")}
                 type="button"
               >
                 Retorno
               </button>
               <button
-                className={clientSegmentFilter === "inactive" ? "secondary-button is-active" : "secondary-button"}
+                className={
+                  clientSegmentFilter === "inactive"
+                    ? "secondary-button is-active"
+                    : "secondary-button"
+                }
                 onClick={() => setClientSegmentFilter("inactive")}
                 type="button"
               >
                 Sem retorno
               </button>
               <button
-                className={clientSegmentFilter === "never_completed" ? "secondary-button is-active" : "secondary-button"}
+                className={
+                  clientSegmentFilter === "never_completed"
+                    ? "secondary-button is-active"
+                    : "secondary-button"
+                }
                 onClick={() => setClientSegmentFilter("never_completed")}
                 type="button"
               >
@@ -9969,7 +13552,10 @@ export function App() {
                   id: "recognized-revenue",
                   label: "Receita derivada",
                   value: formatCurrency(
-                    clientInsights.reduce((total, entry) => total + entry.recognizedRevenue, 0)
+                    clientInsights.reduce(
+                      (total, entry) => total + entry.recognizedRevenue,
+                      0
+                    )
                   ),
                   helper: "Soma da receita registrada por cliente.",
                   tone: "info"
@@ -9982,14 +13568,24 @@ export function App() {
             </div>
           </>
         }
-        detailTitle={selectedClientInsight ? selectedClientInsight.client.nome : "Nenhum cliente selecionado"}
-        detailDescription={
-          selectedClientInsight ?
-            `${formatClientSegment(resolveClientSegment(selectedClientInsight, clientReturnWindow), clientReturnWindow)} com historico recente, receita registrada e contexto de relacionamento para a operacao.`
-          : "Selecione um cliente da carteira para abrir o detalhe operacional."
+        detailTitle={
+          selectedClientInsight
+            ? selectedClientInsight.client.nome
+            : "Nenhum cliente selecionado"
         }
-        detail={selectedClientInsight ? renderSelectedClientDetail() : undefined}
-        emptyDetail={<p className="empty-state">Selecione um cliente da carteira para abrir o detalhe operacional.</p>}
+        detailDescription={
+          selectedClientInsight
+            ? `${formatClientSegment(resolveClientSegment(selectedClientInsight, clientReturnWindow), clientReturnWindow)} com historico recente, receita registrada e contexto de relacionamento para a operacao.`
+            : "Selecione um cliente da carteira para abrir o detalhe operacional."
+        }
+        detail={
+          selectedClientInsight ? renderSelectedClientDetail() : undefined
+        }
+        emptyDetail={
+          <p className="empty-state">
+            Selecione um cliente da carteira para abrir o detalhe operacional.
+          </p>
+        }
       />
     );
   }
@@ -9999,7 +13595,10 @@ export function App() {
       return <></>;
     }
 
-    const segment = resolveClientSegment(selectedClientInsight, clientReturnWindow);
+    const segment = resolveClientSegment(
+      selectedClientInsight,
+      clientReturnWindow
+    );
 
     return (
       <div className="client-detail-document">
@@ -10007,7 +13606,9 @@ export function App() {
           <ViewBadge tone={resolveClientSegmentTone(segment)}>
             {formatClientSegment(segment, clientReturnWindow)}
           </ViewBadge>
-          <ViewBadge tone="info">{selectedClientInsight.totalBookings} booking(s)</ViewBadge>
+          <ViewBadge tone="info">
+            {selectedClientInsight.totalBookings} booking(s)
+          </ViewBadge>
           <span className="status-pill is-neutral">
             Origem {selectedClientInsight.client.origem}
           </span>
@@ -10028,16 +13629,18 @@ export function App() {
             {
               id: "last-booking",
               label: "Ultimo movimento",
-              value: selectedClientInsight.lastBooking ?
-                formatDateTime(selectedClientInsight.lastBooking.startAt)
-              : "Sem booking"
+              value: selectedClientInsight.lastBooking
+                ? formatDateTime(selectedClientInsight.lastBooking.startAt)
+                : "Sem booking"
             },
             {
               id: "last-completed",
               label: "Ultimo concluido",
-              value: selectedClientInsight.lastCompletedBooking ?
-                formatDateTime(selectedClientInsight.lastCompletedBooking.endAt)
-              : "Nunca concluiu"
+              value: selectedClientInsight.lastCompletedBooking
+                ? formatDateTime(
+                    selectedClientInsight.lastCompletedBooking.endAt
+                  )
+                : "Nunca concluiu"
             }
           ]}
         />
@@ -10073,9 +13676,9 @@ export function App() {
               id: "cash-entries",
               label: "Movimentos",
               value: selectedClientInsight.cashEntriesCount,
-              helper: selectedClientInsight.lastCashEntry ?
-                formatDateTime(selectedClientInsight.lastCashEntry.occurredAt)
-              : "Nenhum movimento financeiro persistido."
+              helper: selectedClientInsight.lastCashEntry
+                ? formatDateTime(selectedClientInsight.lastCashEntry.occurredAt)
+                : "Nenhum movimento financeiro persistido."
             }
           ]}
         />
@@ -10097,20 +13700,28 @@ export function App() {
               {selectedClientBookings.slice(0, 5).map((booking) => (
                 <div className="detail-item" key={booking.id}>
                   <div className="record-card-header">
-                    <strong>{resolveBookingTitle(booking, services, professionals)}</strong>
-                    <span className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}>
+                    <strong>
+                      {resolveBookingTitle(booking, services, professionals)}
+                    </strong>
+                    <span
+                      className={`status-pill is-${resolveBookingStatusTone(booking.status)}`}
+                    >
                       {formatBookingStatus(booking.status)}
                     </span>
                   </div>
                   <div className="record-meta">
                     <span>{formatDateTime(booking.startAt)}</span>
-                    <span>{formatTimeRange(booking.startAt, booking.endAt)}</span>
+                    <span>
+                      {formatTimeRange(booking.startAt, booking.endAt)}
+                    </span>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="helper">Este cliente ainda nao possui agendamentos visiveis neste recorte.</p>
+            <p className="helper">
+              Este cliente ainda nao possui agendamentos visiveis neste recorte.
+            </p>
           )}
         </EntitySection>
 
@@ -10124,7 +13735,9 @@ export function App() {
                 <div className="detail-item" key={entry.id}>
                   <div className="record-card-header">
                     <strong>{formatCashEntryKind(entry.kind)}</strong>
-                    <span className={`status-pill is-${entry.status === "open" ? "success" : "warning"}`}>
+                    <span
+                      className={`status-pill is-${entry.status === "open" ? "success" : "warning"}`}
+                    >
                       {formatCashEntryStatus(entry.status)}
                     </span>
                   </div>
@@ -10137,7 +13750,9 @@ export function App() {
               ))}
             </div>
           ) : (
-            <p className="helper">Ainda nao ha movimentos financeiros visiveis para este cliente.</p>
+            <p className="helper">
+              Ainda nao ha movimentos financeiros visiveis para este cliente.
+            </p>
           )}
         </EntitySection>
 
@@ -10152,23 +13767,23 @@ export function App() {
             {
               id: "timeline-last-booking",
               title: "Ultimo movimento na agenda",
-              description: selectedClientInsight.lastBooking ?
-                `${formatDateTime(selectedClientInsight.lastBooking.startAt)} | ${formatBookingStatus(selectedClientInsight.lastBooking.status)}`
-              : "Nenhuma booking registrada."
+              description: selectedClientInsight.lastBooking
+                ? `${formatDateTime(selectedClientInsight.lastBooking.startAt)} | ${formatBookingStatus(selectedClientInsight.lastBooking.status)}`
+                : "Nenhuma booking registrada."
             },
             {
               id: "timeline-last-completed",
               title: "Ultimo atendimento concluido",
-              description: selectedClientInsight.lastCompletedBooking ?
-                `${formatDateTime(selectedClientInsight.lastCompletedBooking.endAt)} | sem retorno ha ${formatDaysSince(selectedClientInsight.lastCompletedBooking.endAt)}`
-              : "Cliente ainda sem atendimento concluido."
+              description: selectedClientInsight.lastCompletedBooking
+                ? `${formatDateTime(selectedClientInsight.lastCompletedBooking.endAt)} | sem retorno ha ${formatDaysSince(selectedClientInsight.lastCompletedBooking.endAt)}`
+                : "Cliente ainda sem atendimento concluido."
             },
             {
               id: "timeline-last-cash-entry",
               title: "Ultimo movimento financeiro",
-              description: selectedClientInsight.lastCashEntry ?
-                `${formatCashEntryKind(selectedClientInsight.lastCashEntry.kind)} | ${formatCurrency(selectedClientInsight.lastCashEntry.amount)}`
-              : "Nenhum movimento financeiro persistido."
+              description: selectedClientInsight.lastCashEntry
+                ? `${formatCashEntryKind(selectedClientInsight.lastCashEntry.kind)} | ${formatCurrency(selectedClientInsight.lastCashEntry.amount)}`
+                : "Nenhum movimento financeiro persistido."
             }
           ]}
         />
@@ -10218,7 +13833,12 @@ export function App() {
         pageActions={
           <div className="settings-page-actions">
             {publicBookingUrl ? (
-              <a className="secondary-button button-link" href={publicBookingUrl} rel="noreferrer" target="_blank">
+              <a
+                className="secondary-button button-link"
+                href={publicBookingUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
                 Abrir booking publico
               </a>
             ) : (
@@ -10254,7 +13874,11 @@ export function App() {
               {
                 id: "payment-status",
                 label: "Pagamento",
-                value: <ViewBadge tone={paymentStatusTone}>{paymentForm.status}</ViewBadge>,
+                value: (
+                  <ViewBadge tone={paymentStatusTone}>
+                    {paymentForm.status}
+                  </ViewBadge>
+                ),
                 helper: paymentForm.checkoutMode
               },
               {
@@ -10307,26 +13931,30 @@ export function App() {
                 {
                   id: "settings-profile",
                   label: "Identidade publica",
-                  description: "Nome do negocio, slug e URL publica do booking.",
+                  description:
+                    "Nome do negocio, slug e URL publica do booking.",
                   active: true
                 },
                 {
                   id: "settings-branding",
                   label: "Branding minimo",
-                  description: "Mensagem curta da marca e cor de destaque do tenant.",
+                  description:
+                    "Mensagem curta da marca e cor de destaque do tenant.",
                   active: true
                 },
                 {
                   id: "settings-payments",
                   label: "Pagamentos",
-                  description: "Mercado Pago, callbacks e modo de checkout publicado.",
+                  description:
+                    "Mercado Pago, callbacks e modo de checkout publicado.",
                   value: paymentForm.status,
                   active: true
                 },
                 {
                   id: "settings-runtime",
                   label: "Ambiente do tenant",
-                  description: "API base, timezone e estado atual de publicacao.",
+                  description:
+                    "API base, timezone e estado atual de publicacao.",
                   active: true
                 }
               ]}
@@ -10339,17 +13967,20 @@ export function App() {
                 {
                   id: "settings-subscription",
                   label: "Assinatura do SaaS",
-                  description: "Cobranca da propria plataforma ainda nao fica disponivel aqui."
+                  description:
+                    "Cobranca da propria plataforma ainda nao fica disponivel aqui."
                 },
                 {
                   id: "settings-webhooks",
                   label: "Eventos e observabilidade",
-                  description: "URLs e credenciais existem, mas ainda nao ha painel de eventos ou health check."
+                  description:
+                    "URLs e credenciais existem, mas ainda nao ha painel de eventos ou health check."
                 },
                 {
                   id: "settings-profile-wide",
                   label: "Perfil ampliado do negocio",
-                  description: "Campos mais amplos do tenant ainda nao ficam centralizados nesta tela."
+                  description:
+                    "Campos mais amplos do tenant ainda nao ficam centralizados nesta tela."
                 }
               ]}
             />
@@ -10384,7 +14015,8 @@ export function App() {
   }
 
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
-  const showTopbarEyebrow = currentRoute !== "profissionais" && currentRoute !== "dashboard";
+  const showTopbarEyebrow =
+    currentRoute !== "profissionais" && currentRoute !== "dashboard";
   const sidebarReportsMenuGroups = groupReportsBuilderMenuItems(
     buildReportsBuilderMenuItems(reportsCatalog)
   );
@@ -10396,8 +14028,9 @@ export function App() {
           <p className="eyebrow">AgendaAI / admin-web</p>
           <h1>Onboarding, catalogo, equipe e operacao do dia.</h1>
           <p className="description">
-            O cliente final agenda pela slug publica. Aqui o owner cria o negocio, configura
-            servicos, liga Mercado Pago, monta a equipe e acompanha a agenda operacional.
+            O cliente final agenda pela slug publica. Aqui o owner cria o
+            negocio, configura servicos, liga Mercado Pago, monta a equipe e
+            acompanha a agenda operacional.
           </p>
         </section>
 
@@ -10410,7 +14043,11 @@ export function App() {
               </div>
               <div className="mode-switch">
                 <button
-                  className={authMode === "login" ? "secondary-button is-active" : "secondary-button"}
+                  className={
+                    authMode === "login"
+                      ? "secondary-button is-active"
+                      : "secondary-button"
+                  }
                   onClick={() => setAuthMode("login")}
                   type="button"
                 >
@@ -10418,7 +14055,9 @@ export function App() {
                 </button>
                 <button
                   className={
-                    authMode === "onboarding" ? "secondary-button is-active" : "secondary-button"
+                    authMode === "onboarding"
+                      ? "secondary-button is-active"
+                      : "secondary-button"
                   }
                   onClick={() => setAuthMode("onboarding")}
                   type="button"
@@ -10433,11 +14072,17 @@ export function App() {
               <input
                 type="url"
                 value={apiBaseUrl}
-                onChange={(event) => setApiBaseUrl(resolveAdminApiBaseUrl(event.target.value))}
+                onChange={(event) =>
+                  setApiBaseUrl(resolveAdminApiBaseUrl(event.target.value))
+                }
               />
             </label>
 
-            {feedback ? <div className={`feedback-banner is-${feedback.tone}`}>{feedback.message}</div> : null}
+            {feedback ? (
+              <div className={`feedback-banner is-${feedback.tone}`}>
+                {feedback.message}
+              </div>
+            ) : null}
 
             {authMode === "login" ? (
               <form className="stack-form" onSubmit={handleLogin}>
@@ -10446,7 +14091,9 @@ export function App() {
                   <input
                     type="email"
                     value={loginForm.email}
-                    onChange={(event) => setLoginForm({ ...loginForm, email: event.target.value })}
+                    onChange={(event) =>
+                      setLoginForm({ ...loginForm, email: event.target.value })
+                    }
                   />
                 </label>
                 <label className="field">
@@ -10454,10 +14101,19 @@ export function App() {
                   <input
                     type="password"
                     value={loginForm.password}
-                    onChange={(event) => setLoginForm({ ...loginForm, password: event.target.value })}
+                    onChange={(event) =>
+                      setLoginForm({
+                        ...loginForm,
+                        password: event.target.value
+                      })
+                    }
                   />
                 </label>
-                <button className="primary-button" disabled={isBusy} type="submit">
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  type="submit"
+                >
                   {isBusy ? "Entrando..." : "Entrar no admin"}
                 </button>
               </form>
@@ -10471,7 +14127,10 @@ export function App() {
                       type="text"
                       value={onboardingForm.nome}
                       onChange={(event) =>
-                        setOnboardingForm({ ...onboardingForm, nome: event.target.value })
+                        setOnboardingForm({
+                          ...onboardingForm,
+                          nome: event.target.value
+                        })
                       }
                     />
                   </label>
@@ -10496,7 +14155,10 @@ export function App() {
                       type="text"
                       value={onboardingForm.timezone}
                       onChange={(event) =>
-                        setOnboardingForm({ ...onboardingForm, timezone: event.target.value })
+                        setOnboardingForm({
+                          ...onboardingForm,
+                          timezone: event.target.value
+                        })
                       }
                     />
                   </label>
@@ -10507,7 +14169,10 @@ export function App() {
                       type="text"
                       value={onboardingForm.adminNome}
                       onChange={(event) =>
-                        setOnboardingForm({ ...onboardingForm, adminNome: event.target.value })
+                        setOnboardingForm({
+                          ...onboardingForm,
+                          adminNome: event.target.value
+                        })
                       }
                     />
                   </label>
@@ -10518,7 +14183,10 @@ export function App() {
                       type="email"
                       value={onboardingForm.adminEmail}
                       onChange={(event) =>
-                        setOnboardingForm({ ...onboardingForm, adminEmail: event.target.value })
+                        setOnboardingForm({
+                          ...onboardingForm,
+                          adminEmail: event.target.value
+                        })
                       }
                     />
                   </label>
@@ -10528,7 +14196,10 @@ export function App() {
                       type="tel"
                       value={onboardingForm.adminTelefone}
                       onChange={(event) =>
-                        setOnboardingForm({ ...onboardingForm, adminTelefone: event.target.value })
+                        setOnboardingForm({
+                          ...onboardingForm,
+                          adminTelefone: event.target.value
+                        })
                       }
                     />
                   </label>
@@ -10539,12 +14210,19 @@ export function App() {
                       type="password"
                       value={onboardingForm.senha}
                       onChange={(event) =>
-                        setOnboardingForm({ ...onboardingForm, senha: event.target.value })
+                        setOnboardingForm({
+                          ...onboardingForm,
+                          senha: event.target.value
+                        })
                       }
                     />
                   </label>
                 </div>
-                <button className="primary-button" disabled={isBusy} type="submit">
+                <button
+                  className="primary-button"
+                  disabled={isBusy}
+                  type="submit"
+                >
                   {isBusy ? "Criando..." : "Criar negocio e entrar"}
                 </button>
               </form>
@@ -10554,15 +14232,23 @@ export function App() {
           <aside className="panel aside-panel">
             <div className="list-card">
               <strong>Duas visoes</strong>
-              <p>Booking publico para o cliente e shell admin para implantar e operar o negocio.</p>
+              <p>
+                Booking publico para o cliente e shell admin para implantar e
+                operar o negocio.
+              </p>
             </div>
             <div className="list-card">
               <strong>Credenciais demo</strong>
-              <p>`owner@agendaai.demo` com `agendaai-demo` depois da seed do `api-rest`.</p>
+              <p>
+                `owner@agendaai.demo` com `agendaai-demo` depois da seed do
+                `api-rest`.
+              </p>
             </div>
             <div className="list-card">
               <strong>Ponto atual</strong>
-              <p>Checkout Pro publico ligado e agenda admin entrando em operacao.</p>
+              <p>
+                Checkout Pro publico ligado e agenda admin entrando em operacao.
+              </p>
             </div>
           </aside>
         </section>
@@ -10573,220 +14259,270 @@ export function App() {
   return (
     <Fragment>
       <main className="shell admin-shell-v2">
-      {isSidebarOpen ? (
-        <button
-          aria-label="Fechar navegacao"
-          className="sidebar-overlay"
-          onClick={() => setIsSidebarOpen(false)}
-          type="button"
-        />
-      ) : null}
+        {isSidebarOpen ? (
+          <button
+            aria-label="Fechar navegacao"
+            className="sidebar-overlay"
+            onClick={() => setIsSidebarOpen(false)}
+            type="button"
+          />
+        ) : null}
 
-      <aside
-        className={`admin-sidebar-v2${isSidebarOpen ? " is-open" : ""}`}
-      >
-        <div className="admin-sidebar-brand">
-          <div className="admin-sidebar-brand-main">
-            <div className="admin-sidebar-brand-mark">
-              <CalendarDays className="w-5 h-5" />
-            </div>
-            <div className="admin-sidebar-brand-copy">
-              <strong>AgendaAI</strong>
+        <aside className={`admin-sidebar-v2${isSidebarOpen ? " is-open" : ""}`}>
+          <div className="admin-sidebar-brand">
+            <div className="admin-sidebar-brand-main">
+              <div className="admin-sidebar-brand-mark">
+                <CalendarDays className="w-5 h-5" />
+              </div>
+              <div className="admin-sidebar-brand-copy">
+                <strong>AgendaAI</strong>
+              </div>
             </div>
           </div>
-        </div>
 
-        <nav className="admin-sidebar-nav no-scrollbar">
-          {adminNavigationSections.map((section) => (
-            <div className="admin-sidebar-group" key={section.label}>
-              <p className="admin-sidebar-group-label">{section.label}</p>
-              {section.routes.map((route) => {
-                const definition = adminRouteDefinitions[route];
-                const Icon = definition.icon;
-                const sidebarButton = (
-                  <button
-                    className={currentRoute === route ? "admin-sidebar-link is-active" : "admin-sidebar-link"}
-                    key={route}
-                    onClick={() => navigateTo(route)}
-                    title={definition.label}
-                    type="button"
-                  >
-                    <span className="admin-sidebar-link-icon">
-                      <Icon className="w-5 h-5" />
-                    </span>
-                    <span className="admin-sidebar-link-copy">
-                      <strong>{definition.label}</strong>
-                    </span>
-                  </button>
-                );
-
-                if (route !== "relatorios") {
-                  return sidebarButton;
-                }
-
-                return (
-                  <div className="admin-sidebar-flyout-anchor" key={route}>
-                    {sidebarButton}
-                    {!isCompactShell ? (
-                      <div className="admin-sidebar-flyout admin-sidebar-flyout-reports">
-                        <div className="admin-sidebar-flyout-header">
-                          <strong>Relatorios</strong>
-                          <span>Escolha a visao gerencial que quer abrir no workspace.</span>
-                        </div>
-
-                        {sidebarReportsMenuGroups.map(([group, items]) => (
-                          <section className="admin-sidebar-flyout-group" key={group}>
-                            <span className="admin-sidebar-flyout-group-title">{group}</span>
-                            <div className="admin-sidebar-flyout-items">
-                              {items.map((item) => (
-                                <button
-                                  className="admin-sidebar-flyout-item"
-                                  key={item.code}
-                                  onClick={() => openSystemReportBuilderTab(item.code)}
-                                  type="button"
-                                >
-                                  <div className="admin-sidebar-flyout-item-row">
-                                    <strong>{item.label}</strong>
-                                  </div>
-                                  <span>{item.description}</span>
-                                </button>
-                              ))}
-                            </div>
-                          </section>
-                        ))}
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </nav>
-
-        <div className="admin-sidebar-footer">
-          <article className="admin-sidebar-profile-card">
-            <div className="admin-sidebar-profile-avatar">
-              {resolveProfessionalInitials(sidebarProfileName)}
-            </div>
-            <div className="admin-sidebar-profile-copy">
-              <strong>{sidebarProfileName}</strong>
-              <span>{sidebarProfileEmail || "Sem e-mail cadastrado"}</span>
-            </div>
-            {publicBookingUrl ? (
-              <a
-                aria-label="Abrir booking publico"
-                className="admin-sidebar-profile-action"
-                href={publicBookingUrl}
-                rel="noreferrer"
-                target="_blank"
-                title="Abrir booking publico"
-              >
-                <LinkIcon className="w-4 h-4" />
-              </a>
-            ) : null}
-          </article>
-        </div>
-      </aside>
-
-      <div className="admin-stage-v2">
-        <header className="admin-topbar">
-          <div className="admin-topbar-main">
-            <button
-              className="admin-topbar-menu"
-              onClick={() => setIsSidebarOpen(true)}
-              type="button"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <div aria-label="Abas do workspace" className="admin-route-strip" role="tablist">
-              {openRouteTabs.map((route) => {
-                const definition = adminRouteDefinitions[route];
-
-                return (
-                  <div
-                    aria-selected={currentRoute === route}
-                    className={currentRoute === route ? "admin-route-tab is-active" : "admin-route-tab"}
-                    key={route}
-                    role="tab"
-                  >
+          <nav className="admin-sidebar-nav no-scrollbar">
+            {adminNavigationSections.map((section) => (
+              <div className="admin-sidebar-group" key={section.label}>
+                <p className="admin-sidebar-group-label">{section.label}</p>
+                {section.routes.map((route) => {
+                  const definition = adminRouteDefinitions[route];
+                  const Icon = definition.icon;
+                  const sidebarButton = (
                     <button
-                      className="admin-route-tab-trigger"
+                      className={
+                        currentRoute === route
+                          ? "admin-sidebar-link is-active"
+                          : "admin-sidebar-link"
+                      }
+                      key={route}
                       onClick={() => navigateTo(route)}
+                      title={definition.label}
                       type="button"
                     >
-                      <span className="admin-route-tab-dot" />
-                      <span className="admin-route-tab-label">{definition.label}</span>
+                      <span className="admin-sidebar-link-icon">
+                        <Icon className="w-5 h-5" />
+                      </span>
+                      <span className="admin-sidebar-link-copy">
+                        <strong>{definition.label}</strong>
+                      </span>
                     </button>
-                    {openRouteTabs.length > 1 ? (
-                      <button
-                        aria-label={`Fechar aba ${definition.label}`}
-                        className="admin-route-tab-close"
-                        onClick={() => closeWorkspaceTab(route)}
-                        type="button"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
+                  );
 
-          <div className="admin-topbar-actions">
-            <button
-              aria-label="Abrir clientes para buscar cliente"
-              className="admin-icon-button admin-topbar-utility"
-              onClick={openClientsDirectoryFromShell}
-              title="Buscar cliente"
-              type="button"
-            >
-              <Search className="w-4 h-4" />
-            </button>
-            <button
-              aria-label="Abrir painel rapido"
-              className={isShellPulseOpen ? "admin-icon-button admin-topbar-utility is-active" : "admin-icon-button admin-topbar-utility"}
-              data-count={shellAttentionCount > 0 ? Math.min(shellAttentionCount, 99) : undefined}
-              onClick={toggleShellPulsePanel}
-              title="Alertas"
-              type="button"
-            >
-              <Bell className="w-5 h-5" />
-            </button>
-            {tenant ? (
+                  if (route !== "relatorios") {
+                    return sidebarButton;
+                  }
+
+                  return (
+                    <div className="admin-sidebar-flyout-anchor" key={route}>
+                      {sidebarButton}
+                      {!isCompactShell ? (
+                        <div className="admin-sidebar-flyout admin-sidebar-flyout-reports">
+                          <div className="admin-sidebar-flyout-header">
+                            <strong>Relatorios</strong>
+                            <span>
+                              Escolha a visao gerencial que quer abrir no
+                              workspace.
+                            </span>
+                          </div>
+
+                          {sidebarReportsMenuGroups.map(([group, items]) => (
+                            <section
+                              className="admin-sidebar-flyout-group"
+                              key={group}
+                            >
+                              <span className="admin-sidebar-flyout-group-title">
+                                {group}
+                              </span>
+                              <div className="admin-sidebar-flyout-items">
+                                {items.map((item) => (
+                                  <button
+                                    className="admin-sidebar-flyout-item"
+                                    key={item.code}
+                                    onClick={() =>
+                                      openSystemReportBuilderTab(item.code)
+                                    }
+                                    type="button"
+                                  >
+                                    <div className="admin-sidebar-flyout-item-row">
+                                      <strong>{item.label}</strong>
+                                    </div>
+                                    <span>{item.description}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </section>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
+
+          <div className="admin-sidebar-footer">
+            <article className="admin-sidebar-profile-card">
+              <div className="admin-sidebar-profile-avatar">
+                {resolveProfessionalInitials(sidebarProfileName)}
+              </div>
+              <div className="admin-sidebar-profile-copy">
+                <strong>{sidebarProfileName}</strong>
+                <span>{sidebarProfileEmail || "Sem e-mail cadastrado"}</span>
+              </div>
+              {publicBookingUrl ? (
+                <a
+                  aria-label="Abrir booking publico"
+                  className="admin-sidebar-profile-action"
+                  href={publicBookingUrl}
+                  rel="noreferrer"
+                  target="_blank"
+                  title="Abrir booking publico"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                </a>
+              ) : null}
+            </article>
+          </div>
+        </aside>
+
+        <div className="admin-stage-v2">
+          <header className="admin-topbar">
+            <div className="admin-topbar-main">
               <button
-                aria-label="Abrir contexto"
-                className={isShellContextOpen ? "admin-icon-button admin-topbar-utility is-active" : "admin-icon-button admin-topbar-utility"}
-                onClick={toggleShellContextPanel}
-                title="Contexto"
+                className="admin-topbar-menu"
+                onClick={() => setIsSidebarOpen(true)}
                 type="button"
               >
-                <Activity className="w-4 h-4" />
+                <Menu className="w-5 h-5" />
               </button>
-            ) : null}
-            <button
-              aria-label="Novo agendamento"
-              className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
-              onClick={() => openCounterBookingModal()}
-              title="Novo agendamento"
-              type="button"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-            <div aria-label={`Perfil ${sidebarProfileName}`} className="admin-topbar-avatar" title={sidebarProfileName}>
-              {resolveProfessionalInitials(sidebarProfileName)}
-            </div>
-          </div>
-        </header>
+              <div
+                aria-label="Abas do workspace"
+                className="admin-route-strip"
+                role="tablist"
+              >
+                {openRouteTabs.map((route) => {
+                  const definition = adminRouteDefinitions[route];
 
-        <section className={currentRoute === "profissionais" ? "admin-stage-content is-professionals-route" : "admin-stage-content"}>
-          <section className="admin-content">
-          {feedback ? <div className={`feedback-banner is-${feedback.tone}`}>{feedback.message}</div> : null}
-          {bootError ? <div className="feedback-banner is-error">{bootError}</div> : null}
-          {renderCurrentView()}
+                  return (
+                    <div
+                      aria-selected={currentRoute === route}
+                      className={
+                        currentRoute === route
+                          ? "admin-route-tab is-active"
+                          : "admin-route-tab"
+                      }
+                      key={route}
+                      role="tab"
+                    >
+                      <button
+                        className="admin-route-tab-trigger"
+                        onClick={() => navigateTo(route)}
+                        type="button"
+                      >
+                        <span className="admin-route-tab-dot" />
+                        <span className="admin-route-tab-label">
+                          {definition.label}
+                        </span>
+                      </button>
+                      {openRouteTabs.length > 1 ? (
+                        <button
+                          aria-label={`Fechar aba ${definition.label}`}
+                          className="admin-route-tab-close"
+                          onClick={() => closeWorkspaceTab(route)}
+                          type="button"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="admin-topbar-actions">
+              <button
+                aria-label="Abrir clientes para buscar cliente"
+                className="admin-icon-button admin-topbar-utility"
+                onClick={openClientsDirectoryFromShell}
+                title="Buscar cliente"
+                type="button"
+              >
+                <Search className="w-4 h-4" />
+              </button>
+              <button
+                aria-label="Abrir painel rapido"
+                className={
+                  isShellPulseOpen
+                    ? "admin-icon-button admin-topbar-utility is-active"
+                    : "admin-icon-button admin-topbar-utility"
+                }
+                data-count={
+                  shellAttentionCount > 0
+                    ? Math.min(shellAttentionCount, 99)
+                    : undefined
+                }
+                onClick={toggleShellPulsePanel}
+                title="Alertas"
+                type="button"
+              >
+                <Bell className="w-5 h-5" />
+              </button>
+              {tenant ? (
+                <button
+                  aria-label="Abrir contexto"
+                  className={
+                    isShellContextOpen
+                      ? "admin-icon-button admin-topbar-utility is-active"
+                      : "admin-icon-button admin-topbar-utility"
+                  }
+                  onClick={toggleShellContextPanel}
+                  title="Contexto"
+                  type="button"
+                >
+                  <Activity className="w-4 h-4" />
+                </button>
+              ) : null}
+              <button
+                aria-label="Novo agendamento"
+                className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
+                onClick={() => openCounterBookingModal()}
+                title="Novo agendamento"
+                type="button"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+              <div
+                aria-label={`Perfil ${sidebarProfileName}`}
+                className="admin-topbar-avatar"
+                title={sidebarProfileName}
+              >
+                {resolveProfessionalInitials(sidebarProfileName)}
+              </div>
+            </div>
+          </header>
+
+          <section
+            className={
+              currentRoute === "profissionais"
+                ? "admin-stage-content is-professionals-route"
+                : "admin-stage-content"
+            }
+          >
+            <section className="admin-content">
+              {feedback ? (
+                <div className={`feedback-banner is-${feedback.tone}`}>
+                  {feedback.message}
+                </div>
+              ) : null}
+              {bootError ? (
+                <div className="feedback-banner is-error">{bootError}</div>
+              ) : null}
+              {renderCurrentView()}
+            </section>
           </section>
-        </section>
-      </div>
+        </div>
       </main>
       {renderShellPulsePanel()}
       {renderShellContextPanel()}
@@ -10815,18 +14551,20 @@ function toPaymentForm(settings?: TenantPaymentSettings): PaymentFormState {
     backSuccess: settings.backUrls?.success ?? "",
     backPending: settings.backUrls?.pending ?? "",
     backFailure: settings.backUrls?.failure ?? "",
-    defaultInstallments: settings.defaultInstallments ? String(settings.defaultInstallments) : "1",
-    expirationMinutes: settings.expirationMinutes ? String(settings.expirationMinutes) : "30",
+    defaultInstallments: settings.defaultInstallments
+      ? String(settings.defaultInstallments)
+      : "1",
+    expirationMinutes: settings.expirationMinutes
+      ? String(settings.expirationMinutes)
+      : "30",
     binaryMode: settings.binaryMode
   };
 }
 
-function toBrandingForm(
-  branding?: {
-    tagline?: string;
-    accentColor?: string;
-  }
-): BrandingFormState {
+function toBrandingForm(branding?: {
+  tagline?: string;
+  accentColor?: string;
+}): BrandingFormState {
   return {
     tagline: branding?.tagline ?? "",
     accentColor: branding?.accentColor ?? ""
@@ -10842,8 +14580,12 @@ function toServiceForm(service: Service): ServiceFormState {
     collectionMode: service.paymentPolicy.collectionMode,
     checkoutMode: service.paymentPolicy.checkoutMode ?? "checkout_pro",
     chargeType: service.paymentPolicy.chargeType ?? "percentage",
-    fixedAmount: service.paymentPolicy.fixedAmount ? String(service.paymentPolicy.fixedAmount) : "",
-    percentage: service.paymentPolicy.percentage ? String(service.paymentPolicy.percentage) : "30",
+    fixedAmount: service.paymentPolicy.fixedAmount
+      ? String(service.paymentPolicy.fixedAmount)
+      : "",
+    percentage: service.paymentPolicy.percentage
+      ? String(service.paymentPolicy.percentage)
+      : "30",
     acceptedMethods: service.paymentPolicy.acceptedMethods.length
       ? [...service.paymentPolicy.acceptedMethods]
       : [...defaultServicePaymentPolicy.acceptedMethods]
@@ -10920,10 +14662,13 @@ function buildServicePayload(form: ServiceFormState): {
   const precoBase = parseRequiredNumber(form.precoBase, "precoBase");
   const percentage =
     form.chargeType === "percentage"
-      ? parseOptionalNumber(form.percentage) ?? (form.collectionMode === "full" ? 100 : 30)
+      ? (parseOptionalNumber(form.percentage) ??
+        (form.collectionMode === "full" ? 100 : 30))
       : undefined;
   const fixedAmount =
-    form.chargeType === "fixed" ? parseOptionalNumber(form.fixedAmount) ?? precoBase : undefined;
+    form.chargeType === "fixed"
+      ? (parseOptionalNumber(form.fixedAmount) ?? precoBase)
+      : undefined;
 
   return {
     nome: form.nome.trim(),
@@ -10935,7 +14680,8 @@ function buildServicePayload(form: ServiceFormState): {
       ...defaultServicePaymentPolicy,
       collectionMode: form.collectionMode,
       provider: form.collectionMode === "none" ? undefined : "mercado_pago",
-      checkoutMode: form.collectionMode === "none" ? undefined : form.checkoutMode,
+      checkoutMode:
+        form.collectionMode === "none" ? undefined : form.checkoutMode,
       chargeType: form.collectionMode === "none" ? undefined : form.chargeType,
       fixedAmount: form.collectionMode === "none" ? undefined : fixedAmount,
       percentage: form.collectionMode === "none" ? undefined : percentage,
@@ -10979,10 +14725,15 @@ function toAvailabilityDays(rules: AvailabilityRule[]): AvailabilityDayState[] {
 
 function summarizeBookings(bookings: readonly Booking[]): BookingSummary {
   return {
-    today: bookings.filter((booking) => isSameCalendarDay(booking.startAt, new Date())).length,
-    open: bookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
-    confirmed: bookings.filter((booking) => booking.status === "confirmado").length,
-    completed: bookings.filter((booking) => booking.status === "concluido").length
+    today: bookings.filter((booking) =>
+      isSameCalendarDay(booking.startAt, new Date())
+    ).length,
+    open: bookings.filter((booking) => isOpenBookingStatus(booking.status))
+      .length,
+    confirmed: bookings.filter((booking) => booking.status === "confirmado")
+      .length,
+    completed: bookings.filter((booking) => booking.status === "concluido")
+      .length
   };
 }
 
@@ -10992,7 +14743,9 @@ function filterBookingsByRange(
   offsetPeriods = 0
 ): Booking[] {
   if (range === "all") {
-    return [...bookings].sort((left, right) => right.startAt.localeCompare(left.startAt));
+    return [...bookings].sort((left, right) =>
+      right.startAt.localeCompare(left.startAt)
+    );
   }
 
   const days = range === "7d" ? 7 : 30;
@@ -11026,7 +14779,10 @@ function filterBookingsByReportSelection(
       if (serviceFilter !== "all" && booking.serviceId !== serviceFilter) {
         return false;
       }
-      if (professionalFilter !== "all" && booking.professionalId !== professionalFilter) {
+      if (
+        professionalFilter !== "all" &&
+        booking.professionalId !== professionalFilter
+      ) {
         return false;
       }
       return true;
@@ -11034,7 +14790,10 @@ function filterBookingsByReportSelection(
     .sort((left, right) => right.startAt.localeCompare(left.startAt));
 }
 
-function filterBookingsByDate(bookings: readonly Booking[], date: string): Booking[] {
+function filterBookingsByDate(
+  bookings: readonly Booking[],
+  date: string
+): Booking[] {
   return [...bookings]
     .filter((booking) => extractDatePart(booking.startAt) === date)
     .sort((left, right) => left.startAt.localeCompare(right.startAt));
@@ -11043,12 +14802,17 @@ function filterBookingsByDate(bookings: readonly Booking[], date: string): Booki
 function summarizeDayBookings(bookings: readonly Booking[]): DayBookingSummary {
   return {
     total: bookings.length,
-    open: bookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
-    confirmed: bookings.filter((booking) => booking.status === "confirmado").length
+    open: bookings.filter((booking) => isOpenBookingStatus(booking.status))
+      .length,
+    confirmed: bookings.filter((booking) => booking.status === "confirmado")
+      .length
   };
 }
 
-function filterBookingsByDates(bookings: readonly Booking[], dates: readonly string[]): Booking[] {
+function filterBookingsByDates(
+  bookings: readonly Booking[],
+  dates: readonly string[]
+): Booking[] {
   const dateSet = new Set(dates);
   return [...bookings]
     .filter((booking) => dateSet.has(extractDatePart(booking.startAt)))
@@ -11075,25 +14839,47 @@ function buildAgendaMonthCells(
   professionalFilter: string
 ): MonthCalendarCell[] {
   const anchor = new Date(`${anchorDate}T12:00:00`);
-  const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1, 12, 0, 0);
-  const monthEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0, 12, 0, 0);
+  const monthStart = new Date(
+    anchor.getFullYear(),
+    anchor.getMonth(),
+    1,
+    12,
+    0,
+    0
+  );
+  const monthEnd = new Date(
+    anchor.getFullYear(),
+    anchor.getMonth() + 1,
+    0,
+    12,
+    0,
+    0
+  );
   const gridStart = new Date(monthStart);
   gridStart.setDate(gridStart.getDate() - gridStart.getDay());
   const gridEnd = new Date(monthEnd);
   gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay()));
 
   const cells: MonthCalendarCell[] = [];
-  for (let cursor = new Date(gridStart); cursor <= gridEnd; cursor.setDate(cursor.getDate() + 1)) {
+  for (
+    let cursor = new Date(gridStart);
+    cursor <= gridEnd;
+    cursor.setDate(cursor.getDate() + 1)
+  ) {
     const date = formatDateInputValue(cursor);
     const dayBookings = bookings
       .filter((booking) => extractDatePart(booking.startAt) === date)
       .filter((booking) =>
-        professionalFilter === "all" ? true : booking.professionalId === professionalFilter
+        professionalFilter === "all"
+          ? true
+          : booking.professionalId === professionalFilter
       )
       .sort((left, right) => left.startAt.localeCompare(right.startAt));
     const weekday = new Date(`${date}T12:00:00`).getDay();
     const totalMinutes = professionals.reduce((total, professional) => {
-      const rule = availabilityByProfessional[professional.id]?.find((item) => item.weekday === weekday);
+      const rule = availabilityByProfessional[professional.id]?.find(
+        (item) => item.weekday === weekday
+      );
       return total + calculateRuleDurationMinutes(rule);
     }, 0);
 
@@ -11102,8 +14888,12 @@ function buildAgendaMonthCells(
       inCurrentMonth: cursor.getMonth() === anchor.getMonth(),
       bookings: dayBookings,
       bookingsCount: dayBookings.length,
-      openBookings: dayBookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
-      completedBookings: dayBookings.filter((booking) => booking.status === "concluido").length,
+      openBookings: dayBookings.filter((booking) =>
+        isOpenBookingStatus(booking.status)
+      ).length,
+      completedBookings: dayBookings.filter(
+        (booking) => booking.status === "concluido"
+      ).length,
       totalMinutes,
       bookedMinutes: dayBookings.reduce(
         (total, booking) => total + calculateBookingDurationMinutes(booking),
@@ -11127,7 +14917,9 @@ function buildWeekGridCell(
   readonly bookings: Booking[];
 } {
   const weekday = new Date(`${date}T12:00:00`).getDay();
-  const rule = availabilityByProfessional[professionalId]?.find((item) => item.weekday === weekday);
+  const rule = availabilityByProfessional[professionalId]?.find(
+    (item) => item.weekday === weekday
+  );
   const cellBookings = bookings
     .filter(
       (booking) =>
@@ -11140,7 +14932,10 @@ function buildWeekGridCell(
   return {
     rule,
     totalMinutes: calculateRuleDurationMinutes(rule),
-    bookedMinutes: cellBookings.reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0),
+    bookedMinutes: cellBookings.reduce(
+      (total, booking) => total + calculateBookingDurationMinutes(booking),
+      0
+    ),
     bookings: cellBookings
   };
 }
@@ -11159,7 +14954,9 @@ function summarizeWeekCapacity(
         (dayTotal, professional) =>
           dayTotal +
           calculateRuleDurationMinutes(
-            availabilityByProfessional[professional.id]?.find((rule) => rule.weekday === weekday)
+            availabilityByProfessional[professional.id]?.find(
+              (rule) => rule.weekday === weekday
+            )
           ),
         0
       )
@@ -11167,23 +14964,32 @@ function summarizeWeekCapacity(
   }, 0);
   const bookedMinutes = bookings
     .filter((booking) => booking.status !== "cancelado")
-    .reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0);
+    .reduce(
+      (total, booking) => total + calculateBookingDurationMinutes(booking),
+      0
+    );
 
   return {
     totalMinutes,
     bookedMinutes,
     freeMinutes: Math.max(totalMinutes - bookedMinutes, 0),
     bookingsCount: bookings.length,
-    openBookings: bookings.filter((booking) => isOpenBookingStatus(booking.status)).length
+    openBookings: bookings.filter((booking) =>
+      isOpenBookingStatus(booking.status)
+    ).length
   };
 }
 
-function summarizeMonthCapacity(cells: readonly MonthCalendarCell[]): WeekCapacitySummary {
+function summarizeMonthCapacity(
+  cells: readonly MonthCalendarCell[]
+): WeekCapacitySummary {
   return cells.reduce<WeekCapacitySummary>(
     (summary, cell) => ({
       totalMinutes: summary.totalMinutes + cell.totalMinutes,
       bookedMinutes: summary.bookedMinutes + cell.bookedMinutes,
-      freeMinutes: summary.freeMinutes + Math.max(cell.totalMinutes - cell.bookedMinutes, 0),
+      freeMinutes:
+        summary.freeMinutes +
+        Math.max(cell.totalMinutes - cell.bookedMinutes, 0),
       bookingsCount: summary.bookingsCount + cell.bookingsCount,
       openBookings: summary.openBookings + cell.openBookings
     }),
@@ -11206,19 +15012,28 @@ function buildWeekDaySummaries(
   return dates.map((date) => {
     const weekday = new Date(`${date}T12:00:00`).getDay();
     const dayBookings = bookings.filter(
-      (booking) => extractDatePart(booking.startAt) === date && booking.status !== "cancelado"
+      (booking) =>
+        extractDatePart(booking.startAt) === date &&
+        booking.status !== "cancelado"
     );
     const totalMinutes = professionals.reduce((total, professional) => {
-      const rule = availabilityByProfessional[professional.id]?.find((item) => item.weekday === weekday);
+      const rule = availabilityByProfessional[professional.id]?.find(
+        (item) => item.weekday === weekday
+      );
       return total + calculateRuleDurationMinutes(rule);
     }, 0);
 
     return {
       date,
       totalMinutes,
-      bookedMinutes: dayBookings.reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0),
+      bookedMinutes: dayBookings.reduce(
+        (total, booking) => total + calculateBookingDurationMinutes(booking),
+        0
+      ),
       bookingsCount: dayBookings.length,
-      openBookings: dayBookings.filter((booking) => isOpenBookingStatus(booking.status)).length
+      openBookings: dayBookings.filter((booking) =>
+        isOpenBookingStatus(booking.status)
+      ).length
     };
   });
 }
@@ -11237,15 +15052,22 @@ function buildWeekProfessionalSummaries(
   readonly openBookings: number;
 }> {
   return professionals.map((professional) => {
-    const professionalBookings = bookings.filter((booking) => booking.professionalId === professional.id);
+    const professionalBookings = bookings.filter(
+      (booking) => booking.professionalId === professional.id
+    );
     const totalMinutes = dates.reduce((total, date) => {
       const weekday = new Date(`${date}T12:00:00`).getDay();
-      const rule = availabilityByProfessional[professional.id]?.find((item) => item.weekday === weekday);
+      const rule = availabilityByProfessional[professional.id]?.find(
+        (item) => item.weekday === weekday
+      );
       return total + calculateRuleDurationMinutes(rule);
     }, 0);
     const bookedMinutes = professionalBookings
       .filter((booking) => booking.status !== "cancelado")
-      .reduce((total, booking) => total + calculateBookingDurationMinutes(booking), 0);
+      .reduce(
+        (total, booking) => total + calculateBookingDurationMinutes(booking),
+        0
+      );
 
     return {
       professionalId: professional.id,
@@ -11253,7 +15075,9 @@ function buildWeekProfessionalSummaries(
       totalMinutes,
       bookedMinutes,
       bookingsCount: professionalBookings.length,
-      openBookings: professionalBookings.filter((booking) => isOpenBookingStatus(booking.status)).length
+      openBookings: professionalBookings.filter((booking) =>
+        isOpenBookingStatus(booking.status)
+      ).length
     };
   });
 }
@@ -11269,19 +15093,27 @@ function buildClientInsights(
       const clientBookings = bookings
         .filter((booking) => booking.clientId === client.id)
         .sort((left, right) => right.startAt.localeCompare(left.startAt));
-      const completedBookings = clientBookings.filter((booking) => booking.status === "concluido");
+      const completedBookings = clientBookings.filter(
+        (booking) => booking.status === "concluido"
+      );
       const clientCashEntries = cashEntries
-        .filter((entry) => entry.clientId === client.id && entry.status === "open")
+        .filter(
+          (entry) => entry.clientId === client.id && entry.status === "open"
+        )
         .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
       const recognizedRevenue = completedBookings.reduce(
-        (total, booking) => total + resolveRecognizedRevenueAmount(booking, services, cashEntries),
+        (total, booking) =>
+          total +
+          resolveRecognizedRevenueAmount(booking, services, cashEntries),
         0
       );
 
       return {
         client,
         totalBookings: clientBookings.length,
-        openBookings: clientBookings.filter((booking) => isOpenBookingStatus(booking.status)).length,
+        openBookings: clientBookings.filter((booking) =>
+          isOpenBookingStatus(booking.status)
+        ).length,
         completedBookings: completedBookings.length,
         lastBooking: clientBookings[0],
         lastCompletedBooking: completedBookings[0],
@@ -11319,12 +15151,23 @@ function summarizeClientPortfolio(
     (summary, entry) => {
       const segment = resolveClientSegment(entry, window);
       if (segment === "returning") {
-        return { ...summary, returningCount: summary.returningCount + 1, activeCount: summary.activeCount + 1 };
+        return {
+          ...summary,
+          returningCount: summary.returningCount + 1,
+          activeCount: summary.activeCount + 1
+        };
       }
       if (segment === "inactive") {
-        return { ...summary, inactiveCount: summary.inactiveCount + 1, activeCount: summary.activeCount + 1 };
+        return {
+          ...summary,
+          inactiveCount: summary.inactiveCount + 1,
+          activeCount: summary.activeCount + 1
+        };
       }
-      return { ...summary, neverCompletedCount: summary.neverCompletedCount + 1 };
+      return {
+        ...summary,
+        neverCompletedCount: summary.neverCompletedCount + 1
+      };
     },
     {
       activeCount: 0,
@@ -11343,7 +15186,9 @@ function resolveClientSegment(
     return "never_completed";
   }
 
-  const daysSinceLastCompleted = calculateDaysSinceIso(entry.lastCompletedBooking.endAt);
+  const daysSinceLastCompleted = calculateDaysSinceIso(
+    entry.lastCompletedBooking.endAt
+  );
   const threshold = resolveClientReturnWindowDays(window);
   return daysSinceLastCompleted > threshold ? "inactive" : "returning";
 }
@@ -11360,11 +15205,23 @@ function buildRevenueEntries(
     .filter((booking) => booking.status === "concluido")
     .map((booking) => {
       const service = services.find((item) => item.id === booking.serviceId);
-      const professional = professionals.find((item) => item.id === booking.professionalId);
+      const professional = professionals.find(
+        (item) => item.id === booking.professionalId
+      );
       const client = clients.find((item) => item.id === booking.clientId);
-      const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-      const recognizedCashEntry = findOpenCashEntry(cashEntries, booking.id, "recognized_revenue");
-      const onlinePaymentCashEntry = findOpenCashEntry(cashEntries, booking.id, "online_payment");
+      const paymentIntent = paymentIntents.find(
+        (item) => item.bookingId === booking.id
+      );
+      const recognizedCashEntry = findOpenCashEntry(
+        cashEntries,
+        booking.id,
+        "recognized_revenue"
+      );
+      const onlinePaymentCashEntry = findOpenCashEntry(
+        cashEntries,
+        booking.id,
+        "online_payment"
+      );
 
       return {
         booking,
@@ -11374,11 +15231,21 @@ function buildRevenueEntries(
         paymentIntent,
         recognizedCashEntry,
         onlinePaymentCashEntry,
-        recognizedAmount: resolveRecognizedRevenueAmount(booking, services, cashEntries),
-        approvedOnlineAmount: resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries)
+        recognizedAmount: resolveRecognizedRevenueAmount(
+          booking,
+          services,
+          cashEntries
+        ),
+        approvedOnlineAmount: resolveApprovedOnlineAmount(
+          booking,
+          paymentIntent,
+          cashEntries
+        )
       };
     })
-    .sort((left, right) => right.booking.endAt.localeCompare(left.booking.endAt));
+    .sort((left, right) =>
+      right.booking.endAt.localeCompare(left.booking.endAt)
+    );
 }
 
 function findOpenCashEntry(
@@ -11411,27 +15278,41 @@ function resolveApprovedOnlineAmount(
   paymentIntent: PaymentIntent | undefined,
   cashEntries: readonly CashEntry[]
 ): number {
-  const cashEntryAmount = findOpenCashEntry(cashEntries, booking.id, "online_payment")?.amount;
+  const cashEntryAmount = findOpenCashEntry(
+    cashEntries,
+    booking.id,
+    "online_payment"
+  )?.amount;
   if (cashEntryAmount !== undefined) {
     return cashEntryAmount;
   }
 
-  return paymentIntent && isApprovedPaymentIntent(paymentIntent.status) ? paymentIntent.amount : 0;
+  return paymentIntent && isApprovedPaymentIntent(paymentIntent.status)
+    ? paymentIntent.amount
+    : 0;
 }
 
 function summarizeRevenueEntries(
   entries: readonly RevenueEntry[],
   bookings: readonly Booking[]
 ): DashboardRevenueSummary {
-  const recognizedRevenue = entries.reduce((total, entry) => total + entry.recognizedAmount, 0);
+  const recognizedRevenue = entries.reduce(
+    (total, entry) => total + entry.recognizedAmount,
+    0
+  );
   const approvedOnlineRevenue = entries.reduce(
     (total, entry) => total + entry.approvedOnlineAmount,
     0
   );
   const completedCount = entries.length;
-  const uniqueClients = new Set(entries.map((entry) => entry.booking.clientId)).size;
-  const noShowCount = bookings.filter((booking) => booking.status === "faltou").length;
-  const cancelledCount = bookings.filter((booking) => booking.status === "cancelado").length;
+  const uniqueClients = new Set(entries.map((entry) => entry.booking.clientId))
+    .size;
+  const noShowCount = bookings.filter(
+    (booking) => booking.status === "faltou"
+  ).length;
+  const cancelledCount = bookings.filter(
+    (booking) => booking.status === "cancelado"
+  ).length;
 
   return {
     recognizedRevenue,
@@ -11450,23 +15331,36 @@ function buildReportMetricSummary(
   paymentIntents: readonly PaymentIntent[],
   cashEntries: readonly CashEntry[]
 ): ReportMetricSummary {
-  const completedBookings = bookings.filter((booking) => booking.status === "concluido");
+  const completedBookings = bookings.filter(
+    (booking) => booking.status === "concluido"
+  );
   const recognizedRevenue = completedBookings.reduce((total, booking) => {
-    return total + resolveRecognizedRevenueAmount(booking, services, cashEntries);
+    return (
+      total + resolveRecognizedRevenueAmount(booking, services, cashEntries)
+    );
   }, 0);
   const approvedOnlineRevenue = completedBookings.reduce((total, booking) => {
-    const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
-    return total + resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries);
+    const paymentIntent = paymentIntents.find(
+      (item) => item.bookingId === booking.id
+    );
+    return (
+      total + resolveApprovedOnlineAmount(booking, paymentIntent, cashEntries)
+    );
   }, 0);
 
   return {
     bookingsCount: bookings.length,
     completedCount: completedBookings.length,
-    cancelledCount: bookings.filter((booking) => booking.status === "cancelado").length,
-    noShowCount: bookings.filter((booking) => booking.status === "faltou").length,
+    cancelledCount: bookings.filter((booking) => booking.status === "cancelado")
+      .length,
+    noShowCount: bookings.filter((booking) => booking.status === "faltou")
+      .length,
     recognizedRevenue,
     approvedOnlineRevenue,
-    averageTicket: completedBookings.length > 0 ? recognizedRevenue / completedBookings.length : 0,
+    averageTicket:
+      completedBookings.length > 0
+        ? recognizedRevenue / completedBookings.length
+        : 0,
     uniqueClients: new Set(bookings.map((booking) => booking.clientId)).size
   };
 }
@@ -11477,7 +15371,10 @@ function buildServiceReportSummaries(
   paymentIntents: readonly PaymentIntent[],
   cashEntries: readonly CashEntry[]
 ): ReportGroupSummary[] {
-  const grouped = new Map<string, ReportGroupSummary & { readonly clientIds: Set<string> }>();
+  const grouped = new Map<
+    string,
+    ReportGroupSummary & { readonly clientIds: Set<string> }
+  >();
 
   for (const booking of bookings) {
     const service = services.find((item) => item.id === booking.serviceId);
@@ -11494,7 +15391,9 @@ function buildServiceReportSummaries(
         uniqueClients: 0,
         clientIds: new Set<string>()
       } satisfies ReportGroupSummary & { readonly clientIds: Set<string> });
-    const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+    const paymentIntent = paymentIntents.find(
+      (item) => item.bookingId === booking.id
+    );
     const nextCompletedCount =
       existing.completedCount + (booking.status === "concluido" ? 1 : 0);
     const nextRecognizedRevenue =
@@ -11515,7 +15414,8 @@ function buildServiceReportSummaries(
       completedCount: nextCompletedCount,
       recognizedRevenue: nextRecognizedRevenue,
       approvedOnlineRevenue: nextApprovedOnlineRevenue,
-      averageTicket: nextCompletedCount > 0 ? nextRecognizedRevenue / nextCompletedCount : 0,
+      averageTicket:
+        nextCompletedCount > 0 ? nextRecognizedRevenue / nextCompletedCount : 0,
       uniqueClients: existing.clientIds.size,
       clientIds: existing.clientIds
     });
@@ -11541,10 +15441,15 @@ function buildProfessionalReportSummaries(
   paymentIntents: readonly PaymentIntent[],
   cashEntries: readonly CashEntry[]
 ): ReportGroupSummary[] {
-  const grouped = new Map<string, ReportGroupSummary & { readonly clientIds: Set<string> }>();
+  const grouped = new Map<
+    string,
+    ReportGroupSummary & { readonly clientIds: Set<string> }
+  >();
 
   for (const booking of bookings) {
-    const professional = professionals.find((item) => item.id === booking.professionalId);
+    const professional = professionals.find(
+      (item) => item.id === booking.professionalId
+    );
     const service = services.find((item) => item.id === booking.serviceId);
     const existing =
       grouped.get(booking.professionalId) ??
@@ -11559,7 +15464,9 @@ function buildProfessionalReportSummaries(
         uniqueClients: 0,
         clientIds: new Set<string>()
       } satisfies ReportGroupSummary & { readonly clientIds: Set<string> });
-    const paymentIntent = paymentIntents.find((item) => item.bookingId === booking.id);
+    const paymentIntent = paymentIntents.find(
+      (item) => item.bookingId === booking.id
+    );
     const nextCompletedCount =
       existing.completedCount + (booking.status === "concluido" ? 1 : 0);
     const nextRecognizedRevenue =
@@ -11580,7 +15487,8 @@ function buildProfessionalReportSummaries(
       completedCount: nextCompletedCount,
       recognizedRevenue: nextRecognizedRevenue,
       approvedOnlineRevenue: nextApprovedOnlineRevenue,
-      averageTicket: nextCompletedCount > 0 ? nextRecognizedRevenue / nextCompletedCount : 0,
+      averageTicket:
+        nextCompletedCount > 0 ? nextRecognizedRevenue / nextCompletedCount : 0,
       uniqueClients: existing.clientIds.size,
       clientIds: existing.clientIds
     });
@@ -11613,16 +15521,23 @@ function buildDashboardChartData(
     const anchor = new Date(today);
     anchor.setDate(today.getDate() - offset);
     const dateKey = formatDateInputValue(anchor);
-    const dayBookings = bookings.filter((booking) => extractDatePart(booking.startAt) === dateKey);
+    const dayBookings = bookings.filter(
+      (booking) => extractDatePart(booking.startAt) === dateKey
+    );
     const recognizedRevenue = dayBookings.reduce((total, booking) => {
       if (booking.status !== "concluido") {
         return total;
       }
-      return total + resolveRecognizedRevenueAmount(booking, services, cashEntries);
+      return (
+        total + resolveRecognizedRevenueAmount(booking, services, cashEntries)
+      );
     }, 0);
 
     points.push({
-      label: new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(anchor),
+      label: new Intl.DateTimeFormat("pt-BR", {
+        day: "2-digit",
+        month: "2-digit"
+      }).format(anchor),
       recognizedRevenue,
       bookingsCount: dayBookings.length
     });
@@ -11655,7 +15570,11 @@ function resolveBookingActions(booking: Booking): BookingAction[] {
 }
 
 function canRescheduleBooking(booking: Booking): boolean {
-  return booking.status === "pendente" || booking.status === "aguardando pagamento" || booking.status === "confirmado";
+  return (
+    booking.status === "pendente" ||
+    booking.status === "aguardando pagamento" ||
+    booking.status === "confirmado"
+  );
 }
 
 function resolveBookingActionFeedback(status: Booking["status"]): string {
@@ -11677,16 +15596,26 @@ function resolveBookingTitle(
   professionals: readonly Professional[]
 ): string {
   const service = services.find((item) => item.id === booking.serviceId);
-  const professional = professionals.find((item) => item.id === booking.professionalId);
+  const professional = professionals.find(
+    (item) => item.id === booking.professionalId
+  );
   return `${service?.nome ?? "Servico"} - ${professional?.nome ?? "Profissional"}`;
 }
 
-function resolveClientName(clientId: string, clients: readonly Client[]): string {
+function resolveClientName(
+  clientId: string,
+  clients: readonly Client[]
+): string {
   return clients.find((client) => client.id === clientId)?.nome ?? "Cliente";
 }
 
-function resolveClientPhone(clientId: string, clients: readonly Client[]): string {
-  return clients.find((client) => client.id === clientId)?.telefone ?? "Sem telefone";
+function resolveClientPhone(
+  clientId: string,
+  clients: readonly Client[]
+): string {
+  return (
+    clients.find((client) => client.id === clientId)?.telefone ?? "Sem telefone"
+  );
 }
 
 function resolveBookingStatusTone(status: Booking["status"]): string {
@@ -11774,7 +15703,10 @@ function formatBankMovementType(type: BankMovement["tipo"]): string {
   }
 }
 
-function resolveBankLabel(bankId: string | undefined, banks: readonly Bank[]): string | undefined {
+function resolveBankLabel(
+  bankId: string | undefined,
+  banks: readonly Bank[]
+): string | undefined {
   if (!bankId) {
     return undefined;
   }
@@ -11800,7 +15732,9 @@ function formatBankMovementStatus(status: BankMovement["status"]): string {
   }
 }
 
-function formatBankMovementSource(sourceType: BankMovement["sourceType"]): string {
+function formatBankMovementSource(
+  sourceType: BankMovement["sourceType"]
+): string {
   switch (sourceType) {
     case "revenue_schedule":
       return "Receita";
@@ -11830,7 +15764,11 @@ function formatBankMovementSource(sourceType: BankMovement["sourceType"]): strin
 }
 
 function isOpenBookingStatus(status: Booking["status"]): boolean {
-  return status === "pendente" || status === "aguardando pagamento" || status === "confirmado";
+  return (
+    status === "pendente" ||
+    status === "aguardando pagamento" ||
+    status === "confirmado"
+  );
 }
 
 function isPendingBookingStatus(status: Booking["status"]): boolean {
@@ -11883,34 +15821,45 @@ function addMonthsToDateValue(value: string, months: number): string {
   const dayOfMonth = date.getDate();
   date.setDate(1);
   date.setMonth(date.getMonth() + months);
-  const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  const lastDay = new Date(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    0
+  ).getDate();
   date.setDate(Math.min(dayOfMonth, lastDay));
   return formatDateInputValue(date);
 }
 
 function formatAgendaDayLabel(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "short" }).format(
-    new Date(`${value}T12:00:00`)
-  );
+  return new Intl.DateTimeFormat("pt-BR", {
+    weekday: "short",
+    day: "2-digit",
+    month: "short"
+  }).format(new Date(`${value}T12:00:00`));
 }
 
 function formatAgendaMonthLabel(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(
-    new Date(`${value}T12:00:00`)
-  );
+  return new Intl.DateTimeFormat("pt-BR", {
+    month: "long",
+    year: "numeric"
+  }).format(new Date(`${value}T12:00:00`));
 }
 
 function formatDateShort(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" }).format(
-    new Date(`${value}T12:00:00`)
-  );
+  return new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric"
+  }).format(new Date(`${value}T12:00:00`));
 }
 
 function formatClockTime(value: string): string {
   const normalizedValue = value.includes("T")
     ? new Date(value)
     : new Date(`2000-01-01T${value.length === 5 ? `${value}:00` : value}`);
-  return new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(normalizedValue);
+  return new Intl.DateTimeFormat("pt-BR", { timeStyle: "short" }).format(
+    normalizedValue
+  );
 }
 
 function formatTimeRange(startAt: string, endAt: string): string {
@@ -11923,9 +15872,14 @@ function formatAgendaWeekLabel(dates: readonly string[]): string {
     return "Semana sem datas";
   }
 
-  const formatter = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "short" });
+  const formatter = new Intl.DateTimeFormat("pt-BR", {
+    day: "2-digit",
+    month: "short"
+  });
   const startLabel = formatter.format(new Date(`${dates[0]}T12:00:00`));
-  const endLabel = formatter.format(new Date(`${dates[dates.length - 1]}T12:00:00`));
+  const endLabel = formatter.format(
+    new Date(`${dates[dates.length - 1]}T12:00:00`)
+  );
   return `${startLabel} - ${endLabel}`;
 }
 
@@ -12022,7 +15976,9 @@ function isCounterBookingStepComplete(
   return Boolean(form.nome.trim() && form.telefone.trim() && form.email.trim());
 }
 
-function resolveCounterBookingStepValidationMessage(step: CounterBookingStep): string {
+function resolveCounterBookingStepValidationMessage(
+  step: CounterBookingStep
+): string {
   if (step === "service") {
     return "Escolha um servico para iniciar o agendamento.";
   }
@@ -12035,7 +15991,9 @@ function resolveCounterBookingStepValidationMessage(step: CounterBookingStep): s
   return "Preencha nome, telefone e e-mail do cliente antes de salvar.";
 }
 
-function resolveNextCounterBookingStep(step: CounterBookingStep): CounterBookingStep | null {
+function resolveNextCounterBookingStep(
+  step: CounterBookingStep
+): CounterBookingStep | null {
   if (step === "service") {
     return "professional";
   }
@@ -12048,7 +16006,9 @@ function resolveNextCounterBookingStep(step: CounterBookingStep): CounterBooking
   return null;
 }
 
-function resolvePreviousCounterBookingStep(step: CounterBookingStep): CounterBookingStep | null {
+function resolvePreviousCounterBookingStep(
+  step: CounterBookingStep
+): CounterBookingStep | null {
   if (step === "client") {
     return "slot";
   }
@@ -12065,10 +16025,16 @@ function calculateRuleDurationMinutes(rule?: AvailabilityRule): number {
   if (!rule) {
     return 0;
   }
-  return calculateClockDurationMinutes(rule.faixa.startTime, rule.faixa.endTime);
+  return calculateClockDurationMinutes(
+    rule.faixa.startTime,
+    rule.faixa.endTime
+  );
 }
 
-function calculateClockDurationMinutes(startTime: string, endTime: string): number {
+function calculateClockDurationMinutes(
+  startTime: string,
+  endTime: string
+): number {
   const [startHour, startMinute] = startTime.split(":").map(Number);
   const [endHour, endMinute] = endTime.split(":").map(Number);
   return Math.max(endHour * 60 + endMinute - (startHour * 60 + startMinute), 0);
@@ -12096,7 +16062,10 @@ function formatMinutesAsHours(value: number): string {
   return `${minutes}min`;
 }
 
-function formatUtilization(bookedMinutes: number, totalMinutes: number): string {
+function formatUtilization(
+  bookedMinutes: number,
+  totalMinutes: number
+): string {
   if (totalMinutes <= 0) {
     return "0%";
   }
@@ -12150,7 +16119,10 @@ function formatClientSegment(
   return "Nunca concluiu";
 }
 
-function resolveUtilizationTone(bookedMinutes: number, totalMinutes: number): string {
+function resolveUtilizationTone(
+  bookedMinutes: number,
+  totalMinutes: number
+): string {
   if (totalMinutes <= 0) {
     return "neutral";
   }
@@ -12181,10 +16153,7 @@ function resolveAdminDisplayName(email: string): string {
 }
 
 function resolveProfessionalInitials(value: string): string {
-  const parts = value
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = value.trim().split(/\s+/).filter(Boolean);
 
   if (parts.length === 0) {
     return "AG";
@@ -12196,12 +16165,23 @@ function resolveProfessionalInitials(value: string): string {
     .join("");
 }
 
-function resolveServiceName(serviceId: string, services: readonly Service[]): string {
-  return services.find((service) => service.id === serviceId)?.nome ?? "Servico";
+function resolveServiceName(
+  serviceId: string,
+  services: readonly Service[]
+): string {
+  return (
+    services.find((service) => service.id === serviceId)?.nome ?? "Servico"
+  );
 }
 
-function resolveProfessionalName(professionalId: string, professionals: readonly Professional[]): string {
-  return professionals.find((professional) => professional.id === professionalId)?.nome ?? "Profissional";
+function resolveProfessionalName(
+  professionalId: string,
+  professionals: readonly Professional[]
+): string {
+  return (
+    professionals.find((professional) => professional.id === professionalId)
+      ?.nome ?? "Profissional"
+  );
 }
 
 function getSupportedProfessionalsForService(
@@ -12212,7 +16192,9 @@ function getSupportedProfessionalsForService(
     return [...professionals];
   }
 
-  return professionals.filter((professional) => professional.especialidades.includes(serviceId));
+  return professionals.filter((professional) =>
+    professional.especialidades.includes(serviceId)
+  );
 }
 
 function findMatchingClient(
@@ -12249,11 +16231,15 @@ function resolveProfessionalServiceNames(
   services: readonly Service[]
 ): string[] {
   return professional.especialidades
-    .map((serviceId) => services.find((service) => service.id === serviceId)?.nome)
+    .map(
+      (serviceId) => services.find((service) => service.id === serviceId)?.nome
+    )
     .filter((value): value is string => Boolean(value));
 }
 
-function resolveProfessionalSummaryLine(serviceNames: readonly string[]): string {
+function resolveProfessionalSummaryLine(
+  serviceNames: readonly string[]
+): string {
   if (!serviceNames.length) {
     return "Sem servicos vinculados";
   }
@@ -12326,7 +16312,9 @@ function formatProfessionalStatus(status: string): string {
   return `${status.trim().slice(0, 1).toUpperCase()}${status.trim().slice(1)}`;
 }
 
-function resolveAvailabilitySummary(rules: readonly AvailabilityRule[]): string {
+function resolveAvailabilitySummary(
+  rules: readonly AvailabilityRule[]
+): string {
   if (!rules.length) {
     return "Sem horarios";
   }
@@ -12335,15 +16323,26 @@ function resolveAvailabilitySummary(rules: readonly AvailabilityRule[]): string 
 }
 
 function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
+  return new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: "BRL"
+  }).format(value);
 }
 
 function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
+  return new Intl.DateTimeFormat("pt-BR", {
+    dateStyle: "short",
+    timeStyle: "short"
+  }).format(new Date(value));
 }
 
-function toggleArrayValue<T extends string>(items: readonly T[], candidate: T): T[] {
-  return items.includes(candidate) ? items.filter((item) => item !== candidate) : [...items, candidate];
+function toggleArrayValue<T extends string>(
+  items: readonly T[],
+  candidate: T
+): T[] {
+  return items.includes(candidate)
+    ? items.filter((item) => item !== candidate)
+    : [...items, candidate];
 }
 
 function parseRequiredInteger(value: string, fieldName: string): number {
@@ -12385,7 +16384,9 @@ function sanitizeSlug(value: string): string {
 }
 
 function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Falha inesperada na operacao administrativa.";
+  return error instanceof Error
+    ? error.message
+    : "Falha inesperada na operacao administrativa.";
 }
 
 function loadStoredValue(key: string, fallback: string): string {

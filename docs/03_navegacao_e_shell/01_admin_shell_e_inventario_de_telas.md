@@ -35,19 +35,19 @@ No chrome global do shell:
 
 ## 4. Inventario canonico de telas
 
-| Rota | Tela | Serve para | Blocos minimos | Prioridade |
-| --- | --- | --- | --- | --- |
-| `/app` | Dashboard inicial | mostrar estado do negocio e handoff da implantacao | resumo do tenant, KPI do dia, pendencias criticas, atalhos para implantacao, agenda e clientes | beta obrigatoria |
-| `/app/implantacao` | Implantacao | preparar o tenant para entrar em operacao | slug, branding minimo, provider de pagamento, status de publicacao, checklist de prontidao | beta obrigatoria |
-| `/app/catalogo` | Catalogo comercial | cadastrar e editar servicos, produtos, kits e combos | lista de itens, formulario, politica comercial, politicas de cobranca | beta obrigatoria |
-| `/app/profissionais` | Equipe | cadastrar equipe e especialidades | lista de profissionais, formulario, especialidades, status | beta obrigatoria |
-| `/app/agenda` | Agenda operacional | localizar e operar bookings do dia | filtros, cards ou lista de bookings, acoes de confirmar, concluir, cancelar, reagendar quando existir | beta obrigatoria |
-| `/app/clientes` | Clientes e CRM | consultar carteira basica e historico essencial | listagem, ultima visita, origem, status de recorrencia, acesso ao detalhe | beta obrigatoria |
-| `/app/configuracoes` | Configuracoes do tenant | manter dados permanentes do negocio apos a implantacao | dados do tenant, slug, branding, integracoes e preferencias operacionais | beta obrigatoria |
-| `/app/calendario` | Calendario denso | operar visao semanal e diaria por profissional | grade temporal, filtros, conflito, reagendamento | pos-beta planejada |
-| `/app/financeiro` | Financeiro operacional | ler caixa, contas e movimentos ligados ao atendimento | fluxo de caixa, bancos, saldos iniciais, receitas, despesas e movimentos | beta obrigatoria |
-| `/app/relatorios` | Relatorios | montar, executar e salvar leituras gerenciais reutilizaveis | builder semantico, dock tabs, filtros por modal, lookup e modelos salvos | beta obrigatoria |
-| `/app/campanhas` | Campanhas e retorno | acionar win-back e comunicacoes | segmentos, disparos, historico de contato | pos-beta planejada |
+| Rota                 | Tela                    | Serve para                                                  | Blocos minimos                                                                                        | Prioridade         |
+| -------------------- | ----------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------ |
+| `/app`               | Dashboard inicial       | mostrar estado do negocio e handoff da implantacao          | resumo do tenant, KPI do dia, pendencias criticas, atalhos para implantacao, agenda e clientes        | beta obrigatoria   |
+| `/app/implantacao`   | Implantacao             | preparar o tenant para entrar em operacao                   | slug, branding minimo, provider de pagamento, status de publicacao, checklist de prontidao            | beta obrigatoria   |
+| `/app/catalogo`      | Catalogo comercial      | cadastrar e editar servicos, produtos, kits e combos        | lista de itens, formulario, politica comercial, politicas de cobranca                                 | beta obrigatoria   |
+| `/app/profissionais` | Equipe                  | cadastrar equipe e especialidades                           | lista de profissionais, formulario, especialidades, status                                            | beta obrigatoria   |
+| `/app/agenda`        | Agenda operacional      | localizar e operar bookings do dia                          | filtros, cards ou lista de bookings, acoes de confirmar, concluir, cancelar, reagendar quando existir | beta obrigatoria   |
+| `/app/clientes`      | Clientes e CRM          | consultar carteira basica e historico essencial             | listagem, ultima visita, origem, status de recorrencia, acesso ao detalhe                             | beta obrigatoria   |
+| `/app/configuracoes` | Configuracoes do tenant | manter dados permanentes do negocio apos a implantacao      | dados do tenant, slug, branding, integracoes e preferencias operacionais                              | beta obrigatoria   |
+| `/app/calendario`    | Calendario denso        | operar visao semanal e diaria por profissional              | grade temporal, filtros, conflito, reagendamento                                                      | pos-beta planejada |
+| `/app/financeiro`    | Financeiro operacional  | ler caixa, contas e movimentos ligados ao atendimento       | fluxo de caixa, bancos, saldos iniciais, receitas, despesas e movimentos                              | beta obrigatoria   |
+| `/app/relatorios`    | Relatorios              | montar, executar e salvar leituras gerenciais reutilizaveis | builder semantico, dock tabs, filtros por modal, lookup e modelos salvos                              | beta obrigatoria   |
+| `/app/campanhas`     | Campanhas e retorno     | acionar win-back e comunicacoes                             | segmentos, disparos, historico de contato                                                             | pos-beta planejada |
 
 ## 5. User stories minimas por tela
 
@@ -99,10 +99,13 @@ No chrome global do shell:
 - podem compartilhar linguagem visual de editor;
 - nao devem ocupar a mesma rota da agenda;
 - entidades simples de cadastro, como `catalogo`, devem nascer em `registro master` com lista principal e acoes explicitas de `novo`, `visualizar` e `editar`;
+- o browse de `catalogo` deve explicitar cabecalho de colunas e manter leitura tabular curta para `codigo`, `servico`, `duracao`, `preco`, `cobranca` e `status`;
 - `catalogo` deve abrir `visualizar`, `editar`, `novo` e `excluir` em popup, sem empilhar o formulario inteiro abaixo da lista principal;
+- o popup de `catalogo` deve usar leitura de registro, com labels discretos e sem cards com tipografia gigante para nomes de campo;
 - quando a entidade for simples, o workspace nao deve carregar blocos narrativos como `o que voce controla aqui`, `em evolucao`, resumos laterais ou politicas duplicadas fora do proprio registro;
-- `master-detail` deve ficar reservado para superficies com vinculos ou leitura relacional mais densa, como `profissionais` com `servicos` e `horarios`;
-- `profissionais` deve usar lista master simples no lado esquerdo e detalhe relacional no lado direito, com abas locais para `cadastro e servicos` e `horarios`;
+- `profissionais` passa a operar em `document view`, mantendo browse lateral da equipe e um stage principal com tabs locais para `cadastro base`, `profissionais x servicos` e `horarios`;
+- a frente `profissionais x servicos` deve abrir como workspace proprio dentro da rota, com consulta padrao de profissional no topo, browse zebrado de servicos, busca, filtro e rolagem independente;
+- a marcacao de servicos em `profissionais x servicos` deve persistir o vinculo no backend real sem exigir formulario paralelo escondido em outra aba;
 - `profissionais` pode manter `banco padrao` opcional por consulta, sem texto livre e sem tornar o vinculo obrigatorio;
 - disponibilidade detalhada pode nascer em `profissionais` ou migrar depois para `calendario`.
 
