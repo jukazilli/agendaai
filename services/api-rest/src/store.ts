@@ -58,6 +58,9 @@ import type {
   TenantBranding
 } from "@agendaai/contracts";
 
+type RevenueScheduleWithPlan = RevenueSchedule & { plannedMovementId?: string };
+type ExpenseScheduleWithPlan = ExpenseSchedule & { plannedMovementId?: string };
+
 export interface AdminSessionRecord {
   readonly token: string;
   readonly claims: AdminSessionClaimsContract;
@@ -835,7 +838,10 @@ export class ApiRestStore implements ApiRestStorePort {
   }
 
   createRevenueSchedule(command: CreateRevenueScheduleCommand): RevenueSchedule[] {
-    return this.expandRevenueScheduleCommand(command).map((entry) => this.saveRevenueSchedule(entry));
+    return this.expandRevenueScheduleCommand(command).map((entry) => {
+      this.saveRevenueSchedule(entry);
+      return this.syncRevenuePlannedMovement(entry);
+    });
   }
 
   updateRevenueSchedule(
@@ -855,18 +861,22 @@ export class ApiRestStore implements ApiRestStorePort {
       updatedAt: new Date().toISOString()
     };
     this.saveRevenueSchedule(nextRevenue);
-    return nextRevenue;
+    return this.syncRevenuePlannedMovement(nextRevenue);
   }
 
   deleteRevenueSchedule(tenantId: string, revenueId: string): boolean {
-    const revenue = this.getRevenueSchedule(tenantId, revenueId);
+    const revenue = this.getRevenueSchedule(tenantId, revenueId) as RevenueScheduleWithPlan | undefined;
     if (!revenue) {
       return false;
     }
     if (revenue.baixaMovementId) {
       throw new Error("schedule_in_use");
     }
+    if (revenue.plannedMovementId) {
+      this.bankMovements.delete(revenue.plannedMovementId);
+    }
     this.revenueSchedules.delete(revenue.id);
+    this.refreshBankBalances(tenantId);
     return true;
   }
 
@@ -891,7 +901,10 @@ export class ApiRestStore implements ApiRestStorePort {
   }
 
   createExpenseSchedule(command: CreateExpenseScheduleCommand): ExpenseSchedule[] {
-    return this.expandExpenseScheduleCommand(command).map((entry) => this.saveExpenseSchedule(entry));
+    return this.expandExpenseScheduleCommand(command).map((entry) => {
+      this.saveExpenseSchedule(entry);
+      return this.syncExpensePlannedMovement(entry);
+    });
   }
 
   updateExpenseSchedule(
@@ -911,18 +924,22 @@ export class ApiRestStore implements ApiRestStorePort {
       updatedAt: new Date().toISOString()
     };
     this.saveExpenseSchedule(nextExpense);
-    return nextExpense;
+    return this.syncExpensePlannedMovement(nextExpense);
   }
 
   deleteExpenseSchedule(tenantId: string, expenseId: string): boolean {
-    const expense = this.getExpenseSchedule(tenantId, expenseId);
+    const expense = this.getExpenseSchedule(tenantId, expenseId) as ExpenseScheduleWithPlan | undefined;
     if (!expense) {
       return false;
     }
     if (expense.baixaMovementId) {
       throw new Error("schedule_in_use");
     }
+    if (expense.plannedMovementId) {
+      this.bankMovements.delete(expense.plannedMovementId);
+    }
     this.expenseSchedules.delete(expense.id);
+    this.refreshBankBalances(tenantId);
     return true;
   }
 
@@ -998,7 +1015,7 @@ export class ApiRestStore implements ApiRestStorePort {
 
   receiveRevenue(command: CreateBankReceiptCommand): BankMovement {
     this.assertBankBelongsToTenant(command.tenantId, command.bankIdDestino);
-    const revenue = command.revenueId ? this.getRevenueSchedule(command.tenantId, command.revenueId) : undefined;
+    const revenue = command.revenueId ? this.getRevenueSchedule(command.tenantId, command.revenueId) as RevenueScheduleWithPlan | undefined : undefined;
     if (command.revenueId && !revenue) {
       throw new Error("revenue_not_found");
     }
@@ -1008,71 +1025,61 @@ export class ApiRestStore implements ApiRestStorePort {
     }
 
     const now = command.dataMovimento ?? new Date().toISOString();
-    const movement: BankMovement = {
-      version: "v1",
-      id: randomUUID(),
+    const movement = this.settleBankMovement({
       tenantId: command.tenantId,
-      codigo: this.nextEntityCode(command.tenantId, "bank_movement"),
+      sourceType: revenue ? "revenue_schedule" : cashEntry ? "cash_entry" : "manual_receipt",
+      sourceId: revenue?.id ?? cashEntry?.id,
+      plannedMovementId: revenue?.plannedMovementId,
       tipo: "entrada",
       bankIdDestino: command.bankIdDestino,
       valor: command.valor,
       historico: command.historico,
-      dataMovimento: now,
-      status: resolveMovementStatus(now),
-      sourceType: revenue ? "revenue_schedule" : cashEntry ? "cash_entry" : "manual_receipt",
-      sourceId: revenue?.id ?? cashEntry?.id,
-      createdAt: now,
-      updatedAt: now
-    };
-
-    this.saveBankMovement(movement);
+      dataMovimento: now
+    });
     if (revenue) {
-      this.saveRevenueSchedule({
+      const nextRevenue: RevenueScheduleWithPlan = {
         ...revenue,
         status: "recebida",
+        plannedMovementId: movement.id,
         baixaMovementId: movement.id,
         settledAt: now,
         updatedAt: now
-      });
+      };
+      this.saveRevenueSchedule(nextRevenue);
     }
     return movement;
   }
 
   payExpense(command: CreateBankPaymentCommand): BankMovement {
     this.assertBankBelongsToTenant(command.tenantId, command.bankIdOrigem);
-    const expense = command.expenseId ? this.getExpenseSchedule(command.tenantId, command.expenseId) : undefined;
+    const expense = command.expenseId ? this.getExpenseSchedule(command.tenantId, command.expenseId) as ExpenseScheduleWithPlan | undefined : undefined;
     if (command.expenseId && !expense) {
       throw new Error("expense_not_found");
     }
 
     const now = command.dataMovimento ?? new Date().toISOString();
-    const movement: BankMovement = {
-      version: "v1",
-      id: randomUUID(),
+    const movement = this.settleBankMovement({
       tenantId: command.tenantId,
-      codigo: this.nextEntityCode(command.tenantId, "bank_movement"),
+      sourceType: expense ? "expense_schedule" : "manual_payment",
+      sourceId: expense?.id,
+      plannedMovementId: expense?.plannedMovementId,
       tipo: "saida",
       bankIdOrigem: command.bankIdOrigem,
       valor: command.valor,
       historico: command.historico,
       beneficiarioNome: command.beneficiarioNome,
-      dataMovimento: now,
-      status: resolveMovementStatus(now),
-      sourceType: expense ? "expense_schedule" : "manual_payment",
-      sourceId: expense?.id,
-      createdAt: now,
-      updatedAt: now
-    };
-
-    this.saveBankMovement(movement);
+      dataMovimento: now
+    });
     if (expense) {
-      this.saveExpenseSchedule({
+      const nextExpense: ExpenseScheduleWithPlan = {
         ...expense,
         status: "paga",
+        plannedMovementId: movement.id,
         baixaMovementId: movement.id,
         settledAt: now,
         updatedAt: now
-      });
+      };
+      this.saveExpenseSchedule(nextExpense);
     }
     return movement;
   }
@@ -1188,129 +1195,30 @@ export class ApiRestStore implements ApiRestStorePort {
     this.assertBankBelongsToTenant(tenantId, bankId);
     this.applyDueAutomaticSettlements(tenantId);
 
+    const tenant = this.tenants.get(tenantId);
+    const timeZone = tenant?.timezone ?? "America/Sao_Paulo";
     const banks = this.listBanks(tenantId);
-    const pendingRevenueItems = this.listRevenueSchedules(tenantId)
-      .filter(
-        (entry) =>
-          entry.status === "aberta" &&
-          (entry.bankId === bankId || entry.bankId === undefined) &&
-          entry.dataVencimento >= dateFrom &&
-          entry.dataVencimento <= dateTo
-      )
-      .map((entry) => ({
-        sourceType: "revenue_schedule" as const,
-        sourceId: entry.id,
-        tipo: "entrada" as const,
-        descricao: entry.descricao,
-        valor: entry.valor,
-        dataReferencia: entry.dataVencimento,
-        bankId: entry.bankId,
-        bankLabel: entry.bankId ? resolveBankAccountLabel(banks.find((bank) => bank.id === entry.bankId)) : undefined,
-        status: "pendente" as const
-      }));
-    const pendingExpenseItems = this.listExpenseSchedules(tenantId)
-      .filter(
-        (entry) =>
-          entry.status === "aberta" &&
-          (entry.bankId === bankId || entry.bankId === undefined) &&
-          entry.dataVencimento >= dateFrom &&
-          entry.dataVencimento <= dateTo
-      )
-      .map((entry) => ({
-        sourceType: "expense_schedule" as const,
-        sourceId: entry.id,
-        tipo: "saida" as const,
-        descricao: entry.descricao,
-        valor: entry.valor,
-        dataReferencia: entry.dataVencimento,
-        bankId: entry.bankId,
-        bankLabel: entry.bankId ? resolveBankAccountLabel(banks.find((bank) => bank.id === entry.bankId)) : undefined,
-        status: "pendente" as const
-      }));
-    const pendingCashEntryItems = this.listCashEntries(tenantId)
-      .filter((entry) => entry.status === "open" && entry.occurredAt >= `${dateFrom}T00:00:00` && entry.occurredAt <= `${dateTo}T23:59:59`)
-      .map((entry) => ({
-        sourceType: "cash_entry" as const,
-        sourceId: entry.id,
-        tipo: "entrada" as const,
-        descricao: entry.description,
-        valor: entry.amount,
-        dataReferencia: entry.occurredAt.slice(0, 10),
-        bankId: undefined,
-        bankLabel: undefined,
-        status: "pendente" as const
-      }));
-
-    const settledRevenueItems: CashClosePreviewItem[] = this.listRevenueSchedules(tenantId)
-      .filter((entry) => entry.status === "recebida" && Boolean(entry.baixaMovementId))
-      .flatMap((entry) => {
-        const movement = entry.baixaMovementId ? this.getBankMovement(tenantId, entry.baixaMovementId) : undefined;
-        if (!movement || !isEligibleCashCloseSettledMovement(movement, bankId, dateFrom, dateTo)) {
-          return [];
-        }
-
-        return [{
-          sourceType: "revenue_schedule" as const,
-          sourceId: entry.id,
-          tipo: "entrada" as const,
-          descricao: entry.descricao,
-          valor: entry.valor,
-          dataReferencia: movement.dataMovimento.slice(0, 10),
-          movementId: movement.id,
-          bankId: movement.bankIdDestino,
-          bankLabel: resolveBankAccountLabel(banks.find((bank) => bank.id === movement.bankIdDestino)),
-          status: "baixado" as const
-        }];
-      });
-    const settledExpenseItems: CashClosePreviewItem[] = this.listExpenseSchedules(tenantId)
-      .filter((entry) => entry.status === "paga" && Boolean(entry.baixaMovementId))
-      .flatMap((entry) => {
-        const movement = entry.baixaMovementId ? this.getBankMovement(tenantId, entry.baixaMovementId) : undefined;
-        if (!movement || !isEligibleCashCloseSettledMovement(movement, bankId, dateFrom, dateTo)) {
-          return [];
-        }
-
-        return [{
-          sourceType: "expense_schedule" as const,
-          sourceId: entry.id,
-          tipo: "saida" as const,
-          descricao: entry.descricao,
-          valor: entry.valor,
-          dataReferencia: movement.dataMovimento.slice(0, 10),
-          movementId: movement.id,
-          bankId: movement.bankIdOrigem,
-          bankLabel: resolveBankAccountLabel(banks.find((bank) => bank.id === movement.bankIdOrigem)),
-          status: "baixado" as const
-        }];
-      });
-    const settledCashEntryItems: CashClosePreviewItem[] = this.listBankMovements(tenantId)
-      .filter(
-        (movement) =>
-          movement.sourceType === "cash_entry" &&
-          !movement.reversedMovementId &&
-          isEligibleCashCloseSettledMovement(movement, bankId, dateFrom, dateTo)
-      )
-      .map((movement) => ({
-        sourceType: "cash_entry" as const,
-        sourceId: movement.sourceId ?? movement.id,
-        tipo: "entrada" as const,
-        descricao: movement.historico,
-        valor: movement.valor,
-        dataReferencia: movement.dataMovimento.slice(0, 10),
-        movementId: movement.id,
-        bankId: movement.bankIdDestino,
-        bankLabel: resolveBankAccountLabel(banks.find((bank) => bank.id === movement.bankIdDestino)),
-        status: "baixado" as const
-      }));
+    const relevantMovements = this.listBankMovements(tenantId).filter(
+      (movement) =>
+        ["revenue_schedule", "expense_schedule", "cash_entry"].includes(movement.sourceType) &&
+        !movement.reversedMovementId &&
+        movement.status !== "cancelado"
+    );
+    const pendingItems = relevantMovements
+      .filter((movement) => isEligibleCashClosePendingMovement(movement, bankId, dateFrom, dateTo, timeZone))
+      .flatMap((movement) => this.buildCashClosePreviewItem(tenantId, banks, movement, "pendente", timeZone));
+    const settledItems = relevantMovements
+      .filter((movement) => isEligibleCashCloseSettledMovement(movement, bankId, dateFrom, dateTo, timeZone))
+      .flatMap((movement) => this.buildCashClosePreviewItem(tenantId, banks, movement, "baixado", timeZone));
 
     return {
       bankId,
       dateFrom,
       dateTo,
-      pending: [...pendingRevenueItems, ...pendingExpenseItems, ...pendingCashEntryItems].sort((left, right) =>
+      pending: pendingItems.sort((left, right) =>
         left.dataReferencia.localeCompare(right.dataReferencia)
       ),
-      settled: [...settledRevenueItems, ...settledExpenseItems, ...settledCashEntryItems].sort((left, right) =>
+      settled: settledItems.sort((left, right) =>
         right.dataReferencia.localeCompare(left.dataReferencia)
       )
     };
@@ -1353,7 +1261,7 @@ export class ApiRestStore implements ApiRestStorePort {
             bankIdDestino: command.bankId,
             valor: revenue.valor,
             historico: revenue.descricao,
-            dataMovimento: `${revenue.dataVencimento}T12:00:00`,
+            dataMovimento: buildMovementReferenceDate(entry.dataReferencia),
             revenueId: revenue.id
           });
         }
@@ -1369,7 +1277,7 @@ export class ApiRestStore implements ApiRestStorePort {
             bankIdOrigem: command.bankId,
             valor: expense.valor,
             historico: expense.descricao,
-            dataMovimento: `${expense.dataVencimento}T12:00:00`,
+            dataMovimento: buildMovementReferenceDate(entry.dataReferencia),
             beneficiarioNome: expense.beneficiarioNome,
             expenseId: expense.id
           });
@@ -1386,7 +1294,7 @@ export class ApiRestStore implements ApiRestStorePort {
           bankIdDestino: command.bankId,
           valor: cashEntry.amount,
           historico: cashEntry.description,
-          dataMovimento: cashEntry.occurredAt,
+          dataMovimento: buildMovementReferenceDate(entry.dataReferencia),
           cashEntryId: cashEntry.id
         });
       })
@@ -1522,6 +1430,7 @@ export class ApiRestStore implements ApiRestStorePort {
     }
 
     this.cashEntries.set(entry.id, entry);
+    this.syncCashEntryPlannedMovement(entry);
     return entry;
   }
 
@@ -2263,8 +2172,10 @@ export class ApiRestStore implements ApiRestStorePort {
                   : entity === "expense"
                     ? this.listExpenseSchedules(tenantId).map((item) => item.codigo)
                     : entity === "cash_close"
-                      ? this.listCashCloses(tenantId).map((item) => item.codigo)
-                    : this.listBankMovements(tenantId).map((item) => item.codigo);
+                    ? this.listCashCloses(tenantId).map((item) => item.codigo)
+                    : [...this.bankMovements.values()]
+                        .filter((item) => item.tenantId === tenantId)
+                        .map((item) => item.codigo);
     return nextSequentialCode(prefix, values);
   }
 
@@ -2283,6 +2194,316 @@ export class ApiRestStore implements ApiRestStorePort {
     for (const tenant of this.tenants.values()) {
       this.refreshBankBalances(tenant.id);
     }
+  }
+
+  private findActiveMovementBySource(
+    tenantId: string,
+    sourceType: BankMovementSourceType,
+    sourceId: string
+  ): BankMovement | undefined {
+    return [...this.bankMovements.values()]
+      .filter((movement) => movement.tenantId === tenantId)
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .find(
+      (movement) =>
+        movement.sourceType === sourceType &&
+        movement.sourceId === sourceId &&
+        movement.status !== "cancelado" &&
+        !movement.reversedMovementId
+    );
+  }
+
+  private ensurePlannedBankMovement(input: {
+    tenantId: string;
+    sourceType: Extract<BankMovementSourceType, "revenue_schedule" | "expense_schedule" | "cash_entry">;
+    sourceId: string;
+    plannedMovementId?: string;
+    tipo: Extract<BankMovement["tipo"], "entrada" | "saida">;
+    bankId?: string;
+    valor: number;
+    historico: string;
+    beneficiarioNome?: string;
+    dataMovimento: string;
+  }): BankMovement {
+    const existingMovement =
+      (input.plannedMovementId ? this.getBankMovement(input.tenantId, input.plannedMovementId) : undefined) ??
+      this.findActiveMovementBySource(input.tenantId, input.sourceType, input.sourceId);
+
+    if (existingMovement && existingMovement.status === "lancado") {
+      return existingMovement;
+    }
+
+    const now = new Date().toISOString();
+    const nextMovement: BankMovement = existingMovement
+      ? {
+          ...existingMovement,
+          tipo: input.tipo,
+          bankIdOrigem: input.tipo === "saida" ? input.bankId : undefined,
+          bankIdDestino: input.tipo === "entrada" ? input.bankId : undefined,
+          valor: input.valor,
+          historico: input.historico,
+          beneficiarioNome: input.beneficiarioNome,
+          dataMovimento: input.dataMovimento,
+          status: "previsto",
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          updatedAt: now
+        }
+      : {
+          version: "v1",
+          id: randomUUID(),
+          tenantId: input.tenantId,
+          codigo: this.nextEntityCode(input.tenantId, "bank_movement"),
+          tipo: input.tipo,
+          bankIdOrigem: input.tipo === "saida" ? input.bankId : undefined,
+          bankIdDestino: input.tipo === "entrada" ? input.bankId : undefined,
+          valor: input.valor,
+          historico: input.historico,
+          beneficiarioNome: input.beneficiarioNome,
+          dataMovimento: input.dataMovimento,
+          status: "previsto",
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          createdAt: now,
+          updatedAt: now
+        };
+
+    return this.saveBankMovement(nextMovement);
+  }
+
+  private settleBankMovement(input: {
+    tenantId: string;
+    sourceType: BankMovementSourceType;
+    sourceId?: string;
+    plannedMovementId?: string;
+    tipo: Extract<BankMovement["tipo"], "entrada" | "saida">;
+    bankIdOrigem?: string;
+    bankIdDestino?: string;
+    valor: number;
+    historico: string;
+    beneficiarioNome?: string;
+    dataMovimento: string;
+  }): BankMovement {
+    const existingMovement =
+      (input.plannedMovementId ? this.getBankMovement(input.tenantId, input.plannedMovementId) : undefined) ??
+      (input.sourceId ? this.findActiveMovementBySource(input.tenantId, input.sourceType, input.sourceId) : undefined);
+    if (existingMovement && existingMovement.status === "lancado") {
+      return existingMovement;
+    }
+
+    const now = new Date().toISOString();
+    const nextMovement: BankMovement = existingMovement
+      ? {
+          ...existingMovement,
+          tipo: input.tipo,
+          bankIdOrigem: input.bankIdOrigem,
+          bankIdDestino: input.bankIdDestino,
+          valor: input.valor,
+          historico: input.historico,
+          beneficiarioNome: input.beneficiarioNome,
+          dataMovimento: input.dataMovimento,
+          status: "lancado",
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          updatedAt: now
+        }
+      : {
+          version: "v1",
+          id: randomUUID(),
+          tenantId: input.tenantId,
+          codigo: this.nextEntityCode(input.tenantId, "bank_movement"),
+          tipo: input.tipo,
+          bankIdOrigem: input.bankIdOrigem,
+          bankIdDestino: input.bankIdDestino,
+          valor: input.valor,
+          historico: input.historico,
+          beneficiarioNome: input.beneficiarioNome,
+          dataMovimento: input.dataMovimento,
+          status: "lancado",
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          createdAt: now,
+          updatedAt: now
+        };
+
+    return this.saveBankMovement(nextMovement);
+  }
+
+  private syncRevenuePlannedMovement(entry: RevenueScheduleWithPlan): RevenueScheduleWithPlan {
+    if (entry.status !== "aberta") {
+      if (entry.plannedMovementId && entry.plannedMovementId !== entry.baixaMovementId) {
+        const movement = this.getBankMovement(entry.tenantId, entry.plannedMovementId);
+        if (movement && movement.status === "previsto") {
+          this.saveBankMovement({
+            ...movement,
+            status: "cancelado",
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+      return entry;
+    }
+
+    const plannedMovement = this.ensurePlannedBankMovement({
+      tenantId: entry.tenantId,
+      sourceType: "revenue_schedule",
+      sourceId: entry.id,
+      plannedMovementId: entry.plannedMovementId,
+      tipo: "entrada",
+      bankId: entry.bankId,
+      valor: entry.valor,
+      historico: entry.descricao,
+      dataMovimento: buildMovementReferenceDate(entry.dataVencimento)
+    });
+
+    if (entry.plannedMovementId === plannedMovement.id) {
+      return entry;
+    }
+
+    const nextEntry = {
+      ...entry,
+      plannedMovementId: plannedMovement.id,
+      updatedAt: new Date().toISOString()
+    };
+    this.saveRevenueSchedule(nextEntry);
+    return nextEntry;
+  }
+
+  private syncExpensePlannedMovement(entry: ExpenseScheduleWithPlan): ExpenseScheduleWithPlan {
+    if (entry.status !== "aberta") {
+      if (entry.plannedMovementId && entry.plannedMovementId !== entry.baixaMovementId) {
+        const movement = this.getBankMovement(entry.tenantId, entry.plannedMovementId);
+        if (movement && movement.status === "previsto") {
+          this.saveBankMovement({
+            ...movement,
+            status: "cancelado",
+            updatedAt: new Date().toISOString()
+          });
+        }
+      }
+      return entry;
+    }
+
+    const plannedMovement = this.ensurePlannedBankMovement({
+      tenantId: entry.tenantId,
+      sourceType: "expense_schedule",
+      sourceId: entry.id,
+      plannedMovementId: entry.plannedMovementId,
+      tipo: "saida",
+      bankId: entry.bankId,
+      valor: entry.valor,
+      historico: entry.descricao,
+      beneficiarioNome: entry.beneficiarioNome,
+      dataMovimento: buildMovementReferenceDate(entry.dataVencimento)
+    });
+
+    if (entry.plannedMovementId === plannedMovement.id) {
+      return entry;
+    }
+
+    const nextEntry = {
+      ...entry,
+      plannedMovementId: plannedMovement.id,
+      updatedAt: new Date().toISOString()
+    };
+    this.saveExpenseSchedule(nextEntry);
+    return nextEntry;
+  }
+
+  private syncCashEntryPlannedMovement(entry: CashEntry): void {
+    const existingMovement = this.findActiveMovementBySource(entry.tenantId, "cash_entry", entry.id);
+    if (entry.status !== "open") {
+      if (existingMovement && existingMovement.status === "previsto") {
+        this.saveBankMovement({
+          ...existingMovement,
+          status: "cancelado",
+          updatedAt: new Date().toISOString()
+        });
+      }
+      return;
+    }
+
+    this.ensurePlannedBankMovement({
+      tenantId: entry.tenantId,
+      sourceType: "cash_entry",
+      sourceId: entry.id,
+      plannedMovementId: existingMovement?.id,
+      tipo: "entrada",
+      valor: entry.amount,
+      historico: entry.description,
+      dataMovimento: entry.occurredAt
+    });
+  }
+
+  private buildCashClosePreviewItem(
+    tenantId: string,
+    banks: readonly Bank[],
+    movement: BankMovement,
+    status: CashClosePreviewItem["status"],
+    timeZone: string
+  ): CashClosePreviewItem[] {
+    if (!movement.sourceId) {
+      return [];
+    }
+
+    if (movement.sourceType === "revenue_schedule") {
+      const revenue = this.getRevenueSchedule(tenantId, movement.sourceId) as RevenueScheduleWithPlan | undefined;
+      if (!revenue) {
+        return [];
+      }
+      return [{
+        sourceType: "revenue_schedule",
+        sourceId: revenue.id,
+        tipo: "entrada",
+        descricao: revenue.descricao,
+        valor: revenue.valor,
+        dataReferencia: resolveBusinessDate(movement.dataMovimento, timeZone),
+        movementId: status === "baixado" ? movement.id : undefined,
+        bankId: movement.bankIdDestino,
+        bankLabel: resolveBankAccountLabel(banks.find((bank) => bank.id === movement.bankIdDestino)),
+        status
+      }];
+    }
+
+    if (movement.sourceType === "expense_schedule") {
+      const expense = this.getExpenseSchedule(tenantId, movement.sourceId) as ExpenseScheduleWithPlan | undefined;
+      if (!expense) {
+        return [];
+      }
+      return [{
+        sourceType: "expense_schedule",
+        sourceId: expense.id,
+        tipo: "saida",
+        descricao: expense.descricao,
+        valor: expense.valor,
+        dataReferencia: resolveBusinessDate(movement.dataMovimento, timeZone),
+        movementId: status === "baixado" ? movement.id : undefined,
+        bankId: movement.bankIdOrigem,
+        bankLabel: resolveBankAccountLabel(banks.find((bank) => bank.id === movement.bankIdOrigem)),
+        status
+      }];
+    }
+
+    if (movement.sourceType === "cash_entry") {
+      const cashEntry = this.getCashEntry(tenantId, movement.sourceId);
+      if (!cashEntry) {
+        return [];
+      }
+      return [{
+        sourceType: "cash_entry",
+        sourceId: cashEntry.id,
+        tipo: "entrada",
+        descricao: cashEntry.description,
+        valor: cashEntry.amount,
+        dataReferencia: resolveBusinessDate(movement.dataMovimento, timeZone),
+        movementId: status === "baixado" ? movement.id : undefined,
+        bankId: movement.bankIdDestino,
+        bankLabel: resolveBankAccountLabel(banks.find((bank) => bank.id === movement.bankIdDestino)),
+        status
+      }];
+    }
+
+    return [];
   }
 
   private ensureFinancialDefaults(): void {
@@ -2379,30 +2600,43 @@ export class ApiRestStore implements ApiRestStorePort {
 
   private reopenScheduleFromMovement(original: BankMovement, estornoMovementId: string, now: string): void {
     if (original.sourceType === "revenue_schedule" && original.sourceId) {
-      const revenue = this.getRevenueSchedule(original.tenantId, original.sourceId);
+      const revenue = this.getRevenueSchedule(original.tenantId, original.sourceId) as RevenueScheduleWithPlan | undefined;
       if (revenue) {
-        this.saveRevenueSchedule({
+        const reopenedRevenue: RevenueScheduleWithPlan = {
           ...revenue,
           status: "aberta",
+          plannedMovementId: undefined,
           baixaMovementId: undefined,
           estornoMovementId,
           settledAt: undefined,
           updatedAt: now
-        });
+        };
+        this.saveRevenueSchedule(reopenedRevenue);
+        this.syncRevenuePlannedMovement(reopenedRevenue);
       }
     }
 
     if (original.sourceType === "expense_schedule" && original.sourceId) {
-      const expense = this.getExpenseSchedule(original.tenantId, original.sourceId);
+      const expense = this.getExpenseSchedule(original.tenantId, original.sourceId) as ExpenseScheduleWithPlan | undefined;
       if (expense) {
-        this.saveExpenseSchedule({
+        const reopenedExpense: ExpenseScheduleWithPlan = {
           ...expense,
           status: "aberta",
+          plannedMovementId: undefined,
           baixaMovementId: undefined,
           estornoMovementId,
           settledAt: undefined,
           updatedAt: now
-        });
+        };
+        this.saveExpenseSchedule(reopenedExpense);
+        this.syncExpensePlannedMovement(reopenedExpense);
+      }
+    }
+
+    if (original.sourceType === "cash_entry" && original.sourceId) {
+      const cashEntry = this.getCashEntry(original.tenantId, original.sourceId);
+      if (cashEntry) {
+        this.syncCashEntryPlannedMovement(cashEntry);
       }
     }
   }
@@ -2435,10 +2669,18 @@ export class ApiRestStore implements ApiRestStorePort {
     if (entry.bankIdDestino) {
       this.assertBankBelongsToTenant(tenantId, entry.bankIdDestino);
     }
-    if (entry.tipo === "entrada" && !entry.bankIdDestino) {
+    if (
+      entry.tipo === "entrada" &&
+      !["previsto", "cancelado"].includes(entry.status) &&
+      !entry.bankIdDestino
+    ) {
       throw new Error("bank_destination_required");
     }
-    if (entry.tipo === "saida" && !entry.bankIdOrigem) {
+    if (
+      entry.tipo === "saida" &&
+      !["previsto", "cancelado"].includes(entry.status) &&
+      !entry.bankIdOrigem
+    ) {
       throw new Error("bank_origin_required");
     }
     if (entry.tipo === "estorno" && !entry.bankIdOrigem && !entry.bankIdDestino) {
@@ -2919,6 +3161,24 @@ function resolveManualMovementSourceType(tipo: BankMovementType): BankMovementSo
   return "manual_adjustment";
 }
 
+function buildMovementReferenceDate(dateValue: string): string {
+  return dateValue.length > 10 ? dateValue : `${dateValue}T12:00:00`;
+}
+
+function resolveBusinessDate(dateValue: string, timeZone: string): string {
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) {
+    return dateValue.slice(0, 10);
+  }
+
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).format(date);
+}
+
 function buildCashCloseSelectionKey(sourceType: CashCloseSelectionItem["sourceType"], sourceId: string): string {
   return `${sourceType}:${sourceId}`;
 }
@@ -2935,20 +3195,41 @@ function isEligibleCashCloseSettledMovement(
   movement: BankMovement,
   bankId: string,
   dateFrom: string,
-  dateTo: string
+  dateTo: string,
+  timeZone: string
 ): boolean {
-  if (
-    movement.status === "estornado" ||
-    movement.status === "cancelado" ||
-    Boolean(movement.reversedMovementId)
-  ) {
+  if (movement.status !== "lancado") {
+    return false;
+  }
+  if (Boolean(movement.reversedMovementId)) {
     return false;
   }
 
-  if (movement.dataMovimento.slice(0, 10) < dateFrom || movement.dataMovimento.slice(0, 10) > dateTo) {
+  const businessDate = resolveBusinessDate(movement.dataMovimento, timeZone);
+  if (businessDate < dateFrom || businessDate > dateTo) {
     return false;
   }
 
+  return movement.bankIdDestino === bankId || movement.bankIdOrigem === bankId;
+}
+
+function isEligibleCashClosePendingMovement(
+  movement: BankMovement,
+  bankId: string,
+  dateFrom: string,
+  dateTo: string,
+  timeZone: string
+): boolean {
+  if (movement.status !== "previsto") {
+    return false;
+  }
+  const businessDate = resolveBusinessDate(movement.dataMovimento, timeZone);
+  if (businessDate < dateFrom || businessDate > dateTo) {
+    return false;
+  }
+  if (!movement.bankIdDestino && !movement.bankIdOrigem) {
+    return true;
+  }
   return movement.bankIdDestino === bankId || movement.bankIdOrigem === bankId;
 }
 

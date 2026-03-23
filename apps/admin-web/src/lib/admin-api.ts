@@ -110,6 +110,7 @@ export interface CashClosePreviewItemPayload {
   readonly descricao: string;
   readonly valor: number;
   readonly dataReferencia: string;
+  readonly plannedMovementId?: string;
   readonly bankId?: string;
   readonly bankLabel?: string;
   readonly movementId?: string;

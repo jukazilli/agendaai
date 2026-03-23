@@ -3543,6 +3543,10 @@ a {
   gap: 16px;
 }
 
+.cash-close-preview-grid.is-expanded {
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+
 .cash-close-preview-panel {
   display: grid;
   gap: 14px;
@@ -3574,6 +3578,31 @@ a {
   gap: 10px;
   max-height: 320px;
   overflow-y: auto;
+}
+
+.finance-cash-close-workspace {
+  grid-column: 1 / -1;
+}
+
+.finance-cash-close-workspace .cash-close-preview-list {
+  max-height: min(52vh, 560px);
+}
+
+.lookup-field-shell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.lookup-field-shell input {
+  flex: 1 1 260px;
+}
+
+.agenda-filter-checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 
 .cash-close-preview-item {

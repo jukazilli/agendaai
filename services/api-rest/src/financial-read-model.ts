@@ -43,7 +43,13 @@ export function buildAdminFinancialReadModel(
     if (input.situation === "baixado") {
       return false;
     }
-    return entry.status === "open";
+    return entry.status === "open" && !input.movements.some(
+      (movement) =>
+        movement.sourceType === "cash_entry" &&
+        movement.sourceId === entry.id &&
+        movement.status === "lancado" &&
+        !movement.reversedMovementId
+    );
   });
 
   const consolidatedBalance = visibleBalances.reduce((total, balance) => total + balance.saldoAtual, 0);
@@ -55,20 +61,6 @@ export function buildAdminFinancialReadModel(
     .filter((entry) => entry.status === "aberta")
     .reduce((total, entry) => total + entry.valor, 0);
   const projectedBalance = consolidatedBalance + receivableTotal - payableTotal;
-  const recentOperationalMovements = operationalReceivables
-    .slice()
-    .sort((left, right) => right.occurredAt.localeCompare(left.occurredAt))
-    .map((entry) => ({
-      id: entry.id,
-      codigo: entry.id.slice(0, 8).toUpperCase(),
-      tipo: "entrada" as const,
-      valor: entry.amount,
-      historico: entry.description,
-      dataMovimento: entry.occurredAt,
-      contaOrigem: undefined,
-      contaDestino: "Recebimento operacional",
-      status: "lancado" as const
-    }));
   const mergedMovements = [...visibleMovements.map((entry) => ({
     id: entry.id,
     codigo: entry.codigo,
@@ -79,7 +71,7 @@ export function buildAdminFinancialReadModel(
     contaOrigem: formatBankMovementAccount(entry.bankIdOrigem, visibleBanks),
     contaDestino: formatBankMovementAccount(entry.bankIdDestino, visibleBanks),
     status: entry.status
-  })), ...recentOperationalMovements]
+  }))]
     .sort((left, right) => right.dataMovimento.localeCompare(left.dataMovimento))
     .slice(0, 8);
 

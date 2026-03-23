@@ -83,8 +83,9 @@ No chrome global do shell:
 - a rota deve expor abas locais para `fluxo de caixa`, `bancos`, `saldos iniciais`, `receitas`, `despesas`, `movimentos bancarios` e `fechar caixa`;
 - cada aba local do financeiro deve operar em `document view` com browse zebrado, toolbar no topo e popup reutilizavel para `incluir`, `visualizar`, `alterar`, `receber`, `pagar`, `estornar`, `excluir` ou `fechar caixa`, conforme o contexto;
 - `bancos`, `saldos iniciais`, `receitas` e `despesas` devem operar como cadastros simples em browse + popup, nunca com acoes espalhadas por linha;
-- `movimentos bancarios` guardam a verdade de caixa; essa tela registra fatos ja ocorridos ou programados por data e trabalha com `incluir`, `visualizar`, `alterar` e `estornar`, sem virar a tela primaria de baixa de titulos;
-- `fechar caixa` deve operar por `banco + periodo`, listar pendencias do recorte e gerar movimentos bancarios correspondentes ao fechamento;
+- `movimentos bancarios` guardam a verdade de caixa; receita, despesa e recebivel vindo de agenda devem gerar movimento previsto persistido, e a baixa passa a atualizar o mesmo registro para `lancado` ou `estornado`, sem criar uma segunda verdade concorrente;
+- `fechar caixa` deve operar por `banco + periodo`, abrir em largura ampla dentro da area util, mostrar `pendentes` de um lado e `ja baixados` do outro, e atualizar movimentos previstos existentes em vez de duplicar movimentos;
+- `fluxo de caixa` deve usar filtro forte por modal, no mesmo padrao de lookup e aplicacao ja adotado em `relatorios`, evitando seletores fixos espalhados no topo;
 - `cash entries` continuam como trilha operacional minima e passam a alimentar a leitura de recebimentos no financeiro.
 
 ### Implantacao
@@ -108,8 +109,10 @@ No chrome global do shell:
 ### Agenda
 
 - deve priorizar filtros, navegacao de data e acoes operacionais;
-- deve separar `lista` e `agenda` em visoes dedicadas, preferencialmente via tab bar responsiva;
+- deve existir como superficie unificada `agenda / calendario`, com o calendario ocupando o palco principal e a fila operacional vivendo em gaveta lateral recolhivel;
 - o clique em um agendamento precisa abrir o detalhe completo da booking sem sair da rota, preferencialmente em modal operacional;
+- o card `selecionado` precisa ficar no topo util da gaveta, sem obrigar o usuario a rolar ate o final da fila para `visualizar`, `receber` ou `estornar`;
+- filtros de agenda devem usar modal proprio, em vez de repetir blocos textuais redundantes como `recorte` e `profissional` fora dos controles reais;
 - a rotina diaria deve expor `receber` e `estornar` como acoes de topo sobre o registro selecionado, sugerindo o banco do profissional quando ele existir;
 - capacidade agregada semanal e mensal pertence a `relatorios`, nao ao corpo principal desta tela.
 

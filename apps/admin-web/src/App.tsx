@@ -173,6 +173,8 @@ type FinanceWorkspaceTab =
   | "movements"
   | "close";
 type FinancialSituationFilter = "all" | "aberto" | "baixado";
+type CashflowMovementStatusFilter = "all" | "previsto" | "lancado" | "estornado";
+type CashflowOriginFilter = "all" | "manual" | "agenda" | "receita" | "despesa" | "fechar_caixa";
 type OperationalWorkspaceTab = "overview" | "pending" | "confirmed" | "completed" | "noshow";
 type ServiceWorkspaceMode = "browse" | "view" | "edit" | "new";
 type ProfessionalWorkspaceMode = "overview" | "profile" | "availability";
@@ -358,6 +360,12 @@ interface FinanceBrowseFiltersState {
     readonly range: DashboardRange;
     readonly bankId: string;
     readonly situation: FinancialSituationFilter;
+    readonly dateFrom: string;
+    readonly dateTo: string;
+    readonly movementStatus: CashflowMovementStatusFilter;
+    readonly type: "all" | BankMovement["tipo"];
+    readonly origin: CashflowOriginFilter;
+    readonly query: string;
   };
   readonly banks: {
     readonly query: string;
@@ -394,6 +402,14 @@ interface FinanceBrowseFiltersState {
     readonly dateTo: string;
     readonly status: "all" | CashClose["status"];
   };
+}
+
+interface AgendaFilterDraftState {
+  readonly date: string;
+  readonly professionalId: string;
+  readonly status: "all" | Booking["status"];
+  readonly serviceId: string;
+  readonly pendingOnly: boolean;
 }
 
 interface ReportsWorkspaceItem {
@@ -869,7 +885,13 @@ const defaultFinanceBrowseFilters: FinanceBrowseFiltersState = {
   cashflow: {
     range: "30d",
     bankId: "all",
-    situation: "all"
+    situation: "all",
+    dateFrom: "",
+    dateTo: "",
+    movementStatus: "all",
+    type: "all",
+    origin: "all",
+    query: ""
   },
   banks: {
     query: "",
@@ -907,6 +929,14 @@ const defaultFinanceBrowseFilters: FinanceBrowseFiltersState = {
     status: "all"
   }
 };
+
+const defaultAgendaFilterDraft = (dateValue: string): AgendaFilterDraftState => ({
+  date: dateValue,
+  professionalId: "all",
+  status: "all",
+  serviceId: "all",
+  pendingOnly: false
+});
 
 const defaultServiceForm: ServiceFormState = {
   nome: "",
@@ -1476,8 +1506,14 @@ export function App() {
   const [financeBrowseFilters, setFinanceBrowseFilters] = useState<FinanceBrowseFiltersState>(
     defaultFinanceBrowseFilters
   );
+  const [isCashflowFilterModalOpen, setIsCashflowFilterModalOpen] = useState(false);
+  const [cashflowFilterDraft, setCashflowFilterDraft] = useState<FinanceBrowseFiltersState["cashflow"]>(
+    defaultFinanceBrowseFilters.cashflow
+  );
+  const [isCashflowBankLookupOpen, setIsCashflowBankLookupOpen] = useState(false);
   const [financialReadModel, setFinancialReadModel] = useState<AdminFinancialReadModel | null>(null);
   const [financeWorkspaceTab, setFinanceWorkspaceTab] = useState<FinanceWorkspaceTab>("cashflow");
+  const [isCashCloseComposerOpen, setIsCashCloseComposerOpen] = useState(false);
   const [financeModal, setFinanceModal] = useState<
     null | "bank" | "balance" | "revenue" | "expense" | "receive" | "pay" | "transfer" | "movement" | "close"
   >(null);
@@ -1507,6 +1543,7 @@ export function App() {
   const [cashClosePreview, setCashClosePreview] = useState<CashClosePreviewPayload | null>(null);
   const [selectedCashClosePreviewKeys, setSelectedCashClosePreviewKeys] = useState<string[]>([]);
   const [isLoadingCashClosePreview, setIsLoadingCashClosePreview] = useState(false);
+  const [cashClosePreviewRequestKey, setCashClosePreviewRequestKey] = useState(0);
   const [reverseMovementForm, setReverseMovementForm] = useState<ReverseMovementFormState>(
     defaultReverseMovementForm
   );
@@ -1520,6 +1557,10 @@ export function App() {
   const [receiveTarget, setReceiveTarget] = useState<null | { readonly revenueId?: string; readonly cashEntryId?: string }>(null);
   const [payTarget, setPayTarget] = useState<null | { readonly expenseId?: string }>(null);
   const [isProfessionalBankLookupOpen, setIsProfessionalBankLookupOpen] = useState(false);
+  const [isAgendaFilterModalOpen, setIsAgendaFilterModalOpen] = useState(false);
+  const [agendaFilterDraft, setAgendaFilterDraft] = useState<AgendaFilterDraftState>(() =>
+    defaultAgendaFilterDraft(formatDateInputValue(new Date()))
+  );
   const [operationalWorkspaceTab, setOperationalWorkspaceTab] =
     useState<OperationalWorkspaceTab>("overview");
   const [isShellContextOpen, setIsShellContextOpen] = useState(false);
@@ -1578,6 +1619,9 @@ export function App() {
   const [isCreatingProfessional, setIsCreatingProfessional] = useState(false);
   const [professionalWorkspaceMode, setProfessionalWorkspaceMode] =
     useState<ProfessionalWorkspaceMode>("overview");
+  const [agendaStatusFilter, setAgendaStatusFilter] = useState<AgendaFilterDraftState["status"]>("all");
+  const [agendaServiceFilter, setAgendaServiceFilter] = useState("all");
+  const [agendaPendingOnlyFilter, setAgendaPendingOnlyFilter] = useState(false);
   const [professionalForm, setProfessionalForm] = useState<ProfessionalFormState>({
     nome: "",
     status: "active",
@@ -1616,21 +1660,6 @@ export function App() {
   const financialRange = financeBrowseFilters.cashflow.range;
   const financialSituation = financeBrowseFilters.cashflow.situation;
   const financialBankFilter = financeBrowseFilters.cashflow.bankId;
-  const setFinancialRange = (range: DashboardRange) =>
-    setFinanceBrowseFilters((current) => ({
-      ...current,
-      cashflow: { ...current.cashflow, range }
-    }));
-  const setFinancialSituation = (situation: FinancialSituationFilter) =>
-    setFinanceBrowseFilters((current) => ({
-      ...current,
-      cashflow: { ...current.cashflow, situation }
-    }));
-  const setFinancialBankFilter = (bankId: string) =>
-    setFinanceBrowseFilters((current) => ({
-      ...current,
-      cashflow: { ...current.cashflow, bankId }
-    }));
   const [reportsCatalog, setReportsCatalog] = useState<ReportBuilderCatalog | null>(null);
   const [savedReportDefinitions, setSavedReportDefinitions] = useState<ReportDefinition[]>([]);
   const [reportBuilderTabs, setReportBuilderTabs] = useState<ReportsBuilderTabState[]>([]);
@@ -2217,11 +2246,41 @@ export function App() {
     (booking) => booking.status === "pendente" || booking.status === "aguardando pagamento"
   ).length;
   const todayConfirmedCount = todayBookings.filter((booking) => booking.status === "confirmado").length;
+  const bookingHasPendingReceipt = (booking: Booking): boolean => {
+    const recognizedCashEntry = cashEntries.find(
+      (entry) =>
+        entry.bookingId === booking.id &&
+        entry.kind === "recognized_revenue" &&
+        entry.status === "open"
+    );
+    if (!recognizedCashEntry) {
+      return false;
+    }
+    return !bankMovements.some(
+      (movement) =>
+        movement.sourceType === "cash_entry" &&
+        movement.sourceId === recognizedCashEntry.id &&
+        movement.status === "lancado" &&
+        !movement.reversedMovementId
+    );
+  };
+  const matchesAgendaFilters = (booking: Booking): boolean => {
+    if (agendaProfessionalFilter !== "all" && booking.professionalId !== agendaProfessionalFilter) {
+      return false;
+    }
+    if (agendaStatusFilter !== "all" && booking.status !== agendaStatusFilter) {
+      return false;
+    }
+    if (agendaServiceFilter !== "all" && booking.serviceId !== agendaServiceFilter) {
+      return false;
+    }
+    if (agendaPendingOnlyFilter && !bookingHasPendingReceipt(booking)) {
+      return false;
+    }
+    return true;
+  };
   const dayAgendaBookings = filterBookingsByDate(bookings, agendaDate);
-  const filteredDayAgendaBookings =
-    agendaProfessionalFilter === "all"
-      ? dayAgendaBookings
-      : dayAgendaBookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
+  const filteredDayAgendaBookings = dayAgendaBookings.filter(matchesAgendaFilters);
   const clientInsights = buildClientInsights(clients, bookings, services, cashEntries);
   const filteredClientInsights = filterClientInsights(
     clientInsights,
@@ -2279,7 +2338,8 @@ export function App() {
       cashEntries.find(
         (entry) =>
           entry.bookingId === selectedAgendaBooking.id &&
-          entry.kind === "recognized_revenue"
+          entry.kind === "recognized_revenue" &&
+          entry.status === "open"
       )
     : undefined;
   const selectedAgendaBankMovement =
@@ -2288,8 +2348,7 @@ export function App() {
         (movement) =>
           movement.sourceType === "cash_entry" &&
           movement.sourceId === selectedAgendaCashEntry.id &&
-          movement.status !== "estornado" &&
-          movement.status !== "cancelado" &&
+          movement.status === "lancado" &&
           !movement.reversedMovementId
       )
     : undefined;
@@ -2313,10 +2372,7 @@ export function App() {
     agendaProfessionalFilter === "all"
       ? professionals
       : professionals.filter((professional) => professional.id === agendaProfessionalFilter);
-  const filteredWeekBookings =
-    agendaProfessionalFilter === "all"
-      ? weekAgendaBookings
-      : weekAgendaBookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
+  const filteredWeekBookings = weekAgendaBookings.filter(matchesAgendaFilters);
   const weekCapacitySummary = summarizeWeekCapacity(
     filteredWeekBookings,
     agendaWeekDates,
@@ -2337,7 +2393,7 @@ export function App() {
   );
   const agendaMonthCells = buildAgendaMonthCells(
     agendaDate,
-    bookings,
+    bookings.filter(matchesAgendaFilters),
     agendaProfessionalFilter === "all"
       ? professionals
       : professionals.filter((professional) => professional.id === agendaProfessionalFilter),
@@ -2349,9 +2405,7 @@ export function App() {
   const selectedMonthCell =
     agendaMonthCells.find((cell) => cell.date === agendaDate) ?? currentMonthCells[0];
   const filteredAgendaCalendarBookings =
-    agendaProfessionalFilter === "all"
-      ? bookings
-      : bookings.filter((booking) => booking.professionalId === agendaProfessionalFilter);
+    bookings.filter(matchesAgendaFilters);
   const agendaCalendarEvents: AgendaCalendarEvent[] = filteredAgendaCalendarBookings.map((booking) => ({
     id: booking.id,
     title: `${resolveClientName(booking.clientId, clients)} - ${resolveServiceName(booking.serviceId, services)}`,
@@ -2706,8 +2760,7 @@ export function App() {
 
   useEffect(() => {
     if (
-      financeModal !== "close" ||
-      financeModalMode === "view" ||
+      !isCashCloseComposerOpen ||
       !sessionToken ||
       !cashCloseForm.bankId ||
       !cashCloseForm.dateFrom ||
@@ -2761,8 +2814,8 @@ export function App() {
     cashCloseForm.bankId,
     cashCloseForm.dateFrom,
     cashCloseForm.dateTo,
-    financeModal,
-    financeModalMode,
+    cashClosePreviewRequestKey,
+    isCashCloseComposerOpen,
     sessionToken
   ]);
 
@@ -2799,6 +2852,7 @@ export function App() {
   function closeFinanceModal(): void {
     setFinanceModal(null);
     setFinanceModalMode("create");
+    setIsCashCloseComposerOpen(false);
     setCashClosePreview(null);
     setSelectedCashClosePreviewKeys([]);
     setIsLoadingCashClosePreview(false);
@@ -2968,7 +3022,22 @@ export function App() {
     cashClose?: CashClose,
     mode: FinanceDialogMode = cashClose ? "view" : "create"
   ): void {
+    if (!cashClose && mode === "create") {
+      navigateTo("financeiro");
+      setFinanceWorkspaceTab("close");
+      setIsCashCloseComposerOpen(true);
+      setCashCloseForm({
+        bankId:
+          financeBrowseFilters.close.bankId !== "all" ? financeBrowseFilters.close.bankId : banks[0]?.id ?? "",
+        dateFrom: financeBrowseFilters.close.dateFrom,
+        dateTo: financeBrowseFilters.close.dateTo
+      });
+      setFinanceModal(null);
+      return;
+    }
+
     setFinanceModalMode(mode);
+    setIsCashCloseComposerOpen(false);
     setCashCloseForm({
       bankId:
         cashClose?.bankId ??
@@ -2977,6 +3046,22 @@ export function App() {
       dateTo: cashClose?.dateTo ?? financeBrowseFilters.close.dateTo
     });
     setFinanceModal("close");
+  }
+
+  function openCashflowFilterModal(): void {
+    setCashflowFilterDraft({ ...financeBrowseFilters.cashflow });
+    setIsCashflowFilterModalOpen(true);
+  }
+
+  function openAgendaFilterModal(): void {
+    setAgendaFilterDraft({
+      date: agendaDate,
+      professionalId: agendaProfessionalFilter,
+      status: agendaStatusFilter,
+      serviceId: agendaServiceFilter,
+      pendingOnly: agendaPendingOnlyFilter
+    });
+    setIsAgendaFilterModalOpen(true);
   }
 
   async function handleSaveBank(event: FormEvent<HTMLFormElement>): Promise<void> {
@@ -4021,6 +4106,48 @@ export function App() {
 
     updateReportsFilterDraft(reportsLookupFieldId, value);
     closeReportsLookup();
+  }
+
+  function applyCashflowFilterDraft(): void {
+    setFinanceBrowseFilters((current) => ({
+      ...current,
+      cashflow: { ...cashflowFilterDraft }
+    }));
+    setIsCashflowFilterModalOpen(false);
+    setIsCashflowBankLookupOpen(false);
+  }
+
+  function clearCashflowFilters(): void {
+    const cleared = {
+      ...defaultFinanceBrowseFilters.cashflow,
+      bankId: "all"
+    };
+    setCashflowFilterDraft(cleared);
+    setFinanceBrowseFilters((current) => ({
+      ...current,
+      cashflow: cleared
+    }));
+    setIsCashflowFilterModalOpen(false);
+    setIsCashflowBankLookupOpen(false);
+  }
+
+  function applyAgendaFilters(): void {
+    setAgendaDate(agendaFilterDraft.date);
+    setAgendaProfessionalFilter(agendaFilterDraft.professionalId);
+    setAgendaStatusFilter(agendaFilterDraft.status);
+    setAgendaServiceFilter(agendaFilterDraft.serviceId);
+    setAgendaPendingOnlyFilter(agendaFilterDraft.pendingOnly);
+    setIsAgendaFilterModalOpen(false);
+  }
+
+  function clearAgendaFilters(): void {
+    const cleared = defaultAgendaFilterDraft(agendaDate);
+    setAgendaFilterDraft(cleared);
+    setAgendaProfessionalFilter(cleared.professionalId);
+    setAgendaStatusFilter(cleared.status);
+    setAgendaServiceFilter(cleared.serviceId);
+    setAgendaPendingOnlyFilter(cleared.pendingOnly);
+    setIsAgendaFilterModalOpen(false);
   }
 
   function scrollProfessionalsWorkspaceIntoView(): void {
@@ -5449,7 +5576,7 @@ export function App() {
     const selectedOperationalService = selectedAgendaBooking ?
       services.find((service) => service.id === selectedAgendaBooking.serviceId)
     : undefined;
-    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry);
+    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry && !selectedAgendaBankMovement);
     const canReverseSelectedBooking = Boolean(selectedAgendaBankMovement);
 
     const renderOperationalStatusBadge = (booking: Booking): JSX.Element => {
@@ -6601,37 +6728,140 @@ export function App() {
   }
 
   function renderFinancialCashflowPanels(input: { readonly showOpenFinanceButton: boolean }): JSX.Element {
+    const cashflowFilters = financeBrowseFilters.cashflow;
+    const visibleBankAccounts = (activeFinancialReadModel?.bankAccounts ?? []).filter((entry) =>
+      cashflowFilters.bankId === "all" ? true : entry.bankId === cashflowFilters.bankId
+    );
+    const matchesCashflowDate = (value: string): boolean => {
+      const dateValue = value.slice(0, 10);
+      if (cashflowFilters.dateFrom && dateValue < cashflowFilters.dateFrom) {
+        return false;
+      }
+      if (cashflowFilters.dateTo && dateValue > cashflowFilters.dateTo) {
+        return false;
+      }
+      return true;
+    };
+    const matchesCashflowQuery = (value: string): boolean =>
+      cashflowFilters.query.trim().length === 0 ||
+      value.toLowerCase().includes(cashflowFilters.query.trim().toLowerCase());
+    const matchesCashflowOrigin = (movement: BankMovement): boolean => {
+      if (cashflowFilters.origin === "all") {
+        return true;
+      }
+      if (cashflowFilters.origin === "receita") {
+        return movement.sourceType === "revenue_schedule";
+      }
+      if (cashflowFilters.origin === "despesa") {
+        return movement.sourceType === "expense_schedule";
+      }
+      if (cashflowFilters.origin === "agenda") {
+        return movement.sourceType === "cash_entry" || movement.sourceType === "booking";
+      }
+      if (cashflowFilters.origin === "fechar_caixa") {
+        return movement.sourceType === "cash_close";
+      }
+      return ["manual_receipt", "manual_payment", "manual_adjustment", "fee", "transfer"].includes(movement.sourceType);
+    };
+    const resolveMovementBankLabel = (movement: BankMovement): string => {
+      const originBank = banks.find((bank) => bank.id === movement.bankIdOrigem);
+      const destinationBank = banks.find((bank) => bank.id === movement.bankIdDestino);
+      const originLabel = originBank ? `${originBank.codigo} | ${originBank.nomeBanco}` : "";
+      const destinationLabel = destinationBank ? `${destinationBank.codigo} | ${destinationBank.nomeBanco}` : "";
+      if (originLabel && destinationLabel) {
+        return `${originLabel} -> ${destinationLabel}`;
+      }
+      return originLabel || destinationLabel || "Operacao";
+    };
+    const visibleMovements = bankMovements
+      .filter((movement) => {
+        const matchesBank =
+          cashflowFilters.bankId === "all" ||
+          movement.bankIdOrigem === cashflowFilters.bankId ||
+          movement.bankIdDestino === cashflowFilters.bankId;
+        const matchesStatus =
+          cashflowFilters.movementStatus === "all" || movement.status === cashflowFilters.movementStatus;
+        const matchesType = cashflowFilters.type === "all" || movement.tipo === cashflowFilters.type;
+        return (
+          matchesBank &&
+          matchesStatus &&
+          matchesType &&
+          matchesCashflowOrigin(movement) &&
+          matchesCashflowDate(movement.dataMovimento) &&
+          matchesCashflowQuery(`${movement.codigo} ${movement.historico} ${movement.beneficiarioNome ?? ""}`)
+        );
+      })
+      .sort((left, right) => right.dataMovimento.localeCompare(left.dataMovimento));
+    const pendingCashEntryIds = new Set(
+      cashEntries
+        .filter((entry) => entry.status === "open")
+        .filter((entry) => {
+          const launchedMovement = bankMovements.find(
+            (movement) =>
+              movement.sourceType === "cash_entry" &&
+              movement.sourceId === entry.id &&
+              movement.status === "lancado" &&
+              !movement.reversedMovementId
+          );
+          return !launchedMovement;
+        })
+        .map((entry) => entry.id)
+    );
+    const visibleReceivables =
+      cashflowFilters.movementStatus === "all" || cashflowFilters.movementStatus === "previsto"
+        ? [
+            ...revenueSchedules
+              .filter((entry) => entry.status === "aberta")
+              .filter((entry) => (cashflowFilters.bankId === "all" ? true : entry.bankId === cashflowFilters.bankId))
+              .filter((entry) => matchesCashflowDate(entry.dataVencimento))
+              .filter((entry) => matchesCashflowQuery(`${entry.codigo} ${entry.descricao}`))
+              .map((entry) => ({
+                id: entry.id,
+                codigo: entry.codigo,
+                descricao: entry.descricao,
+                valor: entry.valor,
+                dataVencimento: entry.dataVencimento,
+                origem: entry.origem,
+                pessoa: undefined as string | undefined
+              })),
+            ...cashEntries
+              .filter((entry) => pendingCashEntryIds.has(entry.id))
+              .filter((entry) => matchesCashflowDate(entry.occurredAt))
+              .filter((entry) => matchesCashflowQuery(`${entry.description} ${entry.id}`))
+              .map((entry) => ({
+                id: entry.id,
+                codigo: entry.id.slice(0, 8).toUpperCase(),
+                descricao: entry.description,
+                valor: entry.amount,
+                dataVencimento: entry.occurredAt.slice(0, 10),
+                origem: "agenda",
+                pessoa: resolveClientName(entry.clientId, clients)
+              }))
+          ].sort((left, right) => left.dataVencimento.localeCompare(right.dataVencimento))
+        : [];
+    const visiblePayables =
+      cashflowFilters.movementStatus === "all" || cashflowFilters.movementStatus === "previsto"
+        ? expenseSchedules
+            .filter((entry) => entry.status === "aberta")
+            .filter((entry) => (cashflowFilters.bankId === "all" ? true : entry.bankId === cashflowFilters.bankId))
+            .filter((entry) => matchesCashflowDate(entry.dataVencimento))
+            .filter((entry) =>
+              matchesCashflowQuery(`${entry.codigo} ${entry.descricao} ${entry.beneficiarioNome ?? ""}`)
+            )
+            .sort((left, right) => left.dataVencimento.localeCompare(right.dataVencimento))
+        : [];
+    const consolidatedBalance = visibleBankAccounts.reduce((total, entry) => total + entry.saldoAtual, 0);
+    const receivableTotal = visibleReceivables.reduce((total, entry) => total + entry.valor, 0);
+    const payableTotal = visiblePayables.reduce((total, entry) => total + entry.valor, 0);
+    const projectedBalance = consolidatedBalance + receivableTotal - payableTotal;
+
     return (
       <div className="dashboard-secondary-grid">
         <div className="financial-cashflow-toolbar">
           <div className="dashboard-document-actions">
-            <label className="dashboard-select">
-              <span>Periodo</span>
-              <select onChange={(event) => setFinancialRange(event.target.value as DashboardRange)} value={financialRange}>
-                <option value="7d">7 dias</option>
-                <option value="30d">30 dias</option>
-                <option value="all">Todo o historico</option>
-              </select>
-            </label>
-            <label className="dashboard-select">
-              <span>Conta</span>
-              <select onChange={(event) => setFinancialBankFilter(event.target.value)} value={financialBankFilter}>
-                <option value="all">Todas</option>
-                {banks.map((bank) => (
-                  <option key={bank.id} value={bank.id}>
-                    {bank.nomeBanco} {bank.agencia}/{bank.conta}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="dashboard-select">
-              <span>Situacao</span>
-              <select onChange={(event) => setFinancialSituation(event.target.value as FinancialSituationFilter)} value={financialSituation}>
-                <option value="all">Tudo</option>
-                <option value="aberto">Em aberto</option>
-                <option value="baixado">Baixado</option>
-              </select>
-            </label>
+            <button className="secondary-button" onClick={openCashflowFilterModal} type="button">
+              Filtrar
+            </button>
             <button className="secondary-button" onClick={() => openBankModal()} type="button">
               Incluir banco
             </button>
@@ -6659,23 +6889,19 @@ export function App() {
         </div>
 
         <EntitySection className="financial-cashflow-summary" title="Fluxo de caixa">
-          {activeFinancialReadModel ? (
-            <DocumentSummaryCards
-              metrics={activeFinancialReadModel.summary.map((metric) => ({
-                id: metric.id,
-                label: metric.label,
-                value: typeof metric.value === "number" ? formatCurrency(metric.value) : metric.value,
-                helper: metric.helper
-              }))}
-            />
-          ) : (
-            <p className="empty-state">Sem leitura financeira disponivel.</p>
-          )}
+          <DocumentSummaryCards
+            metrics={[
+              { id: "saldo-consolidado", label: "Saldo consolidado", value: formatCurrency(consolidatedBalance) },
+              { id: "total-receber", label: "Total a receber", value: formatCurrency(receivableTotal) },
+              { id: "total-pagar", label: "Total a pagar", value: formatCurrency(payableTotal) },
+              { id: "saldo-projetado", label: "Saldo projetado", value: formatCurrency(projectedBalance) }
+            ]}
+          />
         </EntitySection>
 
         <EntitySection title="Contas e saldos">
           <div className="dashboard-mini-grid">
-            {(activeFinancialReadModel?.bankAccounts ?? []).map((entry) => (
+            {visibleBankAccounts.map((entry) => (
               <button
                 className="dashboard-mini-card dashboard-mini-card-button"
                 key={entry.bankId}
@@ -6698,8 +6924,8 @@ export function App() {
 
         <EntitySection title="Proximos recebimentos">
           <div className="records-column">
-            {(activeFinancialReadModel?.receivables ?? []).length ? (
-              (activeFinancialReadModel?.receivables ?? []).map((entry) => (
+            {visibleReceivables.length ? (
+              visibleReceivables.map((entry) => (
                 <article className="record-card" key={entry.id}>
                   <div className="record-card-header">
                     <div className="record-stack">
@@ -6722,8 +6948,8 @@ export function App() {
 
         <EntitySection title="Proximos pagamentos">
           <div className="records-column">
-            {(activeFinancialReadModel?.payables ?? []).length ? (
-              (activeFinancialReadModel?.payables ?? []).map((entry) => (
+            {visiblePayables.length ? (
+              visiblePayables.map((entry) => (
                 <article className="record-card" key={entry.id}>
                   <div className="record-card-header">
                     <div className="record-stack">
@@ -6734,7 +6960,7 @@ export function App() {
                   </div>
                   <div className="record-meta">
                     <span>Vence em {formatDateShort(entry.dataVencimento)}</span>
-                    <span>{entry.pessoa ?? "Sem beneficiario"}</span>
+                    <span>{entry.beneficiarioNome ?? "Sem beneficiario"}</span>
                   </div>
                 </article>
               ))
@@ -6746,8 +6972,8 @@ export function App() {
 
         <EntitySection title="Movimentos recentes">
           <div className="records-column">
-            {(activeFinancialReadModel?.recentMovements ?? []).length ? (
-              (activeFinancialReadModel?.recentMovements ?? []).map((entry) => (
+            {visibleMovements.length ? (
+              visibleMovements.slice(0, 8).map((entry) => (
                 <article className="record-card" key={entry.id}>
                   <div className="record-card-header">
                     <div className="record-stack">
@@ -6758,7 +6984,7 @@ export function App() {
                   </div>
                   <div className="record-meta">
                     <span>{formatDateTime(entry.dataMovimento)}</span>
-                    <span>{entry.contaOrigem ?? "Operacao"}{entry.contaDestino ? ` → ${entry.contaDestino}` : ""}</span>
+                    <span>{resolveMovementBankLabel(entry)}</span>
                   </div>
                 </article>
               ))
@@ -6846,6 +7072,153 @@ export function App() {
           )}
         </div>
       </div>
+    );
+  }
+
+  function renderCashCloseComposer(): JSX.Element | null {
+    if (!isCashCloseComposerOpen) {
+      return null;
+    }
+
+    const pendingPreviewItems = cashClosePreview?.pending ?? [];
+    const settledPreviewItems = cashClosePreview?.settled ?? [];
+
+    return (
+      <EntitySection className="finance-cash-close-workspace" title="Conferencia do caixa">
+        <form className="stack-form" onSubmit={(event) => void handleCreateCashClose(event)}>
+          <div className="finance-toolbar-row">
+            <div className="finance-filter-row">
+              <label className="dashboard-select">
+                <span>Banco</span>
+                <select
+                  required
+                  value={cashCloseForm.bankId}
+                  onChange={(event) => setCashCloseForm((current) => ({ ...current, bankId: event.target.value }))}
+                >
+                  <option value="">Selecione</option>
+                  {banks.map((bank) => (
+                    <option key={bank.id} value={bank.id}>
+                      {bank.codigo} | {bank.nomeBanco} {bank.agencia}/{bank.conta}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="dashboard-select">
+                <span>Data de</span>
+                <input
+                  required
+                  type="date"
+                  value={cashCloseForm.dateFrom}
+                  onChange={(event) => setCashCloseForm((current) => ({ ...current, dateFrom: event.target.value }))}
+                />
+              </label>
+              <label className="dashboard-select">
+                <span>Data ate</span>
+                <input
+                  required
+                  type="date"
+                  value={cashCloseForm.dateTo}
+                  onChange={(event) => setCashCloseForm((current) => ({ ...current, dateTo: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="finance-toolbar-actions">
+              <button
+                className="secondary-button"
+                onClick={() => setCashClosePreviewRequestKey((current) => current + 1)}
+                type="button"
+              >
+                Atualizar conferencia
+              </button>
+              <button className="secondary-button" onClick={closeFinanceModal} type="button">
+                Cancelar
+              </button>
+              <button className="primary-button" disabled={isBusy || !selectedCashClosePreviewKeys.length} type="submit">
+                Fechar caixa
+              </button>
+            </div>
+          </div>
+
+          {isLoadingCashClosePreview ? (
+            <div className="dashboard-mini-card">
+              <strong>Carregando conferencia</strong>
+              <span>Aguarde enquanto os pendentes e os itens ja baixados sao consolidados.</span>
+            </div>
+          ) : (
+            <div className="cash-close-preview-grid is-expanded">
+              <section className="cash-close-preview-panel">
+                <div className="cash-close-preview-header">
+                  <div>
+                    <strong>Pendentes de baixa</strong>
+                    <span>{selectedCashClosePreviewKeys.length} marcado(s)</span>
+                  </div>
+                </div>
+                {pendingPreviewItems.length ? (
+                  <div className="cash-close-preview-list">
+                    {pendingPreviewItems.map((entry) => {
+                      const key = buildCashClosePreviewSelectionKey(entry.sourceType, entry.sourceId);
+                      const isChecked = selectedCashClosePreviewKeys.includes(key);
+                      return (
+                        <label className="cash-close-preview-item is-pending" key={key}>
+                          <input
+                            checked={isChecked}
+                            type="checkbox"
+                            onChange={() =>
+                              setSelectedCashClosePreviewKeys((current) =>
+                                current.includes(key)
+                                  ? current.filter((item) => item !== key)
+                                  : [...current, key]
+                              )
+                            }
+                          />
+                          <div className="cash-close-preview-copy">
+                            <strong>{entry.descricao}</strong>
+                            <span>
+                              {entry.tipo === "entrada" ? "Receita" : "Despesa"} · {formatDateShort(entry.dataReferencia)}
+                            </span>
+                          </div>
+                          <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="empty-state">Nenhum item pendente para este banco e periodo.</p>
+                )}
+              </section>
+
+              <section className="cash-close-preview-panel">
+                <div className="cash-close-preview-header">
+                  <div>
+                    <strong>Ja baixados no periodo</strong>
+                    <span>{settledPreviewItems.length} item(ns)</span>
+                  </div>
+                </div>
+                {settledPreviewItems.length ? (
+                  <div className="cash-close-preview-list">
+                    {settledPreviewItems.map((entry) => (
+                      <div
+                        className="cash-close-preview-item is-settled"
+                        key={`${entry.sourceType}:${entry.sourceId}:${entry.movementId ?? "settled"}`}
+                      >
+                        <div className="cash-close-preview-copy">
+                          <strong>{entry.descricao}</strong>
+                          <span>
+                            {entry.tipo === "entrada" ? "Recebido" : "Pago"} · {formatDateShort(entry.dataReferencia)}
+                          </span>
+                        </div>
+                        <span className="cash-close-preview-value">{formatCurrency(entry.valor)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="empty-state">Nenhum item baixado neste periodo.</p>
+                )}
+              </section>
+            </div>
+          )}
+        </form>
+      </EntitySection>
     );
   }
 
@@ -7187,6 +7560,7 @@ export function App() {
               <label className="dashboard-select"><span>Situacao</span><select value={financeBrowseFilters.close.status} onChange={(event) => updateFinanceBrowseFilter("close", { status: event.target.value as FinanceBrowseFiltersState["close"]["status"] })}><option value="all">Todas</option><option value="fechado">Fechado</option><option value="estornado">Estornado</option></select></label>
             </div>
           </div>
+          {renderCashCloseComposer()}
           <EntitySection title="Fechamentos do caixa">
             {renderFinanceBrowseTable(
               [
@@ -7967,6 +8341,261 @@ export function App() {
           <div className="agenda-booking-modal-body">{renderAgendaBookingDocument()}</div>
         </section>
       </>
+    );
+  }
+
+  function renderCashflowFilterModal(): JSX.Element | null {
+    if (!isCashflowFilterModalOpen) {
+      return null;
+    }
+
+    const filteredBankRows = banks
+      .filter((bank) =>
+        cashflowFilterDraft.query.trim().length === 0 ||
+        `${bank.codigo} ${bank.nomeBanco} ${bank.agencia} ${bank.conta}`.toLowerCase().includes(cashflowFilterDraft.query.trim().toLowerCase())
+      )
+      .map((bank) => ({
+        id: bank.id,
+        selected: cashflowFilterDraft.bankId === bank.id,
+        onClick: () => {
+          setCashflowFilterDraft((current) => ({ ...current, bankId: bank.id }));
+          setIsCashflowBankLookupOpen(false);
+        },
+        cells: [
+          { key: "codigo", value: bank.codigo },
+          { key: "base", value: bank.nomeBanco },
+          { key: "descricao", value: `${bank.agencia}/${bank.conta}` }
+        ]
+      }));
+
+    return (
+      <WorkspaceRecordModal onClose={() => setIsCashflowFilterModalOpen(false)} title="Filtros do fluxo de caixa">
+        <div className="stack-form">
+          <div className="form-grid">
+            <label className="field">
+              <span>Data de</span>
+              <input
+                type="date"
+                value={cashflowFilterDraft.dateFrom}
+                onChange={(event) => setCashflowFilterDraft((current) => ({ ...current, dateFrom: event.target.value }))}
+              />
+            </label>
+            <label className="field">
+              <span>Data ate</span>
+              <input
+                type="date"
+                value={cashflowFilterDraft.dateTo}
+                onChange={(event) => setCashflowFilterDraft((current) => ({ ...current, dateTo: event.target.value }))}
+              />
+            </label>
+            <label className="field field-wide">
+              <span>Banco</span>
+              <div className="lookup-field-shell">
+                <input
+                  readOnly
+                  value={
+                    cashflowFilterDraft.bankId === "all"
+                      ? "Todos"
+                      : resolveBankLabel(cashflowFilterDraft.bankId, banks) ?? "Banco nao encontrado"
+                  }
+                />
+                <button className="secondary-button" onClick={() => setIsCashflowBankLookupOpen(true)} type="button">
+                  Buscar
+                </button>
+                {cashflowFilterDraft.bankId !== "all" ? (
+                  <button
+                    className="secondary-button"
+                    onClick={() => setCashflowFilterDraft((current) => ({ ...current, bankId: "all" }))}
+                    type="button"
+                  >
+                    Limpar
+                  </button>
+                ) : null}
+              </div>
+            </label>
+            <label className="field">
+              <span>Situacao</span>
+              <select
+                value={cashflowFilterDraft.movementStatus}
+                onChange={(event) =>
+                  setCashflowFilterDraft((current) => ({
+                    ...current,
+                    movementStatus: event.target.value as CashflowMovementStatusFilter
+                  }))
+                }
+              >
+                <option value="all">Todas</option>
+                <option value="previsto">Previsto</option>
+                <option value="lancado">Lancado</option>
+                <option value="estornado">Estornado</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Tipo</span>
+              <select
+                value={cashflowFilterDraft.type}
+                onChange={(event) =>
+                  setCashflowFilterDraft((current) => ({
+                    ...current,
+                    type: event.target.value as FinanceBrowseFiltersState["cashflow"]["type"]
+                  }))
+                }
+              >
+                <option value="all">Todos</option>
+                <option value="entrada">Entrada</option>
+                <option value="saida">Saida</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="ajuste">Ajuste</option>
+                <option value="taxa">Taxa</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Origem</span>
+              <select
+                value={cashflowFilterDraft.origin}
+                onChange={(event) =>
+                  setCashflowFilterDraft((current) => ({
+                    ...current,
+                    origin: event.target.value as CashflowOriginFilter
+                  }))
+                }
+              >
+                <option value="all">Todas</option>
+                <option value="manual">Manual</option>
+                <option value="agenda">Agenda</option>
+                <option value="receita">Receita</option>
+                <option value="despesa">Despesa</option>
+                <option value="fechar_caixa">Fechar caixa</option>
+              </select>
+            </label>
+            <label className="field field-wide">
+              <span>Buscar</span>
+              <input
+                value={cashflowFilterDraft.query}
+                onChange={(event) => setCashflowFilterDraft((current) => ({ ...current, query: event.target.value }))}
+              />
+            </label>
+          </div>
+          <div className="button-row">
+            <button className="secondary-button" onClick={clearCashflowFilters} type="button">
+              Limpar filtros
+            </button>
+            <button className="secondary-button" onClick={() => setIsCashflowFilterModalOpen(false)} type="button">
+              Cancelar
+            </button>
+            <button className="primary-button" onClick={applyCashflowFilterDraft} type="button">
+              Aplicar filtros
+            </button>
+          </div>
+          {isCashflowBankLookupOpen ? (
+            <WorkspaceRecordModal onClose={() => setIsCashflowBankLookupOpen(false)} title="Selecionar banco">
+              {renderFinanceBrowseTable(
+                [
+                  { key: "codigo", label: "Codigo" },
+                  { key: "base", label: "Base" },
+                  { key: "descricao", label: "Descricao" }
+                ],
+                filteredBankRows,
+                "Nenhum banco encontrado."
+              )}
+            </WorkspaceRecordModal>
+          ) : null}
+        </div>
+      </WorkspaceRecordModal>
+    );
+  }
+
+  function renderAgendaFilterModal(): JSX.Element | null {
+    if (!isAgendaFilterModalOpen) {
+      return null;
+    }
+
+    return (
+      <WorkspaceRecordModal onClose={() => setIsAgendaFilterModalOpen(false)} title="Filtros da agenda">
+        <div className="stack-form">
+          <div className="form-grid">
+            <label className="field">
+              <span>Data</span>
+              <input
+                type="date"
+                value={agendaFilterDraft.date}
+                onChange={(event) => setAgendaFilterDraft((current) => ({ ...current, date: event.target.value }))}
+              />
+            </label>
+            <label className="field">
+              <span>Profissional</span>
+              <select
+                value={agendaFilterDraft.professionalId}
+                onChange={(event) =>
+                  setAgendaFilterDraft((current) => ({ ...current, professionalId: event.target.value }))
+                }
+              >
+                <option value="all">Todos os profissionais</option>
+                {professionals.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field">
+              <span>Status</span>
+              <select
+                value={agendaFilterDraft.status}
+                onChange={(event) =>
+                  setAgendaFilterDraft((current) => ({
+                    ...current,
+                    status: event.target.value as AgendaFilterDraftState["status"]
+                  }))
+                }
+              >
+                <option value="all">Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="aguardando pagamento">Aguardando pagamento</option>
+                <option value="confirmado">Confirmado</option>
+                <option value="concluido">Concluido</option>
+                <option value="cancelado">Cancelado</option>
+                <option value="faltou">Faltou</option>
+              </select>
+            </label>
+            <label className="field">
+              <span>Servico</span>
+              <select
+                value={agendaFilterDraft.serviceId}
+                onChange={(event) => setAgendaFilterDraft((current) => ({ ...current, serviceId: event.target.value }))}
+              >
+                <option value="all">Todos os servicos</option>
+                {services.map((service) => (
+                  <option key={service.id} value={service.id}>
+                    {service.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="field field-wide agenda-filter-checkbox">
+              <span>Somente com pagamento pendente</span>
+              <input
+                checked={agendaFilterDraft.pendingOnly}
+                onChange={(event) =>
+                  setAgendaFilterDraft((current) => ({ ...current, pendingOnly: event.target.checked }))
+                }
+                type="checkbox"
+              />
+            </label>
+          </div>
+          <div className="button-row">
+            <button className="secondary-button" onClick={clearAgendaFilters} type="button">
+              Limpar filtros
+            </button>
+            <button className="secondary-button" onClick={() => setIsAgendaFilterModalOpen(false)} type="button">
+              Cancelar
+            </button>
+            <button className="primary-button" onClick={applyAgendaFilters} type="button">
+              Aplicar filtros
+            </button>
+          </div>
+        </div>
+      </WorkspaceRecordModal>
     );
   }
 
@@ -8988,12 +9617,13 @@ export function App() {
     const selectedOperationalService = selectedAgendaBooking ?
       services.find((service) => service.id === selectedAgendaBooking.serviceId)
     : undefined;
-    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry);
+    const canReceiveSelectedBooking = Boolean(selectedAgendaBooking && selectedAgendaCashEntry && !selectedAgendaBankMovement);
     const canReverseSelectedBooking = Boolean(selectedAgendaBankMovement);
 
     return (
       <DocumentViewLayout
         className="agenda-document-view agenda-unified-document"
+        header={null}
         title="Agenda"
         statusBadge={<ViewBadge tone="info">{activeAgendaLabel}</ViewBadge>}
         pageActions={
@@ -9013,32 +9643,6 @@ export function App() {
                 {navigationLabels.next}
               </button>
             </div>
-
-            <label className="dashboard-select" htmlFor="agenda-date">
-              <span>Data</span>
-              <input
-                id="agenda-date"
-                onChange={(event) => setAgendaDate(event.target.value)}
-                type="date"
-                value={agendaDate}
-              />
-            </label>
-
-            <label className="dashboard-select" htmlFor="agenda-professional-filter">
-              <span>Profissional</span>
-              <select
-                id="agenda-professional-filter"
-                onChange={(event) => setAgendaProfessionalFilter(event.target.value)}
-                value={agendaProfessionalFilter}
-              >
-                <option value="all">Todos os profissionais</option>
-                {professionals.map((professional) => (
-                  <option key={professional.id} value={professional.id}>
-                    {professional.nome}
-                  </option>
-                ))}
-              </select>
-            </label>
 
             <div aria-label="Visao da agenda" className="dashboard-tabbar agenda-subtabbar" role="tablist">
               {agendaViewTabs.map((tab) => (
@@ -9062,6 +9666,9 @@ export function App() {
             >
               {isAgendaDrawerOpen ? "Ocultar fila" : "Mostrar fila"}
             </button>
+            <button className="secondary-button" onClick={openAgendaFilterModal} type="button">
+              Filtrar
+            </button>
             <button className="secondary-button" disabled={isBusy} onClick={handleRefreshClick} type="button">
               Atualizar
             </button>
@@ -9069,21 +9676,6 @@ export function App() {
               Novo agendamento
             </button>
           </div>
-        }
-        header={
-          <DocumentHeader
-            fields={[
-              { id: "period", label: "Recorte", value: activeAgendaLabel },
-              {
-                id: "professional",
-                label: "Profissional",
-                value:
-                  agendaProfessionalFilter === "all"
-                    ? "Todos os profissionais"
-                    : resolveProfessionalName(agendaProfessionalFilter, professionals)
-              }
-            ]}
-          />
         }
         summary={
           <DocumentSummaryCards
@@ -9120,7 +9712,6 @@ export function App() {
             <div className="agenda-unified-main">{renderAgendaCalendarWorkspace()}</div>
             {isAgendaDrawerOpen ? (
               <aside className="agenda-unified-drawer">
-                {renderAgendaListWorkspace()}
                 <article className="ag-surface-card ag-view-panel agenda-selection-panel">
                   <div className="agenda-panel-header">
                     <div>
@@ -9193,6 +9784,7 @@ export function App() {
                     <p className="empty-state">Selecione um atendimento na fila para abrir as acoes.</p>
                   )}
                 </article>
+                {renderAgendaListWorkspace()}
               </aside>
             ) : null}
           </div>
@@ -10200,6 +10792,8 @@ export function App() {
       {renderShellContextPanel()}
       {renderCounterBookingModal()}
       {renderAgendaBookingModal()}
+      {renderCashflowFilterModal()}
+      {renderAgendaFilterModal()}
       {renderFinanceModal()}
       {renderFinanceActionDialogs()}
     </Fragment>
@@ -11178,6 +11772,17 @@ function formatBankMovementType(type: BankMovement["tipo"]): string {
     default:
       return type;
   }
+}
+
+function resolveBankLabel(bankId: string | undefined, banks: readonly Bank[]): string | undefined {
+  if (!bankId) {
+    return undefined;
+  }
+  const bank = banks.find((entry) => entry.id === bankId);
+  if (!bank) {
+    return undefined;
+  }
+  return `${bank.codigo} | ${bank.nomeBanco} ${bank.agencia}/${bank.conta}`;
 }
 
 function formatBankMovementStatus(status: BankMovement["status"]): string {
