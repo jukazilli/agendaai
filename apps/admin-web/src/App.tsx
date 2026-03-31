@@ -738,7 +738,7 @@ const professionalAvatarVariants = [
   "is-slate",
   "is-teal"
 ] as const;
-const defaultAdminRoute: AdminRoute = "agenda";
+const defaultAdminRoute: AdminRoute = "dashboard";
 const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
   dashboard: {
     label: "Dashboard",
@@ -856,6 +856,18 @@ const adminNavigationSections: ReadonlyArray<{
     routes: ["catalogo", "profissionais", "clientes", "configuracoes"]
   }
 ];
+
+function resolveAdminRouteStageTone(
+  stage: AdminRouteDefinition["stage"]
+): "success" | "warning" {
+  return stage === "funcional" ? "success" : "warning";
+}
+
+function formatAdminRouteStage(
+  stage: AdminRouteDefinition["stage"]
+): string {
+  return stage === "funcional" ? "Funcional" : "Parcial";
+}
 
 const defaultPaymentForm: PaymentFormState = {
   status: "draft",
@@ -14300,6 +14312,9 @@ export function App() {
   const currentRouteDefinition = adminRouteDefinitions[currentRoute];
   const showTopbarEyebrow =
     currentRoute !== "profissionais" && currentRoute !== "dashboard";
+  const currentRouteStageTone = resolveAdminRouteStageTone(
+    currentRouteDefinition.stage
+  );
   const sidebarReportsMenuGroups = groupReportsBuilderMenuItems(
     buildReportsBuilderMenuItems(reportsCatalog)
   );
@@ -14558,15 +14573,45 @@ export function App() {
                 <CalendarDays className="w-5 h-5" />
               </div>
               <div className="admin-sidebar-brand-copy">
+                <span>Shell administrativo</span>
                 <strong>AgendaAI</strong>
               </div>
             </div>
+            <span className="admin-sidebar-brand-chip">
+              {tenant?.slug ? `/${tenant.slug}` : "Sem slug"}
+            </span>
+          </div>
+
+          <div className="admin-sidebar-tenant-card">
+            <div className="admin-sidebar-tenant-copy">
+              <strong>{tenant?.nome ?? "Tenant administrativo"}</strong>
+              <span>
+                {tenant
+                  ? `${tenant.timezone ?? "Timezone pendente"} • ${publicBookingUrl ? "booking publicado" : "booking pendente"}`
+                  : "Conecte um tenant para liberar os modulos operacionais."}
+              </span>
+            </div>
+            {publicBookingUrl ? (
+              <a
+                className="admin-sidebar-tenant-link"
+                href={publicBookingUrl}
+                rel="noreferrer"
+                target="_blank"
+              >
+                Abrir booking publico
+              </a>
+            ) : null}
           </div>
 
           <nav className="admin-sidebar-nav no-scrollbar">
             {adminNavigationSections.map((section) => (
               <div className="admin-sidebar-group" key={section.label}>
-                <p className="admin-sidebar-group-label">{section.label}</p>
+                <div className="admin-sidebar-group-header">
+                  <p className="admin-sidebar-group-label">{section.label}</p>
+                  <span className="admin-sidebar-group-count">
+                    {section.routes.length}
+                  </span>
+                </div>
                 {section.routes.map((route) => {
                   const definition = adminRouteDefinitions[route];
                   const Icon = definition.icon;
@@ -14586,7 +14631,12 @@ export function App() {
                         <Icon className="w-5 h-5" />
                       </span>
                       <span className="admin-sidebar-link-copy">
+                        <small>
+                          {definition.shortLabel} /{" "}
+                          {formatAdminRouteStage(definition.stage)}
+                        </small>
                         <strong>{definition.label}</strong>
+                        <span>{definition.title}</span>
                       </span>
                     </button>
                   );
@@ -14671,14 +14721,96 @@ export function App() {
 
         <div className="admin-stage-v2">
           <header className="admin-topbar">
-            <div className="admin-topbar-main">
-              <button
-                className="admin-topbar-menu"
-                onClick={() => setIsSidebarOpen(true)}
-                type="button"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
+            <div className="admin-topbar-shell-row">
+              <div className="admin-topbar-main">
+                <button
+                  className="admin-topbar-menu"
+                  onClick={() => setIsSidebarOpen(true)}
+                  type="button"
+                >
+                  <Menu className="w-5 h-5" />
+                </button>
+                <div className="admin-topbar-route">
+                  {showTopbarEyebrow ? (
+                    <span className="admin-topbar-eyebrow">
+                      {currentRouteDefinition.eyebrow}
+                    </span>
+                  ) : null}
+                  <div className="admin-topbar-route-heading">
+                    <strong>{currentRouteDefinition.title}</strong>
+                    <ViewBadge tone={currentRouteStageTone}>
+                      {formatAdminRouteStage(currentRouteDefinition.stage)}
+                    </ViewBadge>
+                  </div>
+                  <p>{currentRouteDefinition.description}</p>
+                </div>
+              </div>
+
+              <div className="admin-topbar-actions">
+                <button
+                  aria-label="Abrir clientes para buscar cliente"
+                  className={
+                    "admin-icon-button admin-topbar-utility"
+                  }
+                  onClick={openClientsDirectoryFromShell}
+                  title="Buscar cliente"
+                  type="button"
+                >
+                  <Search className="w-4 h-4" />
+                </button>
+                <button
+                  aria-label="Abrir painel rapido"
+                  className={
+                    isShellPulseOpen
+                      ? "admin-icon-button admin-topbar-utility is-active"
+                      : "admin-icon-button admin-topbar-utility"
+                  }
+                  data-count={
+                    shellAttentionCount > 0
+                      ? Math.min(shellAttentionCount, 99)
+                      : undefined
+                  }
+                  onClick={toggleShellPulsePanel}
+                  title="Alertas"
+                  type="button"
+                >
+                  <Bell className="w-5 h-5" />
+                </button>
+                {tenant ? (
+                  <button
+                    aria-label="Abrir contexto"
+                    className={
+                      isShellContextOpen
+                        ? "admin-icon-button admin-topbar-utility is-active"
+                        : "admin-icon-button admin-topbar-utility"
+                    }
+                    onClick={toggleShellContextPanel}
+                    title="Contexto"
+                    type="button"
+                  >
+                    <Activity className="w-4 h-4" />
+                  </button>
+                ) : null}
+                <button
+                  aria-label="Novo agendamento"
+                  className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
+                  onClick={() => openCounterBookingModal()}
+                  title="Novo agendamento"
+                  type="button"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+                <div
+                  aria-label={`Perfil ${sidebarProfileName}`}
+                  className="admin-topbar-avatar"
+                  title={sidebarProfileName}
+                >
+                  {resolveProfessionalInitials(sidebarProfileName)}
+                </div>
+              </div>
+            </div>
+
+            <div className="admin-workspace-bar">
               <div
                 aria-label="Abas do workspace"
                 className="admin-route-strip"
@@ -14722,66 +14854,26 @@ export function App() {
                   );
                 })}
               </div>
-            </div>
 
-            <div className="admin-topbar-actions">
-              <button
-                aria-label="Abrir clientes para buscar cliente"
-                className="admin-icon-button admin-topbar-utility"
-                onClick={openClientsDirectoryFromShell}
-                title="Buscar cliente"
-                type="button"
-              >
-                <Search className="w-4 h-4" />
-              </button>
-              <button
-                aria-label="Abrir painel rapido"
-                className={
-                  isShellPulseOpen
-                    ? "admin-icon-button admin-topbar-utility is-active"
-                    : "admin-icon-button admin-topbar-utility"
-                }
-                data-count={
-                  shellAttentionCount > 0
-                    ? Math.min(shellAttentionCount, 99)
-                    : undefined
-                }
-                onClick={toggleShellPulsePanel}
-                title="Alertas"
-                type="button"
-              >
-                <Bell className="w-5 h-5" />
-              </button>
-              {tenant ? (
-                <button
-                  aria-label="Abrir contexto"
-                  className={
-                    isShellContextOpen
-                      ? "admin-icon-button admin-topbar-utility is-active"
-                      : "admin-icon-button admin-topbar-utility"
-                  }
-                  onClick={toggleShellContextPanel}
-                  title="Contexto"
-                  type="button"
-                >
-                  <Activity className="w-4 h-4" />
-                </button>
-              ) : null}
-              <button
-                aria-label="Novo agendamento"
-                className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
-                onClick={() => openCounterBookingModal()}
-                title="Novo agendamento"
-                type="button"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-              <div
-                aria-label={`Perfil ${sidebarProfileName}`}
-                className="admin-topbar-avatar"
-                title={sidebarProfileName}
-              >
-                {resolveProfessionalInitials(sidebarProfileName)}
+              <div className="admin-workspace-meta">
+                <span className="admin-workspace-meta-item">
+                  <span className="admin-workspace-meta-label">Tenant</span>
+                  <strong>{tenant?.nome ?? sidebarProfileName}</strong>
+                </span>
+                <span className="admin-workspace-meta-item">
+                  <span className="admin-workspace-meta-label">Slug</span>
+                  <strong>{tenant?.slug ? `/${tenant.slug}` : "Pendente"}</strong>
+                </span>
+                {publicBookingUrl ? (
+                  <a
+                    className="admin-workspace-link"
+                    href={publicBookingUrl}
+                    rel="noreferrer"
+                    target="_blank"
+                  >
+                    Abrir booking
+                  </a>
+                ) : null}
               </div>
             </div>
           </header>
