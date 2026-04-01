@@ -2302,6 +2302,54 @@ a {
   flex-wrap: wrap;
 }
 
+.shell-role-simulator {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border: 1px solid rgba(14, 116, 144, 0.14);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(14, 116, 144, 0.08), rgba(255, 255, 255, 0.96));
+}
+
+.shell-role-simulator-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.shell-role-simulator-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.shell-role-simulator-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 999px;
+  color: var(--ag-color-text-primary);
+  background: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    border-color 140ms ease,
+    background 140ms ease,
+    box-shadow 140ms ease;
+}
+
+.shell-role-simulator-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(14, 116, 144, 0.28);
+}
+
+.shell-role-simulator-button.is-active {
+  border-color: rgba(14, 116, 144, 0.3);
+  background: rgba(14, 116, 144, 0.12);
+  box-shadow: 0 10px 24px rgba(14, 116, 144, 0.12);
+}
+
 .shell-pulse-sheet {
   width: min(460px, calc(100vw - 36px));
 }

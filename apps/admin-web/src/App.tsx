@@ -50,6 +50,8 @@ import {
 import "react-big-calendar/lib/css/react-big-calendar.css";
 
 import {
+  adminRoles,
+  type AdminRole,
   type AdminFinancialReadModel,
   defaultServicePaymentPolicy,
   paymentChargeTypeValues,
@@ -83,6 +85,21 @@ import {
   type TenantPaymentSettings
 } from "@agendaai/contracts";
 
+import {
+  adminRouteDefinitions,
+  canRoleAccessRoute,
+  canRolePerformAction,
+  getAdminNavigationSectionsForRole,
+  getRoleCapabilities,
+  isAdminRole,
+  isAdminRoute,
+  normalizeAdminRoute,
+  resolveAdminRoleLabel,
+  resolvePersonaByRole,
+  defaultAdminRoute,
+  type AdminRoute,
+  type AdminRouteDefinition
+} from "./admin-shell-config";
 import {
   type AvailabilitySlot,
   AdminApiError,
@@ -165,16 +182,6 @@ import {
 } from "@agendaai/ui";
 
 type AuthMode = "login" | "onboarding";
-type AdminRoute =
-  | "dashboard"
-  | "financeiro"
-  | "relatorios"
-  | "operacional"
-  | "agenda"
-  | "catalogo"
-  | "profissionais"
-  | "clientes"
-  | "configuracoes";
 type AgendaViewMode = "day" | "week" | "month";
 type DashboardRange = "7d" | "30d" | "all";
 type DashboardWorkspaceTab = "cashflow" | "agenda" | "radar";
@@ -677,21 +684,11 @@ interface ClientPortfolioSummary {
 type ReportGroupSummary = ReportingGroupSummary;
 type ReportMetricSummary = ReportingMetricSummary;
 
-interface AdminRouteDefinition {
-  readonly label: string;
-  readonly shortLabel: string;
-  readonly section: "Gestao do negocio" | "Dia a dia" | "Administracao";
-  readonly icon: LucideIcon;
-  readonly eyebrow: string;
-  readonly title: string;
-  readonly description: string;
-  readonly stage: "funcional" | "parcial";
-}
-
 const API_BASE_STORAGE_KEY = "agendaai.admin.apiBaseUrl";
 const SESSION_STORAGE_KEY = "agendaai.admin.sessionToken";
 const ADMIN_PROFILE_NAME_STORAGE_KEY = "agendaai.admin.profileName";
 const ADMIN_PROFILE_EMAIL_STORAGE_KEY = "agendaai.admin.profileEmail";
+const DEV_ROLE_OVERRIDE_STORAGE_KEY = "agendaai.admin.devRoleOverride";
 const DEPLOY_ADMIN_API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
   DEFAULT_ADMIN_API_BASE_URL;
@@ -738,125 +735,6 @@ const professionalAvatarVariants = [
   "is-slate",
   "is-teal"
 ] as const;
-const defaultAdminRoute: AdminRoute = "dashboard";
-const adminRouteDefinitions: Record<AdminRoute, AdminRouteDefinition> = {
-  dashboard: {
-    label: "Dashboard",
-    shortLabel: "DG",
-    section: "Gestao do negocio",
-    icon: LayoutDashboard,
-    eyebrow: "Gestao do negocio",
-    title: "Dashboard",
-    description:
-      "Fluxo de caixa, agenda da semana e radar operacional do negocio.",
-    stage: "parcial"
-  },
-  financeiro: {
-    label: "Financeiro",
-    shortLabel: "FN",
-    section: "Gestao do negocio",
-    icon: DollarSign,
-    eyebrow: "Gestao do negocio",
-    title: "Financeiro",
-    description: "Bancos, saldos, receitas, despesas e movimentos bancarios.",
-    stage: "funcional"
-  },
-  relatorios: {
-    label: "Relatorios",
-    shortLabel: "RL",
-    section: "Gestao do negocio",
-    icon: TrendingUp,
-    eyebrow: "Gestao do negocio",
-    title: "Relatorios essenciais do tenant",
-    description:
-      "Comparativos por periodo, retorno e insights de capacidade sem disputar a operacao da agenda.",
-    stage: "parcial"
-  },
-  operacional: {
-    label: "Operacao diaria",
-    shortLabel: "OP",
-    section: "Dia a dia",
-    icon: ListTodo,
-    eyebrow: "Dia a dia",
-    title: "Fila operacional do dia",
-    description:
-      "Agenda administrativa para confirmar, concluir ou cancelar atendimentos sem misturar implantacao e configuracao.",
-    stage: "funcional"
-  },
-  agenda: {
-    label: "Agenda / calendario",
-    shortLabel: "AG",
-    section: "Dia a dia",
-    icon: CalendarDays,
-    eyebrow: "Planejamento",
-    title: "Agenda operacional",
-    description:
-      "Lista do dia e calendario interativo com detalhe completo da booking; capacidade agregada fica em Relatorios.",
-    stage: "parcial"
-  },
-  catalogo: {
-    label: "Catalogo",
-    shortLabel: "CT",
-    section: "Administracao",
-    icon: BookOpen,
-    eyebrow: "Administracao",
-    title: "Servicos e politica comercial",
-    description:
-      "Cadastro real de servicos e cobranca. Produtos, kits, combos e add-ons continuam fora dos contratos atuais.",
-    stage: "funcional"
-  },
-  profissionais: {
-    label: "Profissionais",
-    shortLabel: "PF",
-    section: "Administracao",
-    icon: Users,
-    eyebrow: "Administracao",
-    title: "Cadastro de profissionais",
-    description:
-      "Tela exclusiva para visualizar, incluir, alterar e bloquear profissionais. Vinculos com servicos e agenda ficam em frentes dedicadas.",
-    stage: "funcional"
-  },
-  clientes: {
-    label: "Clientes",
-    shortLabel: "CL",
-    section: "Administracao",
-    icon: UserCircle,
-    eyebrow: "Administracao",
-    title: "Base derivada da jornada real",
-    description:
-      "Clientes capturados pelo fluxo publico com leitura de historico, retorno por janela e receita derivada. CRM avancado, WhatsApp e cohort seguem sem contrato dedicado.",
-    stage: "parcial"
-  },
-  configuracoes: {
-    label: "Configuracoes",
-    shortLabel: "CF",
-    section: "Administracao",
-    icon: Settings,
-    eyebrow: "Implantacao",
-    title: "Perfil do negocio e cobranca",
-    description:
-      "Slug publica, Mercado Pago, ambiente administrativo e parametros do tenant em uma area separada da operacao.",
-    stage: "funcional"
-  }
-};
-const adminNavigationSections: ReadonlyArray<{
-  readonly label: AdminRouteDefinition["section"];
-  readonly routes: readonly AdminRoute[];
-}> = [
-  {
-    label: "Gestao do negocio",
-    routes: ["dashboard", "financeiro", "relatorios"]
-  },
-  {
-    label: "Dia a dia",
-    routes: ["agenda"]
-  },
-  {
-    label: "Administracao",
-    routes: ["catalogo", "profissionais", "clientes", "configuracoes"]
-  }
-];
-
 function resolveAdminRouteStageTone(
   stage: AdminRouteDefinition["stage"]
 ): "success" | "warning" {
@@ -1664,14 +1542,6 @@ function DashboardChart({
   );
 }
 
-function isAdminRoute(value: string): value is AdminRoute {
-  return Object.prototype.hasOwnProperty.call(adminRouteDefinitions, value);
-}
-
-function normalizeAdminRoute(route: AdminRoute): AdminRoute {
-  return route === "operacional" ? "agenda" : route;
-}
-
 function readAdminRouteFromHash(): AdminRoute {
   if (typeof window === "undefined") {
     return defaultAdminRoute;
@@ -1679,6 +1549,47 @@ function readAdminRouteFromHash(): AdminRoute {
 
   const hash = window.location.hash.replace(/^#\/?/, "").trim().toLowerCase();
   return isAdminRoute(hash) ? normalizeAdminRoute(hash) : defaultAdminRoute;
+}
+
+function loadStoredAdminRoleOverride(): AdminRole | null {
+  if (!import.meta.env.DEV || typeof window === "undefined") {
+    return null;
+  }
+
+  const storedValue =
+    window.localStorage.getItem(DEV_ROLE_OVERRIDE_STORAGE_KEY) ?? "";
+  const normalizedValue = storedValue.trim().toLowerCase();
+  return isAdminRole(normalizedValue) ? normalizedValue : null;
+}
+
+function areAdminRouteListsEqual(
+  left: readonly AdminRoute[],
+  right: readonly AdminRoute[]
+): boolean {
+  return (
+    left.length === right.length &&
+    left.every((route, index) => route === right[index])
+  );
+}
+
+function sanitizeAdminRouteTabs(
+  routes: readonly AdminRoute[],
+  role: AdminRole
+): AdminRoute[] {
+  const sanitized: AdminRoute[] = [];
+
+  routes.forEach((route) => {
+    const normalizedRoute = normalizeAdminRoute(route);
+    if (
+      !canRoleAccessRoute(role, normalizedRoute) ||
+      sanitized.includes(normalizedRoute)
+    ) {
+      return;
+    }
+    sanitized.push(normalizedRoute);
+  });
+
+  return sanitized;
 }
 
 export function App() {
@@ -1974,6 +1885,23 @@ export function App() {
   const [isLoadingReportsBuilder, setIsLoadingReportsBuilder] = useState(false);
   const didAutoOpenDefaultReportTabRef = useRef(false);
   const [isCompactShell, setIsCompactShell] = useState(false);
+  const [devRoleOverride, setDevRoleOverride] = useState<AdminRole | null>(
+    loadStoredAdminRoleOverride
+  );
+  const sessionAdminRole = bootstrap?.session.claims.role ?? null;
+  const effectiveAdminRole: AdminRole =
+    import.meta.env.DEV
+      ? devRoleOverride ?? sessionAdminRole ?? "owner"
+      : sessionAdminRole ?? "owner";
+  const roleCapabilities = getRoleCapabilities(effectiveAdminRole);
+  const activePersonaBlueprint = resolvePersonaByRole(effectiveAdminRole);
+  const visibleNavigationSections =
+    getAdminNavigationSectionsForRole(effectiveAdminRole);
+  const isRoleSimulated =
+    import.meta.env.DEV &&
+    sessionAdminRole !== null &&
+    devRoleOverride !== null &&
+    devRoleOverride !== sessionAdminRole;
 
   useEffect(() => {
     storeValue(API_BASE_STORAGE_KEY, apiBaseUrl);
@@ -1996,10 +1924,65 @@ export function App() {
   }, []);
 
   useEffect(() => {
+    const fallbackRoute = roleCapabilities.defaultRoute;
+
+    setOpenRouteTabs((current) => {
+      const nextTabs = sanitizeAdminRouteTabs(current, effectiveAdminRole);
+
+      if (!nextTabs.length) {
+        return current.length === 1 && current[0] === fallbackRoute
+          ? current
+          : [fallbackRoute];
+      }
+
+      return areAdminRouteListsEqual(current, nextTabs) ? current : nextTabs;
+    });
+
+    if (canRoleAccessRoute(effectiveAdminRole, currentRoute)) {
+      return;
+    }
+
+    const nextHash = `#${fallbackRoute}`;
+    if (typeof window !== "undefined" && window.location.hash !== nextHash) {
+      window.location.hash = nextHash;
+    }
+
+    setCurrentRoute(fallbackRoute);
+    setIsShellContextOpen(false);
+    setIsShellPulseOpen(false);
+    setIsReportsMenuOpen(false);
+    setIsSidebarOpen(false);
+  }, [currentRoute, effectiveAdminRole, roleCapabilities.defaultRoute]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const currentHash = window.location.hash.replace(/^#\/?/, "").trim();
+    if (currentHash) {
+      return;
+    }
+
+    if (
+      currentRoute !== defaultAdminRoute ||
+      roleCapabilities.defaultRoute === defaultAdminRoute
+    ) {
+      return;
+    }
+
+    navigateTo(roleCapabilities.defaultRoute);
+  }, [currentRoute, roleCapabilities.defaultRoute]);
+
+  useEffect(() => {
+    const visibleRoute = canRoleAccessRoute(effectiveAdminRole, currentRoute)
+      ? normalizeAdminRoute(currentRoute)
+      : roleCapabilities.defaultRoute;
+
     setOpenRouteTabs((current) =>
-      current.includes(currentRoute) ? current : [...current, currentRoute]
+      current.includes(visibleRoute) ? current : [...current, visibleRoute]
     );
-  }, [currentRoute]);
+  }, [currentRoute, effectiveAdminRole, roleCapabilities.defaultRoute]);
 
   useEffect(() => {
     setReportsOpenTabs((current) =>
@@ -2055,6 +2038,19 @@ export function App() {
     storeValue(ADMIN_PROFILE_NAME_STORAGE_KEY, adminProfile.name);
     storeValue(ADMIN_PROFILE_EMAIL_STORAGE_KEY, adminProfile.email);
   }, [adminProfile]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV || typeof window === "undefined") {
+      return;
+    }
+
+    if (devRoleOverride) {
+      window.localStorage.setItem(DEV_ROLE_OVERRIDE_STORAGE_KEY, devRoleOverride);
+      return;
+    }
+
+    window.localStorage.removeItem(DEV_ROLE_OVERRIDE_STORAGE_KEY);
+  }, [devRoleOverride]);
 
   useEffect(() => {
     if (!feedback || feedback.tone === "error") {
@@ -2477,6 +2473,23 @@ export function App() {
     : "";
   const sidebarProfileName = adminProfile.name || tenant?.nome || "Admin";
   const sidebarProfileEmail = adminProfile.email || "";
+  const effectiveAdminRoleLabel = resolveAdminRoleLabel(effectiveAdminRole);
+  const canSearchClientsDirectory = canRolePerformAction(
+    effectiveAdminRole,
+    "search-clients-directory"
+  );
+  const canCreateCounterBooking = canRolePerformAction(
+    effectiveAdminRole,
+    "create-booking"
+  );
+  const canOpenPublicBooking = canRolePerformAction(
+    effectiveAdminRole,
+    "open-public-booking"
+  );
+  const canOpenTenantSettings = canRolePerformAction(
+    effectiveAdminRole,
+    "open-configuracoes"
+  );
   const services = bootstrap?.services ?? [];
   const professionals = bootstrap?.professionals ?? [];
   const clients = bootstrap?.clients ?? [];
@@ -4425,11 +4438,14 @@ export function App() {
 
   function navigateTo(route: AdminRoute): void {
     const normalizedRoute = normalizeAdminRoute(route);
-    const nextHash = `#${normalizedRoute}`;
+    const nextRoute = canRoleAccessRoute(effectiveAdminRole, normalizedRoute)
+      ? normalizedRoute
+      : roleCapabilities.defaultRoute;
+    const nextHash = `#${nextRoute}`;
     if (typeof window !== "undefined" && window.location.hash !== nextHash) {
       window.location.hash = nextHash;
     }
-    setCurrentRoute(normalizedRoute);
+    setCurrentRoute(nextRoute);
     setIsShellContextOpen(false);
     setIsShellPulseOpen(false);
     setIsReportsMenuOpen(false);
@@ -4446,7 +4462,7 @@ export function App() {
       const nextTabs = current.filter((item) => item !== route);
       if (route === currentRoute) {
         const fallbackRoute =
-          nextTabs[nextTabs.length - 1] ?? defaultAdminRoute;
+          nextTabs[nextTabs.length - 1] ?? roleCapabilities.defaultRoute;
         window.setTimeout(() => navigateTo(fallbackRoute), 0);
       }
 
@@ -10563,10 +10579,75 @@ export function App() {
                 <small>{tenant?.nome ?? "Nao carregado"}</small>
               </div>
             </article>
+            <article className="dashboard-kpi-item">
+              <div className="dashboard-kpi-main">
+                <strong>Papel efetivo</strong>
+                <span>{activePersonaBlueprint.label}</span>
+              </div>
+              <div className="dashboard-kpi-side">
+                <span>{effectiveAdminRoleLabel}</span>
+                <small>
+                  Workspace base{" "}
+                  {adminRouteDefinitions[roleCapabilities.defaultRoute].label}
+                </small>
+              </div>
+            </article>
           </div>
 
+          {import.meta.env.DEV ? (
+            <section className="shell-role-simulator">
+              <div className="shell-role-simulator-header">
+                <div className="dashboard-kpi-main">
+                  <strong>Simulacao DEV de papel</strong>
+                  <span>
+                    Sessao real{" "}
+                    {sessionAdminRole
+                      ? resolveAdminRoleLabel(sessionAdminRole)
+                      : "nao carregada"}
+                  </span>
+                </div>
+                <div className="dashboard-kpi-side">
+                  <span>{isRoleSimulated ? "Override ativo" : "Sem override"}</span>
+                  <small>
+                    {devRoleOverride
+                      ? `Override DEV: ${resolveAdminRoleLabel(devRoleOverride)}`
+                      : "A UI segue o papel entregue pelo bootstrap."}
+                  </small>
+                </div>
+              </div>
+
+              <div className="shell-role-simulator-actions">
+                <button
+                  className={
+                    devRoleOverride === null
+                      ? "shell-role-simulator-button is-active"
+                      : "shell-role-simulator-button"
+                  }
+                  onClick={() => setDevRoleOverride(null)}
+                  type="button"
+                >
+                  Sessao real
+                </button>
+                {adminRoles.map((role) => (
+                  <button
+                    className={
+                      devRoleOverride === role
+                        ? "shell-role-simulator-button is-active"
+                        : "shell-role-simulator-button"
+                    }
+                    key={role}
+                    onClick={() => setDevRoleOverride(role)}
+                    type="button"
+                  >
+                    {resolveAdminRoleLabel(role)}
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <div className="shell-context-sheet-actions">
-            {publicBookingUrl ? (
+            {publicBookingUrl && canOpenPublicBooking ? (
               <a
                 className="secondary-button button-link"
                 href={publicBookingUrl}
@@ -10576,13 +10657,15 @@ export function App() {
                 Abrir booking
               </a>
             ) : null}
-            <button
-              className="secondary-button"
-              onClick={() => navigateTo("configuracoes")}
-              type="button"
-            >
-              Abrir configuracoes
-            </button>
+            {canOpenTenantSettings ? (
+              <button
+                className="secondary-button"
+                onClick={() => navigateTo("configuracoes")}
+                type="button"
+              >
+                Abrir configuracoes
+              </button>
+            ) : null}
             <button
               className="secondary-button"
               disabled={isBusy}
@@ -14591,7 +14674,7 @@ export function App() {
                   : "Conecte um tenant para liberar os modulos operacionais."}
               </span>
             </div>
-            {publicBookingUrl ? (
+            {publicBookingUrl && canOpenPublicBooking ? (
               <a
                 className="admin-sidebar-tenant-link"
                 href={publicBookingUrl}
@@ -14604,7 +14687,7 @@ export function App() {
           </div>
 
           <nav className="admin-sidebar-nav no-scrollbar">
-            {adminNavigationSections.map((section) => (
+            {visibleNavigationSections.map((section) => (
               <div className="admin-sidebar-group" key={section.label}>
                 <div className="admin-sidebar-group-header">
                   <p className="admin-sidebar-group-label">{section.label}</p>
@@ -14703,7 +14786,7 @@ export function App() {
                 <strong>{sidebarProfileName}</strong>
                 <span>{sidebarProfileEmail || "Sem e-mail cadastrado"}</span>
               </div>
-              {publicBookingUrl ? (
+              {publicBookingUrl && canOpenPublicBooking ? (
                 <a
                   aria-label="Abrir booking publico"
                   className="admin-sidebar-profile-action"
@@ -14747,17 +14830,17 @@ export function App() {
               </div>
 
               <div className="admin-topbar-actions">
-                <button
-                  aria-label="Abrir clientes para buscar cliente"
-                  className={
-                    "admin-icon-button admin-topbar-utility"
-                  }
-                  onClick={openClientsDirectoryFromShell}
-                  title="Buscar cliente"
-                  type="button"
-                >
-                  <Search className="w-4 h-4" />
-                </button>
+                {canSearchClientsDirectory ? (
+                  <button
+                    aria-label="Abrir clientes para buscar cliente"
+                    className="admin-icon-button admin-topbar-utility"
+                    onClick={openClientsDirectoryFromShell}
+                    title="Buscar cliente"
+                    type="button"
+                  >
+                    <Search className="w-4 h-4" />
+                  </button>
+                ) : null}
                 <button
                   aria-label="Abrir painel rapido"
                   className={
@@ -14791,15 +14874,17 @@ export function App() {
                     <Activity className="w-4 h-4" />
                   </button>
                 ) : null}
-                <button
-                  aria-label="Novo agendamento"
-                  className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
-                  onClick={() => openCounterBookingModal()}
-                  title="Novo agendamento"
-                  type="button"
-                >
-                  <Plus className="w-4 h-4" />
-                </button>
+                {canCreateCounterBooking ? (
+                  <button
+                    aria-label="Novo agendamento"
+                    className="admin-icon-button admin-topbar-utility admin-shell-plus-action"
+                    onClick={() => openCounterBookingModal()}
+                    title="Novo agendamento"
+                    type="button"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </button>
+                ) : null}
                 <div
                   aria-label={`Perfil ${sidebarProfileName}`}
                   className="admin-topbar-avatar"
@@ -14861,10 +14946,16 @@ export function App() {
                   <strong>{tenant?.nome ?? sidebarProfileName}</strong>
                 </span>
                 <span className="admin-workspace-meta-item">
+                  <span className="admin-workspace-meta-label">
+                    {isRoleSimulated ? "Papel DEV" : "Papel"}
+                  </span>
+                  <strong>{effectiveAdminRoleLabel}</strong>
+                </span>
+                <span className="admin-workspace-meta-item">
                   <span className="admin-workspace-meta-label">Slug</span>
                   <strong>{tenant?.slug ? `/${tenant.slug}` : "Pendente"}</strong>
                 </span>
-                {publicBookingUrl ? (
+                {publicBookingUrl && canOpenPublicBooking ? (
                   <a
                     className="admin-workspace-link"
                     href={publicBookingUrl}
