@@ -3,7 +3,11 @@ import test from "node:test";
 
 import type { FastifyInstance } from "fastify";
 
-import { buildApiRestApp } from "./index";
+import {
+  ApiRestStore,
+  buildApiRestApp,
+  type BuildApiRestAppOptions
+} from "./index";
 import type { MercadoPagoGateway } from "./mercado-pago";
 
 interface OnboardingResult {
@@ -22,8 +26,14 @@ function authHeaders(token: string) {
   };
 }
 
-async function createApp(mercadoPagoGateway?: MercadoPagoGateway): Promise<FastifyInstance> {
+async function createApp(
+  mercadoPagoGateway?: MercadoPagoGateway,
+  options: Omit<BuildApiRestAppOptions, "mercadoPagoGateway"> = {}
+): Promise<FastifyInstance> {
   const app = buildApiRestApp({
+    adminJwtSecret: "agendaai-test-secret",
+    store: options.store ?? new ApiRestStore(),
+    ...options,
     mercadoPagoGateway
   });
   await app.ready();
@@ -269,6 +279,169 @@ test("onboarding emite sessao admin e lookup publico por slug", async () => {
     assert.equal(publicPayload.slug, onboarding.tenant.slug);
   } finally {
     await app.close();
+  }
+});
+
+test("sessao JWT emitida por um runtime continua valida em outro runtime com o mesmo segredo", async () => {
+  const primaryStore = new ApiRestStore();
+  const primaryApp = await createApp(undefined, {
+    adminJwtSecret: "agendaai-shared-failover-secret",
+    store: primaryStore
+  });
+
+  try {
+    const onboarding = await onboardTenant(primaryApp, "handoff");
+    assert.equal(onboarding.session.token.split(".").length, 3);
+
+    const secondaryStore = new ApiRestStore(primaryStore.exportSnapshot());
+    const secondaryApp = await createApp(undefined, {
+      adminJwtSecret: "agendaai-shared-failover-secret",
+      store: secondaryStore
+    });
+
+    try {
+      const sessionResponse = await secondaryApp.inject({
+        method: "GET",
+        url: "/v1/admin/auth/session",
+        headers: authHeaders(onboarding.session.token)
+      });
+
+      assert.equal(sessionResponse.statusCode, 200);
+      assert.equal(sessionResponse.json().tenant.slug, onboarding.tenant.slug);
+    } finally {
+      await secondaryApp.close();
+    }
+  } finally {
+    await primaryApp.close();
+  }
+});
+
+test("readiness diferencia runtime em memoria de runtime com banco pronto", async () => {
+  const notReadyApp = await createApp();
+
+  try {
+    const notReadyResponse = await notReadyApp.inject({
+      method: "GET",
+      url: "/ready"
+    });
+
+    assert.equal(notReadyResponse.statusCode, 503);
+    assert.equal(notReadyResponse.json().storage, "memory");
+  } finally {
+    await notReadyApp.close();
+  }
+
+  const readyStore = new ApiRestStore(undefined, {
+    readiness: {
+      ready: true,
+      storage: "postgres"
+    }
+  });
+  const readyApp = await createApp(undefined, {
+    store: readyStore
+  });
+
+  try {
+    const readyResponse = await readyApp.inject({
+      method: "GET",
+      url: "/ready"
+    });
+
+    assert.equal(readyResponse.statusCode, 200);
+    assert.equal(readyResponse.json().status, "ready");
+    assert.equal(readyResponse.json().storage, "postgres");
+  } finally {
+    await readyApp.close();
+  }
+});
+
+test("modo somente leitura permite login e leituras, mas bloqueia mutacoes administrativas e publicas", async () => {
+  const writerStore = new ApiRestStore();
+  const writerApp = await createApp(undefined, {
+    adminJwtSecret: "agendaai-read-only-secret",
+    store: writerStore
+  });
+
+  try {
+    const onboarding = await onboardTenant(writerApp, "readonly");
+    await createService(writerApp, onboarding.session.token, {
+      nome: "Servico Espelho"
+    });
+
+    const readOnlyStore = new ApiRestStore(writerStore.exportSnapshot(), {
+      readiness: {
+        ready: true,
+        storage: "postgres"
+      }
+    });
+    const readOnlyApp = await createApp(undefined, {
+      adminJwtSecret: "agendaai-read-only-secret",
+      readOnlyMode: true,
+      store: readOnlyStore
+    });
+
+    try {
+      const loginResponse = await readOnlyApp.inject({
+        method: "POST",
+        url: "/v1/admin/auth/sessions",
+        payload: {
+          email: "admin-readonly@agendaai.test",
+          password: "senha-forte"
+        }
+      });
+
+      assert.equal(loginResponse.statusCode, 200);
+      const token = loginResponse.json().token as string;
+      assert.equal(token.split(".").length, 3);
+
+      const listResponse = await readOnlyApp.inject({
+        method: "GET",
+        url: "/v1/admin/services",
+        headers: authHeaders(token)
+      });
+
+      assert.equal(listResponse.statusCode, 200);
+      assert.equal(listResponse.json().items.length, 1);
+
+      const adminWriteResponse = await readOnlyApp.inject({
+        method: "POST",
+        url: "/v1/admin/services",
+        headers: authHeaders(token),
+        payload: {
+          nome: "Servico Bloqueado",
+          duracaoMin: 45,
+          precoBase: 80,
+          exigeSinal: false
+        }
+      });
+
+      assert.equal(adminWriteResponse.statusCode, 503);
+      assert.equal(adminWriteResponse.json().error, "degraded_mode_write_blocked");
+
+      const publicWriteResponse = await readOnlyApp.inject({
+        method: "POST",
+        url: `/v1/public/tenants/${onboarding.tenant.slug}/bookings`,
+        payload: {
+          serviceId: "svc-test",
+          professionalId: "prof-test",
+          startAt: "2030-01-01T10:00:00",
+          endAt: "2030-01-01T11:00:00",
+          client: {
+            nome: "Cliente Read Only",
+            telefone: "11999999999",
+            email: "readonly@agendaai.test",
+            origem: "site"
+          }
+        }
+      });
+
+      assert.equal(publicWriteResponse.statusCode, 503);
+      assert.equal(publicWriteResponse.json().error, "degraded_mode_write_blocked");
+    } finally {
+      await readOnlyApp.close();
+    }
+  } finally {
+    await writerApp.close();
   }
 });
 

@@ -64,6 +64,12 @@ import {
   type ServicePatchInput
 } from "./store";
 import {
+  AdminSessionTokenError,
+  resolveAdminJwtSecret,
+  signAdminSessionToken,
+  verifyAdminSessionToken
+} from "./admin-session-token";
+import {
   createMercadoPagoGateway,
   MercadoPagoApiError,
   type MercadoPagoGateway
@@ -87,6 +93,8 @@ export interface BuildApiRestAppOptions {
   readonly logger?: boolean;
   readonly store?: ApiRestStorePort;
   readonly mercadoPagoGateway?: MercadoPagoGateway;
+  readonly adminJwtSecret?: string;
+  readonly readOnlyMode?: boolean;
 }
 
 class ApiHttpError extends Error {
@@ -113,6 +121,19 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
   const store = options.store ?? createConfiguredStore();
   const mercadoPagoGateway = options.mercadoPagoGateway ?? createMercadoPagoGateway();
+  const adminJwtSecret = resolveAdminJwtSecret(options.adminJwtSecret);
+  const readOnlyMode = options.readOnlyMode ?? parseBooleanEnv(process.env.READ_ONLY_MODE);
+
+  app.addHook("preHandler", async (request, reply) => {
+    if (!readOnlyMode || isReadOnlyAllowedRequest(request)) {
+      return;
+    }
+
+    reply.status(503).send({
+      error: "degraded_mode_write_blocked",
+      message: "This runtime is in degraded read-only mode. Retry this write against the primary API."
+    });
+  });
 
   app.setErrorHandler((error, _request, reply) => {
     const runtimeError = asErrorLike(error);
@@ -122,6 +143,14 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
         error: "validation_error",
         message: "Request body failed schema validation.",
         issues: runtimeError.issues
+      });
+      return;
+    }
+
+    if (runtimeError instanceof AdminSessionTokenError) {
+      reply.status(401).send({
+        error: runtimeError.code,
+        message: runtimeError.message
       });
       return;
     }
@@ -279,6 +308,21 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
     contractVersion
   }));
 
+  app.get("/ready", async (_request, reply) => {
+    const readiness = await store.checkReadiness();
+    if (!readiness.ready) {
+      reply.status(503);
+    }
+
+    return {
+      serviceName: "@agendaai/api-rest",
+      status: readiness.ready ? "ready" : "not_ready",
+      contractVersion,
+      storage: readiness.storage,
+      reason: readiness.reason
+    };
+  });
+
   app.post("/v1/onboarding/tenants", async (request, reply) => {
     const body = requireRecord(request.body);
     const command = createTenantSchema.parse({
@@ -288,7 +332,10 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 
     const result = await store.createTenant(command);
     reply.status(201);
-    return result;
+    return {
+      ...result,
+      session: issueAdminSession(result.session, adminJwtSecret)
+    };
   });
 
   app.post("/v1/admin/auth/sessions", async (request) => {
@@ -300,7 +347,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
       throw new ApiHttpError(401, "invalid_credentials", "Email or password is invalid.");
     }
 
-    return session;
+    return issueAdminSession(session, adminJwtSecret);
   });
 
   app.get("/v1/public/tenants/:slug", async (request) => {
@@ -536,7 +583,7 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
   app.register(
     async (adminRoutes) => {
       adminRoutes.addHook("preHandler", async (request, reply) => {
-        await authenticateAdminRequest(store, request, reply);
+        await authenticateAdminRequest(request, reply, adminJwtSecret);
       });
 
       adminRoutes.get("/auth/session", async (request) => {
@@ -1464,9 +1511,9 @@ export function buildApiRestApp(options: BuildApiRestAppOptions = {}): FastifyIn
 }
 
 async function authenticateAdminRequest(
-  store: ApiRestStorePort,
   request: FastifyRequest,
-  reply: FastifyReply
+  reply: FastifyReply,
+  adminJwtSecret: string
 ): Promise<void> {
   const authorization = request.headers.authorization;
   if (!authorization || !authorization.startsWith("Bearer ")) {
@@ -1478,16 +1525,20 @@ async function authenticateAdminRequest(
   }
 
   const token = authorization.slice("Bearer ".length).trim();
-  const session = await store.getSession(token);
-  if (!session) {
+  try {
+    const claims = verifyAdminSessionToken(token, adminJwtSecret);
+    request.adminSession = {
+      token,
+      claims
+    };
+  } catch (error) {
+    const runtimeError = asErrorLike(error);
     reply.status(401).send({
-      error: "invalid_session",
-      message: "Bearer token does not map to an active admin session."
+      error:
+        runtimeError instanceof AdminSessionTokenError ? runtimeError.code : "invalid_session",
+      message: runtimeError.message
     });
-    return;
   }
-
-  request.adminSession = session;
 }
 
 function requireAdminSession(request: FastifyRequest): AdminSessionRecord {
@@ -1496,6 +1547,40 @@ function requireAdminSession(request: FastifyRequest): AdminSessionRecord {
   }
 
   return request.adminSession;
+}
+
+function issueAdminSession(session: AdminSessionRecord, adminJwtSecret: string): AdminSessionRecord {
+  return {
+    token: signAdminSessionToken(session.claims, adminJwtSecret),
+    claims: session.claims
+  };
+}
+
+function parseBooleanEnv(value: string | undefined): boolean {
+  if (!value) {
+    return false;
+  }
+
+  return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
+}
+
+function isReadOnlyAllowedRequest(request: FastifyRequest): boolean {
+  const method = request.method.toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") {
+    return true;
+  }
+
+  const routePath = readRequestPath(request);
+  return method === "POST" && routePath === "/v1/admin/auth/sessions";
+}
+
+function readRequestPath(request: FastifyRequest): string {
+  const routePath = request.routeOptions.url;
+  if (typeof routePath === "string" && routePath.length > 0) {
+    return routePath;
+  }
+
+  return request.url.split("?")[0] ?? request.url;
 }
 
 function parseCredentials(payload: Record<string, unknown>): { email: string; password: string } {

@@ -26,6 +26,7 @@ import type {
 
 import {
   ApiRestStore,
+  type ApiRestReadinessStatus,
   type AdminSessionRecord,
   type ApiRestStorePort,
   type ApiRestStoreSnapshot,
@@ -124,14 +125,29 @@ export class PostgresApiRestStore implements ApiRestStorePort {
 
   async login(email: string, password: string): Promise<AdminSessionRecord | undefined> {
     await this.ensureReady();
-    const session = this.store.login(email, password);
-    await this.persistSnapshot();
-    return session;
+    return this.store.login(email, password);
   }
 
   async getSession(token: string): Promise<AdminSessionRecord | undefined> {
     await this.ensureReady();
     return this.store.getSession(token);
+  }
+
+  async checkReadiness(): Promise<ApiRestReadinessStatus> {
+    try {
+      await this.ensureReady();
+      await this.pool.query("select 1");
+      return {
+        ready: true,
+        storage: "postgres"
+      };
+    } catch (error) {
+      return {
+        ready: false,
+        storage: "postgres",
+        reason: toReadinessReason(error)
+      };
+    }
   }
 
   async getTenantById(tenantId: string) {
@@ -1117,4 +1133,11 @@ async function deleteMissingRows(
   }
 
   await queryable.query(`delete from ${tableName} where not (id = any($1::text[]))`, [ids]);
+}
+
+function toReadinessReason(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return "postgres_unreachable";
 }

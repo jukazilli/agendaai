@@ -6,6 +6,7 @@ import { createConfiguredStore, PostgresApiRestStore } from "./postgres-store";
 export { buildApiRestApp, type BuildApiRestAppOptions } from "./app";
 export {
   ApiRestStore,
+  type ApiRestReadinessStatus,
   type ApiRestStorePort,
   type AdminSessionRecord,
   type ApiRestStoreSnapshot,

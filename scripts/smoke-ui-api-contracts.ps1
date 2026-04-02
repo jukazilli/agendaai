@@ -1,5 +1,5 @@
 param(
-  [string]$BaseUrl = "https://agendaai-eu7w.onrender.com",
+  [string]$BaseUrl = "https://api.agendaai.com",
   [string]$Slug = "demo-studio-20260317",
   [string]$Email = "owner@agendaai.demo",
   [string]$Password = "agendaai-demo",

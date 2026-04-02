@@ -61,6 +61,38 @@ pnpm --filter @agendaai/api-rest db:reset:staging
 
 O comando recria as tabelas do runtime, reseeda o tenant demo e valida o login administrativo basico no final da execucao.
 
+## Failover ativo-passivo
+
+O corte inicial de failover do backend passa a operar assim:
+
+- `Render` como writer primario
+- `Vercel` como runtime secundario em `READ_ONLY_MODE=true`
+- `Cloudflare Worker` em `api.agendaai.com` como gateway estavel
+
+O objetivo desta fase nao e manter escrita plena no fallback. O escopo ativo e:
+
+- leituras publicas
+- login administrativo
+- validacao de sessao administrativa
+- leituras administrativas
+
+Quando o primario estiver indisponivel:
+
+- `GET` e `HEAD` podem cair para o runtime secundario
+- `POST /v1/admin/auth/sessions` pode cair para o runtime secundario
+- mutacoes de negocio retornam `503 degraded_mode_write_blocked`
+
+Variaveis de ambiente publicadas que passam a ser obrigatorias neste desenho:
+
+- `DATABASE_URL`
+- `ADMIN_JWT_SECRET`
+- `READ_ONLY_MODE`
+
+O `api-rest` agora tambem expoe:
+
+- `GET /health` como liveness
+- `GET /ready` como readiness real do runtime com Postgres
+
 ## Leitura recomendada
 
 1. `docs/01_conceito_e_briefing/05_briefing_arquitetural_estruturado_mae.md`

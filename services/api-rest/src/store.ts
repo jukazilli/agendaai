@@ -66,6 +66,16 @@ export interface AdminSessionRecord {
   readonly claims: AdminSessionClaimsContract;
 }
 
+export interface ApiRestReadinessStatus {
+  readonly ready: boolean;
+  readonly storage: "memory" | "postgres";
+  readonly reason?: string;
+}
+
+interface ApiRestStoreOptions {
+  readonly readiness?: ApiRestReadinessStatus;
+}
+
 export interface PublicTenantProfile {
   readonly slug: string;
   readonly nome: string;
@@ -236,6 +246,7 @@ export interface ApiRestStorePort {
   createTenant(command: CreateTenantCommand): MaybePromise<TenantOnboardingResult>;
   login(email: string, password: string): MaybePromise<AdminSessionRecord | undefined>;
   getSession(token: string): MaybePromise<AdminSessionRecord | undefined>;
+  checkReadiness(): MaybePromise<ApiRestReadinessStatus>;
   getTenantById(tenantId: string): MaybePromise<Tenant | undefined>;
   getTenantBySlug(slug: string): MaybePromise<Tenant | undefined>;
   getPublicTenantProfile(slug: string): MaybePromise<PublicTenantProfile | undefined>;
@@ -437,9 +448,15 @@ export class ApiRestStore implements ApiRestStorePort {
   private readonly bookings = new Map<string, Booking>();
   private readonly reportDefinitions = new Map<string, ReportDefinition>();
   private readonly sessions = new Map<string, AdminSessionRecord>();
+  private readonly readiness: ApiRestReadinessStatus;
   private isApplyingAutomaticSettlements = false;
 
-  constructor(snapshot?: ApiRestStoreSnapshot) {
+  constructor(snapshot?: ApiRestStoreSnapshot, options: ApiRestStoreOptions = {}) {
+    this.readiness = options.readiness ?? {
+      ready: false,
+      storage: "memory",
+      reason: "database_url_not_configured"
+    };
     if (snapshot) {
       this.restoreSnapshot(snapshot);
     }
@@ -480,7 +497,7 @@ export class ApiRestStore implements ApiRestStorePort {
     this.adminUserIdsByEmail.set(adminUser.email, adminUser.id);
 
     this.ensureFinancialDefaults();
-    const session = this.issueSession(adminUser);
+    const session = this.buildSession(adminUser);
 
     return {
       tenant,
@@ -500,11 +517,15 @@ export class ApiRestStore implements ApiRestStorePort {
       return undefined;
     }
 
-    return this.issueSession(adminUser);
+    return this.buildSession(adminUser);
   }
 
   getSession(token: string): AdminSessionRecord | undefined {
     return this.sessions.get(token);
+  }
+
+  checkReadiness(): ApiRestReadinessStatus {
+    return this.readiness;
   }
 
   getTenantById(tenantId: string): Tenant | undefined {
@@ -1916,8 +1937,8 @@ export class ApiRestStore implements ApiRestStorePort {
     return true;
   }
 
-  private issueSession(adminUser: StoredAdminUser): AdminSessionRecord {
-    const session: AdminSessionRecord = {
+  private buildSession(adminUser: StoredAdminUser): AdminSessionRecord {
+    return {
       token: randomUUID(),
       claims: {
         actor: "admin_user",
@@ -1926,9 +1947,6 @@ export class ApiRestStore implements ApiRestStorePort {
         role: adminUser.role
       }
     };
-
-    this.sessions.set(session.token, session);
-    return session;
   }
 
   private assertSlugAvailable(slug: string): void {

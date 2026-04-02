@@ -7,7 +7,8 @@ import type {
   TenantBranding
 } from "@agendaai/contracts";
 
-const DEFAULT_API_BASE_URL = "http://127.0.0.1:3333";
+const DEFAULT_API_BASE_URL =
+  process.env.NODE_ENV === "development" ? "http://127.0.0.1:3333" : "https://api.agendaai.com";
 
 export interface PublicTenantProfile {
   readonly slug: string;

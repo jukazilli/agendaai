@@ -691,7 +691,7 @@ const ADMIN_PROFILE_EMAIL_STORAGE_KEY = "agendaai.admin.profileEmail";
 const DEV_ROLE_OVERRIDE_STORAGE_KEY = "agendaai.admin.devRoleOverride";
 const DEPLOY_ADMIN_API_BASE_URL =
   (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() ||
-  DEFAULT_ADMIN_API_BASE_URL;
+  (import.meta.env.DEV ? "http://127.0.0.1:3333" : DEFAULT_ADMIN_API_BASE_URL);
 const BOOKING_BASE_URL =
   (import.meta.env.VITE_BOOKING_BASE_URL as string | undefined)?.trim() ||
   "http://127.0.0.1:3000";
