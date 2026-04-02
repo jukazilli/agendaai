@@ -60,3 +60,10 @@ Corrigir a divergencia entre a home publica do `booking-web`, o slug demo realme
 - o preview `4J8SpyPFp` da branch `feat/admin-web-redesign-foundation` falhou na Vercel em `2 de abril de 2026` por `Module not found: Can't resolve '@agendaai/ui'`;
 - a causa era contratual: o projeto `agendaai-booking-web` buildava o app sem preparar `packages/ui/dist`;
 - o ajuste aplicado foi mover a preparacao de `@agendaai/ui` para o script `build` do proprio `booking-web`, para que qualquer build remoto do app passe a materializar o workspace antes do `next build`.
+- o preview seguinte `7PQvFwnMD3oCTwcrpoYv1KcVgeiM` ficou `READY`, publicou `agendaai-booking-web-git-feat-admin-232d81-feather-tecnologias.vercel.app` e confirmou o redirect `/demo-studio -> /demo-studio-20260317`.
+
+## 8. Estado do gap no Render
+
+- a conta autenticada no dashboard do Render em `2 de abril de 2026` expunha apenas o workspace `SOBERANIA.TECH`;
+- nesse workspace so havia o servico `vello-food-api`, suspenso;
+- nao apareceu nenhum servico, projeto ou workspace do `agendaai`, portanto o gap atual do primario no Render permanece bloqueado por acesso ao workspace correto, e nao por ausencia de blueprint no repositorio.
