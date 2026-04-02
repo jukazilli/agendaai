@@ -25,7 +25,10 @@ export default {
       primaryTargetUrl,
       resolveTimeoutMs(env.PRIMARY_TIMEOUT_MS, DEFAULT_PRIMARY_TIMEOUT_MS)
     );
-    if (primaryResult.response && !shouldFailover(primaryResult.response.status)) {
+    if (
+      primaryResult.response &&
+      !shouldFailover(primaryResult.response.status, requestKey)
+    ) {
       return decorateGatewayResponse(primaryResult.response, "render", false);
     }
 
@@ -88,7 +91,11 @@ function resolveTimeoutMs(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function shouldFailover(statusCode: number): boolean {
+function shouldFailover(statusCode: number, requestKey?: string): boolean {
+  if (requestKey === "GET /ready" && statusCode === 404) {
+    return true;
+  }
+
   return FAILOVER_STATUS_CODES.has(statusCode);
 }
 
