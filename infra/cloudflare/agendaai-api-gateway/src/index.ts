@@ -3,6 +3,7 @@ interface Env {
   SECONDARY_API_ORIGIN: string;
   PRIMARY_TIMEOUT_MS?: string;
   SECONDARY_TIMEOUT_MS?: string;
+  SECONDARY_VERCEL_PROTECTION_BYPASS_SECRET?: string;
 }
 
 type GatewayOrigin = "render" | "vercel";
@@ -19,7 +20,11 @@ export default {
     const primaryTargetUrl = buildTargetUrl(requestUrl, env.PRIMARY_API_ORIGIN);
     const secondaryTargetUrl = buildTargetUrl(requestUrl, env.SECONDARY_API_ORIGIN);
 
-    const primaryResult = await proxyRequest(request, primaryTargetUrl, resolveTimeoutMs(env.PRIMARY_TIMEOUT_MS, DEFAULT_PRIMARY_TIMEOUT_MS));
+    const primaryResult = await proxyRequest(
+      request,
+      primaryTargetUrl,
+      resolveTimeoutMs(env.PRIMARY_TIMEOUT_MS, DEFAULT_PRIMARY_TIMEOUT_MS)
+    );
     if (primaryResult.response && !shouldFailover(primaryResult.response.status)) {
       return decorateGatewayResponse(primaryResult.response, "render", false);
     }
@@ -31,7 +36,8 @@ export default {
     const secondaryResult = await proxyRequest(
       request,
       secondaryTargetUrl,
-      resolveTimeoutMs(env.SECONDARY_TIMEOUT_MS, DEFAULT_SECONDARY_TIMEOUT_MS)
+      resolveTimeoutMs(env.SECONDARY_TIMEOUT_MS, DEFAULT_SECONDARY_TIMEOUT_MS),
+      env.SECONDARY_VERCEL_PROTECTION_BYPASS_SECRET
     );
 
     if (secondaryResult.response) {
@@ -45,13 +51,20 @@ export default {
 async function proxyRequest(
   originalRequest: Request,
   targetUrl: URL,
-  timeoutMs: number
+  timeoutMs: number,
+  protectionBypassSecret?: string
 ): Promise<{ response?: Response; error?: string }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort("request_timeout"), timeoutMs);
 
   try {
     const forwardedRequest = new Request(targetUrl.toString(), originalRequest.clone());
+    if (protectionBypassSecret && protectionBypassSecret.trim().length > 0) {
+      forwardedRequest.headers.set(
+        "x-vercel-protection-bypass",
+        protectionBypassSecret.trim()
+      );
+    }
     const response = await fetch(forwardedRequest, {
       signal: controller.signal
     });
