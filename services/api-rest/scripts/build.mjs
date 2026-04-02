@@ -17,6 +17,7 @@ await build({
   outfile: path.join(distDir, "index.js"),
   bundle: true,
   format: "esm",
+  packages: "external",
   platform: "node",
   target: "node22",
   alias: {
