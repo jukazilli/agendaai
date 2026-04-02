@@ -2,6 +2,7 @@ interface Env {
   PRIMARY_API_ORIGIN: string;
   SECONDARY_API_ORIGIN: string;
   PRIMARY_TIMEOUT_MS?: string;
+  PRIMARY_WRITE_TIMEOUT_MS?: string;
   SECONDARY_TIMEOUT_MS?: string;
   SECONDARY_VERCEL_PROTECTION_BYPASS_SECRET?: string;
 }
@@ -9,6 +10,7 @@ interface Env {
 type GatewayOrigin = "render" | "vercel";
 
 const DEFAULT_PRIMARY_TIMEOUT_MS = 2500;
+const DEFAULT_PRIMARY_WRITE_TIMEOUT_MS = 10000;
 const DEFAULT_SECONDARY_TIMEOUT_MS = 5000;
 const FAILOVER_STATUS_CODES = new Set([502, 503, 504]);
 const FALLBACK_WRITE_ALLOWLIST = new Set(["POST /v1/admin/auth/sessions"]);
@@ -17,13 +19,16 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const requestUrl = new URL(request.url);
     const requestKey = `${request.method.toUpperCase()} ${requestUrl.pathname}`;
+    const primaryTimeoutMs = isReadRequest(request.method)
+      ? resolveTimeoutMs(env.PRIMARY_TIMEOUT_MS, DEFAULT_PRIMARY_TIMEOUT_MS)
+      : resolveTimeoutMs(env.PRIMARY_WRITE_TIMEOUT_MS, DEFAULT_PRIMARY_WRITE_TIMEOUT_MS);
     const primaryTargetUrl = buildTargetUrl(requestUrl, env.PRIMARY_API_ORIGIN);
     const secondaryTargetUrl = buildTargetUrl(requestUrl, env.SECONDARY_API_ORIGIN);
 
     const primaryResult = await proxyRequest(
       request,
       primaryTargetUrl,
-      resolveTimeoutMs(env.PRIMARY_TIMEOUT_MS, DEFAULT_PRIMARY_TIMEOUT_MS)
+      primaryTimeoutMs
     );
     if (
       primaryResult.response &&
@@ -100,12 +105,16 @@ function shouldFailover(statusCode: number, requestKey?: string): boolean {
 }
 
 function isFallbackAllowed(requestKey: string, method: string): boolean {
-  const normalizedMethod = method.toUpperCase();
-  if (normalizedMethod === "GET" || normalizedMethod === "HEAD") {
+  if (isReadRequest(method)) {
     return true;
   }
 
   return FALLBACK_WRITE_ALLOWLIST.has(requestKey);
+}
+
+function isReadRequest(method: string): boolean {
+  const normalizedMethod = method.toUpperCase();
+  return normalizedMethod === "GET" || normalizedMethod === "HEAD";
 }
 
 function decorateGatewayResponse(
