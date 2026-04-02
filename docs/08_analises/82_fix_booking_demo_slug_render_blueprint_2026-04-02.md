@@ -54,3 +54,9 @@ Corrigir a divergencia entre a home publica do `booking-web`, o slug demo realme
 - o `404` do `booking-web` na CTA inicial deixa de acontecer apos novo deploy com este corte;
 - o slug demo fica coerente entre docs, seed e URL publicada;
 - o primario do Render deixa de depender de configuracao manual dispersa e passa a ter blueprint versionado para o `api-rest`.
+
+## 7. Validacao de deploy em branch
+
+- o preview `4J8SpyPFp` da branch `feat/admin-web-redesign-foundation` falhou na Vercel em `2 de abril de 2026` por `Module not found: Can't resolve '@agendaai/ui'`;
+- a causa era contratual: o projeto `agendaai-booking-web` buildava o app sem preparar `packages/ui/dist`;
+- o ajuste aplicado foi mover a preparacao de `@agendaai/ui` para o script `build` do proprio `booking-web`, para que qualquer build remoto do app passe a materializar o workspace antes do `next build`.
