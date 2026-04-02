@@ -3,6 +3,7 @@ import type { ApiRestStorePort } from "../src/store";
 export const DEMO_OWNER_EMAIL = "owner@agendaai.demo";
 export const DEMO_OWNER_PASSWORD = "agendaai-demo";
 export const DEMO_OWNER_PHONE = "11999990000";
+export const DEMO_TENANT_SLUG = "demo-studio-20260317";
 
 interface SeedDemoOptions {
   readonly slug?: string;
@@ -12,7 +13,7 @@ export async function seedDemoTenant(
   store: ApiRestStorePort,
   options: SeedDemoOptions = {}
 ) {
-  const slug = options.slug ?? process.env.AGENDAAI_DEMO_SLUG ?? "demo-studio";
+  const slug = options.slug ?? process.env.AGENDAAI_DEMO_SLUG ?? DEMO_TENANT_SLUG;
 
   let tenant = await store.getTenantBySlug(slug);
 

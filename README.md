@@ -69,6 +69,10 @@ O corte inicial de failover do backend passa a operar assim:
 - `Vercel` como runtime secundario em `READ_ONLY_MODE=true`
 - `Cloudflare Worker` em `api.agendaai.com` como gateway estavel
 
+Enquanto `agendaai.com` nao estiver na conta Cloudflare usada para o failover, o hostname publicado e:
+
+- `https://api.planetaexplorer.site`
+
 O objetivo desta fase nao e manter escrita plena no fallback. O escopo ativo e:
 
 - leituras publicas
@@ -92,6 +96,10 @@ O `api-rest` agora tambem expoe:
 
 - `GET /health` como liveness
 - `GET /ready` como readiness real do runtime com Postgres
+
+Slug demo validada no staging atual:
+
+- `https://agendaai-booking-web.vercel.app/demo-studio-20260317`
 
 ## Leitura recomendada
 

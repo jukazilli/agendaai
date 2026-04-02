@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: agendaai-api-rest
+    runtime: node
+    plan: free
+    branch: main
+    autoDeploy: true
+    buildCommand: corepack enable && corepack prepare pnpm@9.11.0 --activate && pnpm install --frozen-lockfile && pnpm --filter @agendaai/contracts build && pnpm --filter @agendaai/domain build && pnpm --filter @agendaai/api-rest build
+    startCommand: pnpm --filter @agendaai/api-rest start
+    healthCheckPath: /ready
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_JWT_SECRET
+        sync: false
+      - key: READ_ONLY_MODE
+        value: "false"
+      - key: AGENDAAI_DEMO_SLUG
+        value: demo-studio-20260317

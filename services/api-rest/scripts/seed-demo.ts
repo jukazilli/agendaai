@@ -1,5 +1,5 @@
 import { PostgresApiRestStore } from "../src/postgres-store";
-import { seedDemoTenant } from "./seed-demo-lib";
+import { DEMO_TENANT_SLUG, seedDemoTenant } from "./seed-demo-lib";
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
@@ -9,7 +9,7 @@ async function main() {
 
   const store = new PostgresApiRestStore({ connectionString });
   try {
-    const slug = process.env.AGENDAAI_DEMO_SLUG ?? "demo-studio";
+    const slug = process.env.AGENDAAI_DEMO_SLUG ?? DEMO_TENANT_SLUG;
     const existingTenant = await store.getTenantBySlug(slug);
     const seeded = await seedDemoTenant(store, { slug });
     console.log(

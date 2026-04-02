@@ -1,7 +1,12 @@
 import { Pool } from "pg";
 
 import { PostgresApiRestStore } from "../src/postgres-store";
-import { DEMO_OWNER_EMAIL, DEMO_OWNER_PASSWORD, seedDemoTenant } from "./seed-demo-lib";
+import {
+  DEMO_OWNER_EMAIL,
+  DEMO_OWNER_PASSWORD,
+  DEMO_TENANT_SLUG,
+  seedDemoTenant
+} from "./seed-demo-lib";
 
 async function main() {
   const connectionString = process.env.DATABASE_URL;
@@ -9,7 +14,7 @@ async function main() {
     throw new Error("DATABASE_URL is required to reset staging.");
   }
 
-  const slug = process.env.AGENDAAI_DEMO_SLUG ?? "demo-studio";
+  const slug = process.env.AGENDAAI_DEMO_SLUG ?? DEMO_TENANT_SLUG;
   const pool = new Pool({
     connectionString,
     max: 1
