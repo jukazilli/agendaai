@@ -10,5 +10,25 @@ export default async function handler(
   request: IncomingMessage,
   response: ServerResponse
 ): Promise<void> {
-  await handleVercelApiRestRequest(request, response);
+  try {
+    await handleVercelApiRestRequest(request, response);
+  } catch (error) {
+    console.error("vercel_api_rest_handler_failed", error);
+
+    if (response.headersSent) {
+      if (!response.writableEnded) {
+        response.end();
+      }
+      return;
+    }
+
+    response.statusCode = 500;
+    response.setHeader("content-type", "application/json; charset=utf-8");
+    response.end(
+      JSON.stringify({
+        error: "vercel_handler_failed",
+        message: error instanceof Error ? error.message : "unknown_error"
+      })
+    );
+  }
 }
